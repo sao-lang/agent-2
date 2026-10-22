@@ -35,9 +35,14 @@ DOMAIN_TERMS = (
 
 # ---------------------------------------------------------------- 基础设施
 
-def hash_embed(text: str, dim: int = 256) -> list[float]:
+def hash_embed(text: str, dim: int = 256, unit: str = "word") -> list[float]:
+    """字哈希向量。unit="char" 时退化成极弱的字面匹配（本章用来模拟向量失效）。"""
     vec = [0.0] * dim
-    for token in re.findall(r"[\u4e00-\u9fff]|[a-zA-Z0-9]+", text.lower()):
+    if unit == "char":
+        tokens: list[str] = list(text)
+    else:
+        tokens = re.findall(r"[\u4e00-\u9fff]|[a-zA-Z0-9]+", text.lower())
+    for token in tokens:
         h = int(hashlib.md5(token.encode()).hexdigest()[:8], 16)
         vec[h % dim] += 1.0
     norm = math.sqrt(sum(v * v for v in vec)) or 1.0
