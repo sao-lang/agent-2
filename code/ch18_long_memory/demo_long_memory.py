@@ -1,7 +1,7 @@
-"""第 17 章示例：三层长期记忆的写入、冲突、衰减与隔离（不需要 API）。
+"""第 18 章示例：三层长期记忆的写入、冲突、衰减与隔离（不需要 API）。
 
 运行：
-    python code/ch17_long_memory/demo_long_memory.py
+    python code/ch18_long_memory/demo_long_memory.py
 
 演示五件事：
   1. 语义记忆的去重与冲突（用户改口怎么办）
@@ -46,7 +46,7 @@ def main() -> None:
     if r3["action"] == "superseded":
         print(f"    旧内容：{r3['old_content']}")
         print(f"    冲突度：{r3['conflict_ratio']}  需要人工确认：{r3['needs_review']}")
-    print("  → 高冲突场景（'过敏'vs'不过敏'）必须人工确认，否则会误伤用户")
+    print("  -> 高冲突场景（'过敏'vs'不过敏'）必须人工确认，否则会误伤用户")
 
     print("\n" + "=" * 72)
     print("② 情景记忆：只增不改 + 时间衰减")
@@ -68,7 +68,7 @@ def main() -> None:
                        key=lambda x: x[0].created_at, reverse=True):
         age = int((now - m.created_at) / 86400)
         print(f"  {m.content:<34}{age:>6}{s:>8.3f}")
-    print("  → 分数随时间衰减：60 天前的那条几乎不会再被检索到")
+    print("  -> 分数随时间衰减：60 天前的那条几乎不会再被检索到")
 
     print("\n" + "=" * 72)
     print("③ 程序记忆：只在成功时写入")
@@ -95,8 +95,8 @@ def main() -> None:
     li = store.query(tenant_id="shop-2", user_id="u-li")
     print(f"  u-zhang 的记忆：{[m.content[:16] for m in zhang]}")
     print(f"  u-li    的记忆：{[m.content[:16] for m in li]}")
-    print("  → 同一个 key（pref.mango）在不同 scope 下完全独立")
-    print("  ⚠️  如果 query 忘了带 tenant_id，就会串号——这是最严重的数据泄露")
+    print("  -> 同一个 key（pref.mango）在不同 scope 下完全独立")
+    print("  [!]  如果 query 忘了带 tenant_id，就会串号——这是最严重的数据泄露")
 
     print("\n" + "=" * 72)
     print("⑤ 淘汰策略")
@@ -110,7 +110,7 @@ def main() -> None:
     dropped = prune(store, keep=8, **scope)
     after = len(store.query(**scope))
     print(f"  淘汰前：{before} 条    淘汰后：{after} 条    软删除：{dropped} 条")
-    print("  → 软删除（superseded_by='PRUNED'），数据没真删，可追溯")
+    print("  -> 软删除（superseded_by='PRUNED'），数据没真删，可追溯")
 
     print("\n" + "=" * 72)
     print("⑥ 检索打分公式")
@@ -120,7 +120,7 @@ def main() -> None:
     print("    · importance：这件事本身有多重要（写的时候定的）")
     print("    · 时间衰减  ：半衰期 30 天，三个月前的记忆分数只剩 1/8")
     print("    · 使用频率  ：被反复用到的记忆应该更容易被找到")
-    print("\n  ⚠️ 这个公式是起点，不是真理。你的场景可能需要调整半衰期。")
+    print("\n  [!] 这个公式是起点，不是真理。你的场景可能需要调整半衰期。")
 
     store.close()
 

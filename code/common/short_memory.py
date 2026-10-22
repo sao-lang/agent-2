@@ -20,13 +20,22 @@ from common.context import est_tokens
 
 # ============================================================ 固定槽位
 
+# 注意：这些是【原始字符串】。写 pattern 时要么用 "^\s*" 这种双反斜杠转义，
+# 要么在字符类里用单反斜杠（r"[-A-Za-z0-9]"）。混用是这里最容易踩的坑。
+_ORDER_RE = (
+    r"订单号?\s*(?:[:：]\s*|改成\s*|换成\s*|\s+)?([A-Za-z0-9][A-Za-z0-9-]{3,19})"
+)
+
 SLOT_PATTERNS: dict[str, list[str]] = {
-    "name": [r"我叫(?:做)?([\u4e00-\u9fff]{2,4})", r"我是([\u4e00-\u9fff]{2,4})"],
-    "order_id": [r"订单号?\s*[:：]?\s*([A-Za-z0-9\-]{4,20})"],
-    "budget": [r"预算\s*(?:是|为)?\s*(\d+(?:\.\d+)?)\s*(?:元|块)"],
-    "city": [r"我(?:在|住在)([\u4e00-\u9fff]{2,6})"],
+    "name": [r"我叫(?:做)?([\u4e00-\u9fff]{2,3})"],
+    "order_id": [_ORDER_RE],
+    "budget": [r"预算[^0-9]{0,6}?(\d+(?:\.\d+)?)\s*(?:元|块)"],
+    "city": [r"我?(?:在|住在)([\u4e00-\u9fff]{2,6}?)(?:[，。,.]|$)"],
     "product": [r"(?:买的|买了)([\u4e00-\u9fffA-Za-z0-9]{2,12})"],
 }
+
+# 改口信号：出现这些词时，允许覆盖已填的槽位
+OVERRIDE_MARKERS = ("改成", "换成", "更正", "改为", "不是", "重填")
 
 
 @dataclass
@@ -41,8 +50,15 @@ class Slots:
 
     values: dict[str, str] = field(default_factory=dict)
 
-    def capture(self, text: str, override: bool = False) -> list[str]:
-        """从用户消息里捕获槽位。返回本次新填/更新的槽位名。"""
+    def capture(self, text: str, override: bool | None = None) -> list[str]:
+        """从用户消息里捕获槽位。返回本次新填/更新的槽位名。
+
+        override=None（默认）时自动检测改口信号（"改成/换成/更正"…）：
+        出现信号就允许覆盖，否则已填的槽位保持不变。
+        显式传 True/False 可以强制放行或锁定。
+        """
+        if override is None:
+            override = any(k in text for k in OVERRIDE_MARKERS)
         updated = []
         for slot, pats in SLOT_PATTERNS.items():
             if slot in self.values and not override:
@@ -113,20 +129,53 @@ class ShortTermMemory:
     def add_assistant(self, text: str) -> None:
         self.messages.append({"role": "assistant", "content": text})
 
+    # 固定开销（槽位 + 工作记忆）最多占预算的这个比例，其余留给最近对话。
+    # 为什么要有上限？见 4.5 节的复现：不加限制时，槽位一多就会挤爆预算。
+    fixed_ratio: float = 0.4
+
+    # 槽位超配额时按这个优先级保留（数字越大越不能丢）。
+    # 没列出的字段默认优先级 0。
+    slot_priority: dict[str, int] = field(
+        default_factory=lambda: {"order_id": 5, "name": 4, "budget": 3, "city": 2, "product": 1}
+    )
+
+    def _render_fixed(self) -> str:
+        """渲染固定开销，并保证它自己不超过 fixed_ratio 的预算。
+
+        超了就按优先级逐字段丢弃——**宁可少一个字段，不要留半截值**。
+        """
+        fixed_budget = max(int(self.max_tokens * self.fixed_ratio), 0)
+
+        items = sorted(self.slots.values.items(), key=lambda kv: -self.slot_priority.get(kv[0], 0))
+        kept: list[str] = []
+        for k, v in items:
+            candidate = kept + [f"- {k}: {v}"]
+            if est_tokens("【已知信息（务必记住）】\n" + "\n".join(candidate)) > fixed_budget:
+                continue
+            kept = candidate
+
+        parts = []
+        if kept:
+            parts.append("【已知信息（务必记住）】\n" + "\n".join(kept))
+        working = self.working.render()
+        if working:
+            parts.append(working)
+
+        text = "\n\n".join(parts)
+        # 工作记忆也可能单独超配额：整段丢，而不是截断（截断的待办列表会误导模型）
+        return text if est_tokens(text) <= fixed_budget else "\n\n".join(kept_head for kept_head in parts[:1])
+
     def build_context(self) -> list[dict[str, Any]]:
         """组装要喂给模型的历史。
 
-        优先级：槽位 > 工作记忆 > 最近对话 > 早期对话摘要
+        优先级：槽位 > 工作记忆 > 最近对话
+        硬约束：sum(est_tokens(m["content"])) <= max_tokens
         """
-        slots_text = self.slots.render()
-        working_text = self.working.render()
+        fixed_text = self._render_fixed()
+        fixed_tokens = est_tokens(fixed_text) if fixed_text else 0
+        remain = max(self.max_tokens - fixed_tokens, 0)  # 下限是 0，不是 300
 
-        fixed = [x for x in (slots_text, working_text) if x]
-        fixed_tokens = sum(est_tokens(x) for x in fixed)
-
-        remain = max(self.max_tokens - fixed_tokens, 300)
-
-        # 最近对话：保留最近若干条，优先 assistant/user 成对
+        # 最近对话：按 token 从后往前装，装不下就停
         recent: list[dict[str, Any]] = []
         used = 0
         for m in reversed(self.messages):
@@ -138,8 +187,8 @@ class ShortTermMemory:
         recent.reverse()
 
         out: list[dict[str, Any]] = []
-        if fixed:
-            out.append({"role": "system", "content": "\n\n".join(fixed)})
+        if fixed_text and est_tokens(fixed_text) <= self.max_tokens:
+            out.append({"role": "system", "content": fixed_text})
         out.extend(recent)
         return out
 
