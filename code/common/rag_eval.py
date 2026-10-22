@@ -31,6 +31,11 @@ class EvalCase:
     # 可接受的同义说法
     alternatives: list[list[str]] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    # 答案锚点：文档里的"第几章第几节"。gold chunk 由它映射，而不是靠文本匹配。
+    # 这是"分块策略换了以后评测集还能复用"的关键（第 15 章）。
+    anchor: str = ""
+    # 样本来源：真实日志 / 人工编写 / 模型生成+人工筛
+    source: str = ""
 
 
 @dataclass
@@ -60,9 +65,25 @@ def load_cases(path: Path | str) -> list[EvalCase]:
             must_contain=r.get("must_contain", []),
             alternatives=r.get("alternatives", []),
             tags=r.get("tags", []),
+            anchor=r.get("anchor", ""),
+            source=r.get("source", ""),
         )
         for i, r in enumerate(raw)
     ]
+
+
+def is_out_of_scope(case: EvalCase) -> bool:
+    """库外问题（对抗样本）：本来就该拒答，不能算成"检索失败"。"""
+    return "库外" in case.tags or "对抗" in case.tags
+
+
+def kind_of(case: EvalCase) -> str:
+    """把样本分成 正例 / 边界 / 对抗 三类，用于切片分析。"""
+    if is_out_of_scope(case):
+        return "对抗"
+    if {"例外", "否定", "边界", "易错", "条件", "多要点", "多跳"} & set(case.tags):
+        return "边界"
+    return "正例"
 
 
 # ============================================================ L1 检索指标

@@ -33,22 +33,22 @@ def build_index(chunk_size: int, overlap: int) -> tuple[Index, dict[str, list[st
 
 
 def gold_ids_for(case, idx: Index) -> list[str]:
-    """把"答案关键词"映射到 chunk id。
+    """把"答案锚点"映射到当前分块下的 chunk id。
 
-    真实评测里 gold_ids 是人工标注的。
-    这里用"哪个块包含 must_contain 关键词"自动推导——
-    够用，但你自己的项目应该人工标注（更可靠）。
+    [!] 这里用的是**关键词匹配**来近似锚点，只为了能跑通定长切分的对比。
+    第 15 章正文用的是真正的锚点（章节号 + meta），那样换分块策略也不会失效。
     """
     return [
         c.id for c in idx.chunks
-        if all(k in c.text for k in case.must_contain) or
-           (case.must_contain and case.must_contain[0] in c.text)
+        if all(k in c.text for k in case.must_contain)
     ]
 
 
 def run_config(idx: Index, name: str) -> Report:
     results = []
     for case in CASES:
+        if "对抗" in case.tags:
+            continue  # 库外问题没有 gold，不参与 L1 评分
         retrieved = [(c.id, s) for c, s in idx.search(case.question, k=5)]
         retrieved_ids = [cid for cid, _ in retrieved]
         gold = gold_ids_for(case, idx)
@@ -96,7 +96,7 @@ def main() -> None:
     best = max(reports.values(), key=lambda r: r.summary().get("mrr", 0))
     print("\n=== 基线 vs 最优（差值） ===")
     for k, (a, b, d) in baseline.diff(best).items():
-        arrow = "↑" if d > 0.005 else ("↓" if d < -0.005 else "=")
+        arrow = "^" if d > 0.005 else ("↓" if d < -0.005 else "=")
         print(f"  {k:<26}{a:>7.3f} → {b:>7.3f}   {arrow} {d:+.3f}")
 
     # 失败样本
@@ -117,7 +117,7 @@ def main() -> None:
     print("  2. 一次只改一个变量 —— 这里只动 chunk size，overlap 固定")
     print("  3. 一定要看失败样本 —— 只报总分等于自己骗自己")
     print("  4. 指标要分层 —— recall 差还是生成差，决定了你要修哪一块")
-    print("\n  ⚠️ 这份语料只有 889 字，15 条样本，指标波动大。")
+    print("\n  [!] 这份语料只有 889 字，15 条样本，指标波动大。")
     print("     你需要在真实语料上标 50~100 条，才能得到可信的结论。")
 
 

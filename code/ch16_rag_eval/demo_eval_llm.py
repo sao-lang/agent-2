@@ -7,7 +7,7 @@
 它演示一个完整评测的四个环节：
   1. 检索 → 2. 生成（带引用） → 3. 规则校验（引用是否真实） → 4. Judge 打分（忠实度）
 
-⚠️ 最后一定会让你做一件事：**校验 judge 自己靠不靠谱**。
+[!] 最后一定会让你做一件事：**校验 judge 自己靠不靠谱**。
    否则你所有"提升了 X%"的结论都建立在流沙上。
 """
 from __future__ import annotations
@@ -58,7 +58,7 @@ def gold_ids(case, idx: Index) -> list[str]:
 def main() -> None:
     s = get_settings()
     if s.api_key in ("missing", ""):
-        print("❌ 需要 API key。请复制 .env-example 为 .env 并填入配置。")
+        print("[x] 需要 API key。请复制 .env-example 为 .env 并填入配置。")
         print("   如果只想看评测方法，请用：python code/ch15_rag_eval/demo_eval.py（离线，只跑 L1）")
         return
 
@@ -129,7 +129,7 @@ def main() -> None:
                 print(f"      答案：{r.answer[:80]}...")
 
     print("\n" + "=" * 74)
-    print("⚠️ 最后一步：校验 judge 自己")
+    print("[!] 最后一步：校验 judge 自己")
     print("=" * 74)
     print("  LLM-as-judge 也会错。你必须人工标 15~20 条，然后跑 validate_judge()。")
     print("  如果 agreement_rate < 0.8，你所有基于 judge 的结论都不可信。")
