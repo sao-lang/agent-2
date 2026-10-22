@@ -1,4 +1,4 @@
-# 第 28 章 Harness Engineering
+# 第 42 章 Harness Engineering
 
 > **这一章不引入新能力。它做的是反向索引：把前面 27 章讲过的东西，串成一个可检查、可打分、可交付的体系。**
 

@@ -529,7 +529,7 @@ def assert_meaningful(plan: Plan) -> None:
 
 | 产出 | 文件 | 后续使用 |
 |---|---|---|
-| 分级信号 | `code/common/replanning.py::ReplanSignal` | 第 26 章多 Agent |
+| 分级信号 | `code/common/replanning.py::ReplanSignal` | 第 37 章多 Agent |
 | PATCH / REPLAN_ALL | 同上 | 项目 A、B |
 | 依赖校验 `fix_deadlock` | 同上 | 所有 P&E 场景 |
 | 三级阶梯 | `code/ch08_replan/step1/2/3_*.py` | 重读时的对照材料 |

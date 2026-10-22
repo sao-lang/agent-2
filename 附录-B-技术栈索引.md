@@ -8,14 +8,14 @@
 
 | 包 | 版本 | 用在 | 学到什么程度 |
 |---|---|---|---|
-| `langgraph` | 1.2.16 | 第 5、6、9、19、25 章 | **系统学**（本书唯一必须深入的框架） |
+| `langgraph` | 1.2.16 | 第 5、6、9、20、26 章 | **系统学**（本书唯一必须深入的框架） |
 | `langchain` | 1.4.7 | 第 4、6、9 章 | 只用消息类型与少量工具封装 |
 | `langchain-openai` | 1.7.2 | 全书 | 只用 `ChatOpenAI` + `bind_tools` + `with_structured_output` |
 | `langgraph-checkpoint-sqlite` | 2.0.11 | 第 9 章 | 会 `SqliteSaver` + `get_state_history` 就够 |
 | `pydantic` | 2.14.1 | 全书 | **系统学**（结构化输出的基础） |
 | `structlog` | 26.1.0 | 第 1 章 | 了解 JSON 日志即可 |
 | `tenacity` | 9.2.1 | 第 3、8 章 | 会 `retry` + `stop_after_attempt` 即可 |
-| `numpy` | 2.x | 第 11、12 章 | 只用点积与 argsort |
+| `numpy` | 2.x | 第 12、13 章 | 只用点积与 argsort |
 
 ---
 

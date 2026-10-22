@@ -1,4 +1,4 @@
-# 第 24 章 LLMWiki（二）：生成、维护与质量
+# 第 25 章 LLMWiki（二）：生成、维护与质量
 
 > **你会遇到的坏事**：你的 wiki 有 300 条条目，看起来很美。三个月后：
 >
@@ -329,7 +329,7 @@ def log_gap(question: str, top_score: float) -> None:
 
 ### 练习 3（进阶）：把 wiki 变更接入 HITL
 
-用第 19 章的 `HitlService` 处理 `revise` 的审核环节。
+用第 20 章的 `HitlService` 处理 `revise` 的审核环节。
 
 **验收**：`needs_review=True` 的修订会生成审批卡片，批准后才发布。
 
@@ -360,10 +360,10 @@ def log_gap(question: str, top_score: float) -> None:
 
 ## 24.12 延伸阅读
 
-- 第 19 章：把审核做成 HITL
-- 第 26 章：把 wiki 质量指标纳入评测体系
+- 第 20 章：把审核做成 HITL
+- 第 37 章：把 wiki 质量指标纳入评测体系
 - 项目 C：知识中枢的完整设计
 
 ---
 
-下一页：[第 25 章 多 Agent：什么时候该拆，什么时候不该](25-多Agent.md)
+下一页：[第 26 章 多 Agent：什么时候该拆，什么时候不该](26-多Agent.md)
