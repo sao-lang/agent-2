@@ -126,8 +126,8 @@ def main() -> None:
     nonzero = [(i, x) for i, x in enumerate(v) if x]
     print(f"   维度 256，非零 {len(nonzero)} 个：{nonzero}")
     print("   一句 6 个字的句子 → 5 个二元组 → 5 个桶，其余 251 维为 0。真实 embedding 是稠密的。")
-    print(f"   和「我要退款」（只共享一个「款」字）：{cosine(v, hashed_vec('我要退款')):.3f}  ← 字不同，几乎没重叠")
-    print(f"   和「这单我不想要了」（换了说法但结构像）：{cosine(v, hashed_vec('这单我不想要了')):.3f}  ← 意思近，所以高")
+    print(f"   和「我要退款」（只共享一个「款」字）：{cosine(v, hashed_vec('我要退款')):.3f}  ← 字面不同，向量几乎不重叠")
+    print(f"   和「这单我不想要了」（换了说法但结构像）：{cosine(v, hashed_vec('这单我不想要了')):.3f}  ← 用词重叠多，所以高")
 
     print("\n" + "=" * 92)
     print("③ 原型句 + 余弦：新增一个意图只要加两句原型句（本行的 entertainment）")
