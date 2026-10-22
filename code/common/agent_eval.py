@@ -213,17 +213,28 @@ def print_diff(baseline: AgentReport, current: AgentReport) -> str:
 
     ⚠️ 方向很重要：pass_rate 上升是好事，cost 上升是坏事。
        不加方向标注，人很容易看反（这是我第一次做报表时的真实体验）。
+
+    ⚠️ 阈值也很重要：比率类指标（0~1）用绝对阈值 0.005 没问题，
+       但成本（元）和延迟（毫秒）**必须用相对阈值**——
+       否则 ¥0.008 → ¥0.003 这种"降到 1/3"会被判成"＝"，
+       因为绝对值只差了 0.005。
     """
     higher_better = {"pass_rate", "trajectory_clean_rate"}
     lower_better = {"avg_steps", "duplicate_calls", "over_budget_cases", "avg_cost", "p95_latency_ms"}
+    # 比率类指标：绝对变化 < 0.005 视为无变化；其余按相对变化 5% 判定
+    ratio_metrics = higher_better
 
     lines = [f"{'指标':<24}{'基线':>10}{'当前':>10}{'变化':>10}  评价"]
     lines.append("-" * 68)
     for k, (a, b, d) in baseline.diff(current).items():
+        if k in ratio_metrics:
+            significant = abs(d) > 0.005
+        else:
+            significant = abs(d) / max(abs(a), 1e-9) > 0.05
         if k in higher_better:
-            verdict = "✅ 变好" if d > 0.005 else ("❌ 变差" if d < -0.005 else "＝")
+            verdict = "✅ 变好" if significant and d > 0 else ("❌ 变差" if significant else "＝")
         elif k in lower_better:
-            verdict = "✅ 变好" if d < -0.005 else ("❌ 变差" if d > 0.005 else "＝")
+            verdict = "✅ 变好" if significant and d < 0 else ("❌ 变差" if significant else "＝")
         else:
             verdict = "＝"
         lines.append(f"{k:<24}{a:>10.3f}{b:>10.3f}{d:>+10.3f}  {verdict}")

@@ -1,7 +1,7 @@
-"""第 27 章示例：把一次真实故障做成合格的复盘（不需要 API）。
+"""第 38 章示例：把一次真实故障做成合格的复盘（不需要 API）。
 
 运行：
-    python code/ch27_postmortem/demo_postmortem.py
+    python code/ch38_postmortem/demo_postmortem.py
 
 展示：
   1. 一份"不合格"的复盘（大多数人写成这样）
@@ -124,7 +124,7 @@ def main() -> None:
         print(f"  {q:<10}{a:<26}{b}")
 
     print("\n" + "=" * 76)
-    print("④ 自动分类：从症状猜类型")
+    print("④ 自动分类：从症状猜类型（只给候选）")
     print("=" * 76)
     symptoms = [
         "用户问退款时效，答成了 15 天，但文档里写的是 7 天",
@@ -140,6 +140,9 @@ def main() -> None:
         print(f"              → {ft.fix_direction}")
 
     print("\n  ⚠️ 自动分类只给候选，**必须人工确认**。")
+    print("     注意第一条能命中 retrieval，是因为词表里有'文档里写的是'；")
+    print("     一旦症状换一种说法（'答了个不知道'），分类器就退回 unknown。")
+    print("     所以词表只能覆盖已经踩过的坑，新坑还是要人来看 trace。")
     print("     分类错了，修复方向就错了——你会去改 prompt，而真正的病根在索引。")
 
     print("\n" + "=" * 76)

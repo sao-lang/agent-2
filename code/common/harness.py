@@ -1,4 +1,4 @@
-"""第 28 章产出：Harness 成熟度自评 + 能力矩阵 + 一键体检。
+"""第 42 章产出：Harness 成熟度自评 + 能力矩阵 + 一键体检。
 
 Harness = Agent 之外的"运行支撑层"：
   Agent 负责"想"，Harness 负责"边界、仪表、黑匣子、刹车"。
@@ -40,16 +40,16 @@ DOMAINS = {
 
 CAPABILITIES: list[Capability] = [
     # ---- 执行边界 ----
-    Capability("perm", "boundary", "工具权限分级（只读/写/禁止）", [18],
+    Capability("perm", "boundary", "工具权限分级（只读/写/禁止）", [19],
                "模型会执行不该执行的动作（删数据、发邮件）",
                "尝试调一个未登记的工具，应被拒绝"),
-    Capability("sandbox", "boundary", "沙箱隔离（路径/网络/资源）", [20],
+    Capability("sandbox", "boundary", "沙箱隔离（路径/网络/资源）", [21],
                "Agent 能读到私钥、访问云元数据接口",
                "尝试读 ../ 路径、访问 169.254.169.254，应被拒绝"),
-    Capability("hitl", "boundary", "高危动作人工确认", [19],
+    Capability("hitl", "boundary", "高危动作人工确认", [20],
                "退款/发邮件这类不可逆动作被自动执行",
                "触发一次退款，应产生 pending 审批卡片"),
-    Capability("injection", "boundary", "提示注入防护（含间接注入）", [18],
+    Capability("injection", "boundary", "提示注入防护（含间接注入）", [19],
                "知识库被投毒后，Agent 执行注入指令",
                "构造一条含'忽略指令'的文档，应被拦截"),
 
@@ -74,46 +74,46 @@ CAPABILITIES: list[Capability] = [
     Capability("durable", "reliability", "检查点与断点续跑", [9],
                "服务重启后长任务丢失",
                "跑一半 kill 进程，重启后能从断点继续且不重复执行副作用"),
-    Capability("idempotent", "reliability", "副作用幂等", [9, 19],
+    Capability("idempotent", "reliability", "副作用幂等", [9, 20],
                "恢复后重复退款、重复发邮件",
                "同一请求 resume 两次，副作用只发生一次"),
 
     # ---- 预算 ----
-    Capability("cost_attribution", "budget", "成本分项归因", [21],
+    Capability("cost_attribution", "budget", "成本分项归因", [22],
                "只知道总账单，不知道哪个环节贵",
                "能输出按 stage 的成本占比表"),
-    Capability("three_level_budget", "budget", "三级预算（请求/会话/租户）", [21],
+    Capability("three_level_budget", "budget", "三级预算（请求/会话/租户）", [22],
                "单个用户能把全系统配额吃满",
                "构造超限请求，应被对应层级拦截"),
-    Capability("cache", "budget", "缓存（精确+语义）", [21],
+    Capability("cache", "budget", "缓存（精确+语义）", [22],
                "重复问题重复付费",
                "同一问题问 5 次，应只有 1 次真实调用"),
 
     # ---- 质量门 ----
-    Capability("eval_set", "quality", "冻结评测集（含历史故障）", [26, 27],
+    Capability("eval_set", "quality", "冻结评测集（含历史故障）", [37],
                "改了之后不知道变好还是变坏",
                "能一键跑出 pass_rate 并对比基线"),
-    Capability("trajectory_eval", "quality", "轨迹评估（步数/重复/超预算）", [26],
+    Capability("trajectory_eval", "quality", "轨迹评估（步数/重复/超预算）", [37],
                "答案对但路径蠢，成本悄悄翻倍",
                "能识别出'重复调用 3 次'的 run"),
-    Capability("stability", "quality", "稳定性检测（flaky）", [26],
+    Capability("stability", "quality", "稳定性检测（flaky）", [37],
                "同一问题时对时错，用户觉得不可靠",
                "同题跑 5 次，能识别出 pass_rate 在 0~1 之间"),
-    Capability("ci_gate", "quality", "CI 门禁（质量/成本/延迟）", [26],
+    Capability("ci_gate", "quality", "CI 门禁（质量/成本/延迟）", [37],
                "退化代码悄悄上线",
                "故意降质量，CI 应拦住"),
 
     # ---- 知识治理 ----
-    Capability("context_budget", "knowledge", "上下文预算与压缩", [10, 16],
+    Capability("context_budget", "knowledge", "上下文预算与压缩", [11, 17],
                "历史挤掉检索结果，答案跑偏",
                "能输出四槽位的使用率"),
-    Capability("memory_layers", "knowledge", "记忆分层（槽位/工作/长期）", [16, 17],
+    Capability("memory_layers", "knowledge", "记忆分层（槽位/工作/长期）", [17, 18],
                "用户 20 轮前说的事实被遗忘",
                "20 轮后仍能答对'我叫什么'"),
-    Capability("wiki", "knowledge", "结构化知识层（含例外与来源）", [23, 24],
+    Capability("wiki", "knowledge", "结构化知识层（含例外与来源）", [24, 25],
                "只能给片段，给不出'到底是什么'",
                "每个条目都有 definition/key_points/exceptions/sources"),
-    Capability("conflict", "knowledge", "知识冲突检测", [24],
+    Capability("conflict", "knowledge", "知识冲突检测", [25],
                "新旧政策并存，模型随机挑一个",
                "7 天改 15 天时，应触发人工审核"),
 ]

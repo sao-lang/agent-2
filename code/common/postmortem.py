@@ -174,7 +174,8 @@ def _minutes(a: str, b: str) -> int:
 # ============================================================ 分类器
 
 SYMPTOMS: dict[FailureType, list[str]] = {
-    FailureType.RETRIEVAL: ["未检索到", "召回为空", "答非所问", "资料里没有", "检索结果不相关"],
+    FailureType.RETRIEVAL: ["未检索到", "召回为空", "答非所问", "资料里没有", "检索结果不相关",
+                            "文档里写的是", "命中旧文档", "命中了旧", "过期文档", "检索到"],
     FailureType.TOOL: ["TOOL_ERROR", "工具报错", "参数错误", "503", "timeout", "未知动作"],
     FailureType.PLANNING: ["计划卡住", "没有重规划", "步骤不完整", "顺序错"],
     FailureType.CONTEXT: ["token 超限", "上下文截断", "忘记之前的", "被挤出"],

@@ -162,6 +162,31 @@ def test_wiki_entry_numeric_claim_traceable() -> None:
     assert verify_numeric(tampered, by_id), "篡改数字的条目必须被拒"
 
 
+# ---------------------------------------------------------------- 评测报表不退化
+
+def test_print_diff_flags_relative_cost_change() -> None:
+    """成本类指标必须用相对阈值，否则"降到 1/3"会被判成"无变化"。
+
+    第 37 章修过的真 bug：旧的 print_diff 一律用绝对阈值 0.005，
+    于是 ¥0.008 → ¥0.003 显示成 "＝"。
+    """
+    from common.agent_eval import AgentCase, AgentReport, AgentRun, print_diff, score_result, score_trajectory
+
+    case = AgentCase("t-cost", "测试", ["7 天"])
+
+    def rep(cost: float) -> AgentReport:
+        run = AgentRun(case_id=case.id, question=case.question, answer="7 天", cost=cost, latency_ms=1000)
+        return AgentReport([(case, run, score_result(run, case), score_trajectory(run, case))])
+
+    text = print_diff(rep(0.008), rep(0.003))
+    cost_line = next(line for line in text.splitlines() if line.startswith("avg_cost"))
+    assert "✅ 变好" in cost_line, cost_line
+
+    worse = print_diff(rep(0.003), rep(0.008))
+    worse_line = next(line for line in worse.splitlines() if line.startswith("avg_cost"))
+    assert "❌ 变差" in worse_line, worse_line
+
+
 # ---------------------------------------------------------------- 复盘质量门
 
 def test_postmortem_quality_gate() -> None:
