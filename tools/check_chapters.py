@@ -85,7 +85,12 @@ def outline(text: str, no: int) -> dict[str, list[str]]:
     for line in text.split("\n"):
         if line.startswith(prefix):
             label = line[3:].split(" ", 1)[0]
-            current = label.split(".", 1)[1]
+            sec = label.split(".", 1)[1]
+            if "." in sec:          # `7.8.1` 这种三级编号不算本节，正文仍挂在 7.8 下
+                if current is not None:
+                    result[current].append(line)
+                continue
+            current = sec
             result.setdefault(current, [])
             continue
         if current is not None:
