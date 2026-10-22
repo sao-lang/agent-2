@@ -74,24 +74,43 @@ def chapter_number(name: str) -> int | None:
     return int(head) if head.isdigit() and name[2:3] == "-" else None
 
 
-def outline(text: str, no: int) -> dict[str, list[str]]:
-    """把本章的二级标题按 `## N.sec 标题` 切开：{小节号: 正文行}。
+def section_of(line: str, no: int) -> str | None:
+    """`## 14.10 ✅ 验收` → `10`。不是本章二级标题时返回 None。
 
-    只认 `## N.` 开头的标题，别的章或附录的标题一概不算。
+    标题里编号后面可能是空格、也可能直接跟 emoji（`📦`），
+    所以按"读出前缀后的连续数字"来取小节号，而不是按空格切。
     """
     prefix = "## " + str(no) + "."
+    if not line.startswith(prefix):
+        return None
+    rest = line[len(prefix) :]
+    digits = ""
+    for ch in rest:
+        if not ch.isdigit():
+            break
+        digits += ch
+    if not digits:
+        return None
+    # `7.8.1` 这种三级编号不算独立小节
+    if rest[len(digits) : len(digits) + 1] == ".":
+        return None
+    return digits
+
+
+def outline(text: str, no: int) -> dict[str, list[str]]:
+    """把本章的二级标题切开：{小节号: 正文行}。"""
     result: dict[str, list[str]] = {}
     current: str | None = None
     for line in text.split("\n"):
-        if line.startswith(prefix):
-            label = line[3:].split(" ", 1)[0]
-            sec = label.split(".", 1)[1]
-            if "." in sec:          # `7.8.1` 这种三级编号不算本节，正文仍挂在 7.8 下
-                if current is not None:
-                    result[current].append(line)
-                continue
+        sec = section_of(line, no)
+        if sec is not None:
             current = sec
-            result.setdefault(current, [])
+            result.setdefault(sec, [])
+            continue
+        if line.startswith("## " + str(no) + "."):
+            # 三级编号（7.8.1）：正文继续挂在上一个小节下
+            if current is not None:
+                result[current].append(line)
             continue
         if current is not None:
             result[current].append(line)
@@ -103,10 +122,12 @@ def body_of(sections: dict[str, list[str]], sec: str) -> str:
 
 
 def check_optional_section(sections: dict[str, list[str]]) -> list[str]:
-    """N.10 必须明确写出"这一节可以先跳过"。"""
-    seg = body_of(sections, "10")
-    if seg and not any(OPTIONAL_HINT in line for line in seg.split("\n")):
-        return ["N.10 必须标注「可跳过」"]
+    """从 N.10 起，必须有一节明确写"可以先跳过"（N.10/N.11/...都算）。"""
+    tail = [sec for sec in sections if sec.isdigit() and int(sec) >= 10]
+    if not tail:
+        return ["缺少标注「可跳过」的章节（N.10 起应有可选阅读）"]
+    if not any(OPTIONAL_HINT in line for sec in tail for line in sections[sec]):
+        return ["N.10 起必须有一节标注「可跳过」"]
     return []
 
 
