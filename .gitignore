@@ -10,3 +10,7 @@ output/
 .DS_Store
 .idea/
 .vscode/settings.json
+
+# 临时文件
+.git-commit-msg.txt
+.tmp-*
