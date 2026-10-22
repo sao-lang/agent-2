@@ -1,0 +1,107 @@
+[
+  {
+    "id": "q1",
+    "question": "无理由退货几天内可以申请？",
+    "ground_truth": "签收后 7 天内，商品未拆封且不影响二次销售的可申请无理由退货。",
+    "must_contain": ["7 天"],
+    "tags": ["退货", "单跳"]
+  },
+  {
+    "id": "q2",
+    "question": "蓝牙耳机右耳有电流声可能是什么原因？",
+    "ground_truth": "三种：蓝牙编解码不匹配、耳塞网罩堵塞、电池老化。",
+    "must_contain": ["编解码", "网罩", "电池"],
+    "tags": ["故障", "多要点"]
+  },
+  {
+    "id": "q3",
+    "question": "换新流程大概要多久？",
+    "ground_truth": "整个流程通常 5 到 7 个工作日，检测确认后在 48 小时内发出新机。",
+    "must_contain": ["5 到 7 个工作日"],
+    "tags": ["时效"]
+  },
+  {
+    "id": "q4",
+    "question": "非人为质量问题运费谁承担？",
+    "ground_truth": "往返运费由商家承担。",
+    "must_contain": ["商家承担"],
+    "tags": ["运费"]
+  },
+  {
+    "id": "q5",
+    "question": "客服电话是多少？",
+    "ground_truth": "400-800-1234。",
+    "must_contain": ["400-800-1234"],
+    "tags": ["数字", "稀疏友好"]
+  },
+  {
+    "id": "q6",
+    "question": "会员退货时已使用的优惠券会返还吗？",
+    "ground_truth": "不返还。",
+    "must_contain": ["不返还"],
+    "tags": ["多跳", "会员"]
+  },
+  {
+    "id": "q7",
+    "question": "耳塞网罩堵了怎么清理？",
+    "ground_truth": "用软毛刷轻扫。",
+    "must_contain": ["软毛刷"],
+    "tags": ["操作"]
+  },
+  {
+    "id": "q8",
+    "question": "价格保护有效期是多久？",
+    "ground_truth": "签收后 15 天内商品降价可申请价保。",
+    "must_contain": ["15 天"],
+    "tags": ["时效"]
+  },
+  {
+    "id": "q9",
+    "question": "发票多久能开出来？",
+    "ground_truth": "7 个工作日内发送至预留邮箱。",
+    "must_contain": ["7 个工作日"],
+    "tags": ["发票"]
+  },
+  {
+    "id": "q10",
+    "question": "售后申请多久没处理可以转人工？",
+    "ground_truth": "3 个工作日内未处理可在 App 内点击转人工。",
+    "must_contain": ["3 个工作日"],
+    "tags": ["时效"]
+  },
+  {
+    "id": "q11",
+    "question": "定制商品可以无理由退货吗？",
+    "ground_truth": "不适用无理由退货。",
+    "must_contain": ["不适用"],
+    "tags": ["例外", "否定"]
+  },
+  {
+    "id": "q12",
+    "question": "电池老化会导致什么现象？",
+    "ground_truth": "是右耳电流声的常见原因之一。",
+    "must_contain": ["电池"],
+    "tags": ["因果"]
+  },
+  {
+    "id": "q13",
+    "question": "超出 15 天但还在保修期，能换新吗？",
+    "ground_truth": "超过 15 天但在保修期内，走维修流程。",
+    "must_contain": ["维修"],
+    "tags": ["边界", "易错"]
+  },
+  {
+    "id": "q14",
+    "question": "检测费什么时候需要买家支付？",
+    "ground_truth": "人为损坏或非质量问题退货时，需支付检测费 20 元。",
+    "must_contain": ["20 元"],
+    "tags": ["条件"]
+  },
+  {
+    "id": "q15",
+    "question": "大促期间价格保护规则一样吗？",
+    "ground_truth": "大促期间价保规则另见活动页说明。",
+    "must_contain": ["活动页"],
+    "tags": ["例外"]
+  }
+]

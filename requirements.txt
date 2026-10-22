@@ -1,0 +1,36 @@
+# 《Agent 工程化进阶》案例依赖
+#
+# Python 版本要求：3.11 ~ 3.13（3.14 下部分依赖尚未完全兼容）
+# 使用方式：在项目根目录执行
+#   python -m venv .venv
+#   .venv\Scripts\activate          # Windows PowerShell
+#   source .venv/bin/activate       # macOS / Linux
+#   pip install -r requirements.txt
+
+# ---------- 核心编排（第 4~9、19、25、28 章）----------
+langgraph==1.2.16
+langchain==1.4.7
+langchain-openai==1.7.2
+
+# ---------- 检查点持久化（第 9、19 章）----------
+langgraph-checkpoint-sqlite==2.0.11
+
+# ---------- 数据校验 / 配置 ----------
+pydantic==2.14.1
+pydantic-settings==2.13.0
+python-dotenv==1.2.1
+
+# ---------- 日志 / 重试 ----------
+structlog==26.1.0
+tenacity==9.2.1
+
+# ---------- 检索与检索评测（第 11~15 章）----------
+# 向量库用内存版即可，避免评测环境依赖 Docker
+numpy==2.3.4
+# BM25 手写实现（第 12 章），不需要额外依赖
+
+# ---------- HTTP / 工具 ----------
+httpx==0.28.1
+
+# ---------- 测试 ----------
+pytest==8.4.2
