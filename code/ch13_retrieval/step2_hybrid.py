@@ -12,9 +12,6 @@
 """
 from __future__ import annotations
 
-import math
-import re
-
 from pathlib import Path
 
 from step1_dense_failures import CASES, DenseIndex, bm25_scores, split_by_heading
@@ -97,7 +94,7 @@ def main() -> None:
     print("\n" + "=" * 84)
     print("为什么不能加权求和")
     print("=" * 84)
-    print(f"  Dense 分数的范围：0 ~ 1（余弦）")
+    print("  Dense 分数的范围：0 ~ 1（余弦）")
     print(f"  BM25 分数最高可到几十（本例 {max(bm25_scores('客服电话多少？', chunks)):.1f}）")
     print("  直接相加 → BM25 一个通道说了算，等于没做融合。")
     print()
