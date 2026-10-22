@@ -114,6 +114,21 @@ class Meter:
             "avg_ttft_ms": round(sum(r.ttft_ms for r in ok) / len(ok), 1) if ok else 0.0,
         }
 
+    def by_step(self) -> dict[str, dict[str, float]]:
+        """按 `step` 分组：{环节: {calls, cost, input_tokens, output_tokens}}。
+
+        第 1 章的练习 1 要求"知道哪一步占总成本 60% 以上"，
+        第 22 章的归因报表也建立在同一份数据上——所以放在这里，全书的示例共用。
+        """
+        out: dict[str, dict[str, float]] = {}
+        for r in self.records:
+            s = out.setdefault(r.step or "-", {"calls": 0, "cost": 0.0, "input_tokens": 0, "output_tokens": 0})
+            s["calls"] += 1
+            s["cost"] = round(s["cost"] + r.cost, 6)
+            s["input_tokens"] += r.input_tokens
+            s["output_tokens"] += r.output_tokens
+        return out
+
     def dump(self, path: Path | str) -> None:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)

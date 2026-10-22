@@ -1,7 +1,7 @@
-"""第 25 章示例：多 Agent 的判据、形态与成本对比（不需要 API）。
+"""第 26 章示例：多 Agent 的判据、形态与成本对比（不需要 API）。
 
 运行：
-    python code/ch25_multi_agent/demo_multi_agent.py
+    python code/ch26_multi_agent/demo_multi_agent.py
 
 四个部分：
   1. 三个判据：什么样的任务该拆

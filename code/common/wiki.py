@@ -124,6 +124,22 @@ class WikiStore:
         row = self.conn.execute("SELECT payload FROM entries WHERE id=?", (entry_id,)).fetchone()
         return _load(row[0]) if row else None
 
+    def refresh(self, e: WikiEntry, tenant_id: str = "default") -> WikiEntry:
+        """从库里重新读一遍后再改。
+
+        `get()` 返回的是 payload 反序列化出来的**新对象**，
+        在它上面改字段再 upsert，覆盖的是"读出来那一刻"的整份数据——
+        并发时会把别人的更新（比如刚发布的 v2）一起冲掉。
+        所以改条目统一走这里：读 → 改 → 写。
+        """
+        cur = self.get(e.id)
+        target = cur or e
+        target.status = e.status
+        target.superseded_by = e.superseded_by
+        target.updated_at = time.time()
+        self.upsert(target, tenant_id)
+        return target
+
     def list(
         self,
         status: EntryStatus | None = None,
@@ -295,6 +311,12 @@ def conflict(old: WikiEntry, new_definition: str) -> dict[str, Any]:
 # ============================================================ 生命周期
 
 def publish(store: WikiStore, entry_id: str, reviewer: str, tenant_id: str = "default") -> WikiEntry | None:
+    """把条目置为 published。
+
+    ⚠️ 发布一条"新版本"时，必须把**同主题的旧版本**一起置为 outdated，
+    否则检索会同时命中两版（第 25 章 step3 实测：v1 7 天和 v2 15 天并列返回）。
+    这里按"id 去掉 -vN 后缀"识别同主题版本。
+    """
     e = store.get(entry_id)
     if e is None:
         return None
@@ -302,6 +324,16 @@ def publish(store: WikiStore, entry_id: str, reviewer: str, tenant_id: str = "de
     e.reviewers.append(reviewer)
     e.updated_at = time.time()
     store.upsert(e, tenant_id)
+
+    root = re.sub(r"-v\d+$", "", e.id)
+    for other in store.list(include_superseded=True, tenant_id=tenant_id):
+        if other.id == e.id or other.status is not EntryStatus.PUBLISHED:
+            continue
+        if re.sub(r"-v\d+$", "", other.id) != root:
+            continue
+        other.status = EntryStatus.OUTDATED
+        other.superseded_by = e.id
+        store.upsert(other, tenant_id)
     return e
 
 

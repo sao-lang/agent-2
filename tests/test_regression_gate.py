@@ -98,6 +98,70 @@ def test_result_score_requires_all_keys() -> None:
     assert rs["missing"] == ["未拆封"]
 
 
+# ---------------------------------------------------------------- wiki 治理不退化
+
+def test_publish_supersedes_old_version() -> None:
+    """发布新版本后，旧版本必须自动 outdated，否则检索会同时命中两版。
+
+    第 25 章 step3 实测过：只改 status 不处理旧版本时，
+    "7 天"和"15 天"两条会并列返回，模型只能靠运气挑。
+    """
+    from common.wiki import EntryStatus, EntryType, WikiEntry, WikiStore, publish, revise
+
+    store = WikiStore()
+    store.upsert(
+        WikiEntry(
+            id="w-gate", title="无理由退货", type=EntryType.RULE,
+            definition="签收后 7 天内可申请无理由退货。", sources=["c2"],
+        )
+    )
+    publish(store, "w-gate", reviewer="owner")
+    r = revise(store, "w-gate", "签收后 15 天内可申请无理由退货。", reviewer="owner", auto_approve=True)
+
+    assert r["status"] == "reviewing", "数字冲突必须进审核，不能自动发布"
+    assert store.get("w-gate").status is EntryStatus.PUBLISHED, "审核期间旧版本继续生效"
+
+    publish(store, r["new_id"], reviewer="owner")
+    assert store.get("w-gate").status is EntryStatus.OUTDATED
+    assert store.get("w-gate").superseded_by == r["new_id"]
+    live = [e for e in store.list(status=EntryStatus.PUBLISHED) if "退货" in e.title]
+    assert len(live) == 1, f"同一主题不应有两个有效版本：{[e.id for e in live]}"
+    store.close()
+
+
+def test_wiki_entry_numeric_claim_traceable() -> None:
+    """条目定义里的数字必须能在它声明的 sources 原文里找到（防模型抄错）。"""
+    import re
+    from common.retrieval import Index, hash_embed, split_by_heading
+
+    def verify_numeric(e: WikiEntry, by_id: dict[str, str]) -> list[str]:
+        if any(sid not in by_id for sid in e.sources):
+            return ["chunk 不存在"]
+        text = "".join(by_id[sid] for sid in e.sources)
+        return [n for n in re.findall(r"\d+", e.definition) if n not in text]
+
+    doc = (ROOT / "data" / "售后政策手册.md").read_text(encoding="utf-8")
+    idx = Index(embed=hash_embed)
+    idx.add(split_by_heading(doc, max_chars=300))
+    by_id = {c.id: c.text for c in idx.chunks}
+
+    from common.wiki import EntryType, WikiEntry
+
+    entry = WikiEntry(
+        id="w-trace", title="无理由退货", type=EntryType.RULE,
+        definition="签收后 7 天内，商品未拆封且不影响二次销售的，可申请无理由退货。",
+        sources=["c2"],
+    )
+    assert verify_numeric(entry, by_id) == [], "真实条目必须能通过核对"
+
+    tampered = WikiEntry(
+        id="w-tampered", title="无理由退货", type=EntryType.RULE,
+        definition="签收后 30 天内，商品未拆封且不影响二次销售的，可申请无理由退货。",
+        sources=["c2"],
+    )
+    assert verify_numeric(tampered, by_id), "篡改数字的条目必须被拒"
+
+
 # ---------------------------------------------------------------- 复盘质量门
 
 def test_postmortem_quality_gate() -> None:

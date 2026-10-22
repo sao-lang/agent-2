@@ -1,7 +1,7 @@
-"""第 24 章示例：wiki 的生成、矛盾检测、版本与质量治理（不需要 API）。
+"""第 25 章示例：wiki 的生成、矛盾检测、版本与质量治理（不需要 API）。
 
 运行：
-    python code/ch24_wiki_ops/demo_wiki_ops.py
+    python code/ch25_wiki_ops/demo_wiki_ops.py
 
 五个治理环节：
   1. 生成（规则 + 模型两条路）
@@ -9,6 +9,8 @@
   3. 版本修订（旧的标 outdated，不是删掉）
   4. 过时举报（用户/系统反馈）
   5. 覆盖率与质量指标（能对业务方汇报）
+
+`step1~step3` 把这五环拆开逐个验；这个 demo 是一口气跑完的版本。
 """
 from __future__ import annotations
 
@@ -88,17 +90,24 @@ def main() -> None:
         store, entry_id,
         "签收后 10 天内，商品未拆封且不影响二次销售的，可申请无理由退货。",
         reviewer="policy-owner",
-        auto_approve=True,
+        auto_approve=True,          # 即使要求自动批准，有数字冲突也不会批
     )
     print(f"  结果：ok={r['ok']}  新 id={r['new_id']}")
     print(f"  状态：{r['status']}（自动批准={r['auto_approved']}）")
     print(f"  冲突：{r['conflict']}")
     print("\n  当前所有版本：")
     for item in store.list(include_superseded=True):
-        mark = "← 当前" if item.superseded_by is None else f"→ 被 {item.superseded_by} 取代"
+        if item.superseded_by:
+            mark = f"→ 已被 {item.superseded_by} 取代"
+        elif item.status is EntryStatus.PUBLISHED:
+            mark = "← 当前生效"
+        else:
+            mark = "← 审核中（暂不对外）"
         print(f"    v{item.version}  [{item.status.value:<9}] {item.definition[:30]}...  {mark}")
 
     print("\n  👉 为什么软删除：你要能回答'上个月客户被告知 7 天，为什么现在变成 10 天'。")
+    print("  👉 为什么 v2 在 reviewing 时 v1 还生效：审核期间不能没有可用答案。")
+    print("     只有 publish(v2) 之后，v1 才会被自动标成 outdated。")
 
     print("\n" + "=" * 76)
     print("④ 质量信号：哪些条目该被淘汰/重写")
