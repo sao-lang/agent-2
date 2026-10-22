@@ -34,7 +34,7 @@
 
 > 还有两个词后面才出现，这里先提一句：
 > - **finish_reason / stop_reason**：这次生成为什么停下来（`stop` / `length` / `tool_calls`）。`length` 就是被 `max_tokens` 截断了。
-> - **TTFT（首字延迟）**：从发请求到收到第一个 token 的时间。第 37 章专讲。
+> - **TTFT（首字延迟）**：从发请求到收到第一个 token 的时间。第 35 章专讲。
 
 ---
 
@@ -439,7 +439,7 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 
 观察：`cached_tokens` 变成多少？
 
-结论：**缓存按"前缀完全一致"命中。** 你的 system prompt 里如果拼了时间戳、用户 ID、随机数，**缓存永远不会命中**——这是最贵的一种写法。第 36 章会专门讲这个陷阱。
+结论：**缓存按"前缀完全一致"命中。** 你的 system prompt 里如果拼了时间戳、用户 ID、随机数，**缓存永远不会命中**——这是最贵的一种写法。第 34 章会专门讲这个陷阱。
 
 ---
 
@@ -493,7 +493,7 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 | `max_tokens` | 输出上限 | 按场景最小值给，**不要不设**（不设等于没有成本上限） |
 | `top_p` | 只从概率最高的累积 p 里采样 | 一般和 `temperature` 二选一，不要同时调 |
 | `stop` | 遇到这些串就停 | 结构化输出时用它防跑偏 |
-| `timeout` / `max_retries` | 超时与重试 | 超时按 P99 给，重试 2–3 次，**但要防重试风暴**（第 37 章） |
+| `timeout` / `max_retries` | 超时与重试 | 超时按 P99 给，重试 2–3 次，**但要防重试风暴**（第 35 章） |
 
 > **参数只是调味料。** 模型能力、prompt 设计、上下文质量，比调 `temperature` 重要得多。
 
@@ -507,7 +507,7 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 | 缓存命中 | prompt caching / context caching / cache hit | 各家叫法不同，命中条件都是"前缀一致" |
 | 静默截断 | silent truncation / sliding window | 有的 SDK 叫 `truncate_history` |
 | 输出腰斩 | truncated generation / hit max_tokens | 看 `finish_reason == "length"` |
-| 首字延迟 | TTFT (time to first token) | 第 37 章 |
+| 首字延迟 | TTFT (time to first token) | 第 35 章 |
 
 ### 估算工具的取舍
 
@@ -527,12 +527,12 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 | 产出 | 文件 | 后续使用 |
 |---|---|---|
 | 三种 token 估算口径 | [`code/ch02_token/step1_count_tokens.py`](code/ch02_token/step1_count_tokens.py) | 第 24 章上下文预算的基础 |
-| 成本模型与单价表 | [`code/ch02_token/step2_cost.py`](code/ch02_token/step2_cost.py) + [`code/common/meter.py`](code/common/meter.py) | 第 36 章成本工程、第 39 章计量 |
+| 成本模型与单价表 | [`code/ch02_token/step2_cost.py`](code/ch02_token/step2_cost.py) + [`code/common/meter.py`](code/common/meter.py) | 第 34 章成本工程、第 37 章计量 |
 | 窗口预算与三种失败形态 | [`code/ch02_token/step3_budget.py`](code/ch02_token/step3_budget.py) | 第 24 章上下文工程 |
 | 真实 usage 校准器 | [`code/ch02_token/step4_real_usage.py`](code/ch02_token/step4_real_usage.py) | **换模型必跑**，结果写进配置 |
 | `ContextBudget` 分配器 | [`code/common/context.py`](code/common/context.py) | 第 24 章直接复用 |
 
-**这一章和 `common/` 的关系**：`meter.py` 里的 `PRICING` 表是**全书唯一的单价来源**。第 36 章的成本优化、第 39 章的计量报表、第 43 章的评测成本，全部从这里读。**你要换模型时只改这一处。**
+**这一章和 `common/` 的关系**：`meter.py` 里的 `PRICING` 表是**全书唯一的单价来源**。第 34 章的成本优化、第 37 章的计量报表、第 41 章的评测成本，全部从这里读。**你要换模型时只改这一处。**
 
 ---
 

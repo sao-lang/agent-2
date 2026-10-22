@@ -321,7 +321,7 @@ for call in ai.tool_calls:
 
 **症状：模型会反复调用同一个工具。** 因为历史里没有"我说过要调用"这条记录，它看到一条孤立的工具结果，不知道这是自己刚查的。
 
-这个 bug 极难从输出看出来（模型看起来"很想确认"），必须看 trace（第 40 章）才发现——**历史里缺一条 assistant 消息**。
+这个 bug 极难从输出看出来（模型看起来"很想确认"），必须看 trace（第 38 章）才发现——**历史里缺一条 assistant 消息**。
 
 ---
 
@@ -377,7 +377,7 @@ ReAct 会**一路往前走不回头**：查到第 3 家发现要换维度，它�
 
 ReAct 只"想下一步"，不"审上一步"。它会自信地生成一个错误 SQL 然后执行。
 
-**该加 Reflection（第 20 章）或护栏（第 34 章）。**
+**该加 Reflection（第 20 章）或护栏（第 32 章）。**
 
 ### ✅ 适合：路径不确定、但每步都能验证
 
@@ -428,9 +428,9 @@ executor = AgentExecutor(agent=agent, tools=tools, max_iterations=5)
 
 **验收**：能说出"为什么这个错误应该被 `except` 掉，而不是让它往上冒"。
 
-### 练习 2（20 分钟）：把 ReAct 的 trace 接上第 40 章
+### 练习 2（20 分钟）：把 ReAct 的 trace 接上第 38 章
 
-用第 40 章的 `Tracer` 包住每次 `llm.invoke()` 和每次工具调用：
+用第 38 章的 `Tracer` 包住每次 `llm.invoke()` 和每次工具调用：
 
 ```python
 with tracer.span("模型调用", model="fake"):

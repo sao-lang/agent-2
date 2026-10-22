@@ -1,7 +1,7 @@
 """第 19 章 · 第 1 级：为什么 ReAct 在多步任务上会跑偏。
 
 运行：
-    python code/ch06_react_vs_plan/step1_react_drift.py
+    python code/ch19_plan_execute/step1_react_drift.py
 
 这一级不给方案，只**演示问题**。
 同一个任务（调研三家竞品），一个"走一步看一步"的流程会怎么变卦。

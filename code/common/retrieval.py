@@ -93,6 +93,9 @@ def split_by_heading(text: str, max_chars: int = 800) -> list[str]:
 
     为什么按标题切？因为标题天然是"主题边界"，
     切出来的块语义完整度远高于定长切分。
+
+    被切开的长节会保留标题前缀（`【标题】`），
+    这样块的向量才带上"这一块是关于什么的"——即 contextual chunk header。
     """
     parts = re.split(r"\n(?=#{1,6} )", text)
     out: list[str] = []
@@ -103,11 +106,52 @@ def split_by_heading(text: str, max_chars: int = 800) -> list[str]:
         if len(p) <= max_chars:
             out.append(p)
         else:
-            # 太长再退化成定长（但保留标题在前缀里，保证上下文）
-            head = p.split("\n", 1)[0]
+            head = p.split("\n", 1)[0].lstrip("# ").strip()
             for sub in split_fixed(p, max_chars, overlap=80):
-                out.append(sub if sub.startswith(head) else f"{head}\n{sub}")
+                out.append(sub if sub.startswith("#") else f"【{head}】\n{sub}")
     return out
+
+
+def split_by_tokens(text: str, max_tokens: int = 500, overlap_tokens: int = 50) -> list[str]:
+    """按 token 数切分（生产环境唯一安全的做法）。
+
+    为什么不能按字符切？第 2 章讲过：中文 1 字 ≈ 0.7 token，
+    英文 4 字符 ≈ 1 token。按字符切会让中文块**悄悄超出嵌入模型上限**，
+    被服务端静默截断——向量只覆盖了前半段，而你不报错、不知道。
+
+    这里用估算（汉字 0.7 + 其余 1/4），是本书全书统一的公式。
+    真要精确，用厂商的 tokenizer（第 2 章 step4 校准出的系数）。
+    """
+    if max_tokens <= 0:
+        raise ValueError("max_tokens 必须为正")
+
+    def est(s: str) -> float:
+        cn = sum(1 for ch in s if "\u4e00" <= ch <= "\u9fff")
+        return cn * 0.7 + (len(s) - cn) / 4
+
+    out: list[str] = []
+    buf = ""
+    for ch in text:
+        if est(buf + ch) > max_tokens:
+            out.append(buf)
+            # 回退 overlap 个字符，保证边界信息不丢
+            buf = buf[-overlap_tokens:] + ch if overlap_tokens else ch
+        else:
+            buf += ch
+    if buf.strip():
+        out.append(buf)
+    return [c for c in out if c.strip()]
+
+
+def add_chunk_header(chunk: str, header: str) -> str:
+    """给块加主题前缀（contextual chunk header）。
+
+    「签收后 7 天内可以退」这句话本身没说是关于什么的。
+    加上 `【一、无理由退货】` 之后，嵌入向量才带上主题信息。
+
+    成本为零，效果通常明显 —— 尤其是条款句式高度相似的文档。
+    """
+    return f"【{header}】\n{chunk}"
 
 
 def split_semantic(text: str, max_chars: int = 600, similarity_threshold: float = 0.35) -> list[str]:

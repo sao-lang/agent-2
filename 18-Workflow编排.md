@@ -76,7 +76,7 @@
 | 谁决定下一步 | **你的代码**（`if need_refund:`） | **模型**（读完历史自己决定） |
 | 同样的输入 | 永远走同一条路 | 可能走不同的路 |
 | 成本 | 步数 × 单步成本，**可预算** | 步数不定，**只能设上限** |
-| 调试 | 看代码 + 看日志 | 必须看 trace（第 40 章） |
+| 调试 | 看代码 + 看日志 | 必须看 trace（第 38 章） |
 | 出 bug | 改一行代码 | 改 prompt，然后祈祷 |
 
 **所以我们需要一个"什么时候不该用 Agent"的判断标准。** 这就是本章的核心。
@@ -535,7 +535,7 @@ Anthropic 那篇《Building Effective Agents》把这类系统分成两类：
 |---|---|---|
 | 架构判断树 | 本章 18.3 节 | 所有项目的第一道工序 |
 | 手写管线 | `code/ch18_workflow/step1_pipeline.py` | 最小 Workflow 写法 |
-| 最小图引擎 | `code/ch18_workflow/step2_graph.py` | 理解第 31 章的 StateGraph 用 |
+| 最小图引擎 | `code/ch18_workflow/step2_graph.py` | 理解第 29 章的 StateGraph 用 |
 | 混合模式骨架 | `code/ch18_workflow/step3_hybrid.py` | 项目 A / B 的架构基础 |
 | Agent vs Workflow 对照 | `code/ch18_workflow/demo_workflow_vs_agent.py` | 面试时给数字用 |
 
@@ -567,7 +567,7 @@ Anthropic 那篇《Building Effective Agents》把这类系统分成两类：
 
 ### 一个反直觉的补充：Workflow 更容易被评测
 
-Agent 的"好坏"要靠轨迹评估（第 43 章），因为每次走的步都不一样。
+Agent 的"好坏"要靠轨迹评估（第 41 章），因为每次走的步都不一样。
 
 Workflow 的每个节点都是确定的，所以：
 
