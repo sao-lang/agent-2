@@ -1,4 +1,4 @@
-"""第 43 章 step3：状态机 + 版本 + 体检，一次跑完（离线）。
+"""第 44 章 step3：状态机 + 版本 + 体检，一次跑完（离线）。
 
 运行：
     python code/ch30_wiki_ops/step3_lifecycle.py

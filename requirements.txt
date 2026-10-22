@@ -1,18 +1,18 @@
 # 《Agent 工程化进阶》案例依赖
 #
-# Python 版本要求：3.11 ~ 3.13（3.14 下部分依赖尚未完全兼容）
+# Python 版本要求：3.11 ~ 3.13（3.14 下部分依赖尚未完全兼容；已在 3.14 上验证 59 个测试全过）
 # 使用方式：在项目根目录执行
 #   python -m venv .venv
 #   .venv\Scripts\activate          # Windows PowerShell
 #   source .venv/bin/activate       # macOS / Linux
 #   pip install -r requirements.txt
 
-# ---------- 核心编排（第 4~9、19、25、28 章）----------
+# ---------- 核心编排（第 43~46、48~50 章）----------
 langgraph==1.2.16
 langchain==1.4.7
 langchain-openai==1.7.2
 
-# ---------- 检查点持久化（第 9、19 章）----------
+# ---------- 检查点持久化（第 22、50 章）----------
 langgraph-checkpoint-sqlite==2.0.11
 
 # ---------- 数据校验 / 配置 ----------
@@ -24,22 +24,30 @@ python-dotenv==1.2.1
 structlog==26.1.0
 tenacity==9.2.1
 
-# ---------- 检索框架（第 50 章，可选）----------
+# ---------- 检索框架（第 51 章，可选）----------
 # LlamaIndex 与 langchain 无版本冲突，可直接装；只装 core 即可跑本章示例
 llama-index-core==0.14.25
 
-# ---------- RAG 评测（第 51 章）------------
+# ---------- RAG 评测（第 52 章）------------
 # ragas 会让 langchain-openai 降级到 1.1.9 并引入 langchain-classic，
 # 与上面锁定的 1.7.2 冲突。**故意不装**：第 51 章用 import 守卫。
 # 需要跑真实 RAGAS 时，另建 venv：pip install ragas==0.4.3
 
-# ---------- 检索与检索评测（第 11~15 章）----------
+# ---------- 检索与检索评测（第 7~10、40 章）----------
 # 向量库用内存版即可，避免评测环境依赖 Docker
 numpy==2.3.4
 # BM25 手写实现（第 12 章），不需要额外依赖
 
-# ---------- HTTP / 工具 ----------
+# ---------- HTTP / 服务化（第 41 章）----------
+# FastAPI 用来把 Agent 暴露成 API；TestClient 离线可用，不需要起真服务器
+fastapi==0.161.0
+uvicorn[standard]==0.54.0
 httpx==0.28.1
 
 # ---------- 测试 ----------
 pytest==8.4.2
+
+# ---------- 第 41 章的 Docker 部分 ----------
+# 不需要 pip 包：需要 Docker Desktop（镜像构建与 compose 编排）。
+#   examples/full-stack/  docker compose up -d --build
+# 不装 Docker 也能跑 code/ch41_integration/step1~3（纯离线模拟）。

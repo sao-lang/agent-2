@@ -1,4 +1,4 @@
-"""第 43 章 step2：三个判据，落到具体任务上（离线）。
+"""第 44 章 step2：三个判据，落到具体任务上（离线）。
 
 运行：
     python code/ch36_multi_agent/step2_criteria.py

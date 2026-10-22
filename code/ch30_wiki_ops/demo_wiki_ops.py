@@ -1,4 +1,4 @@
-"""第 43 章示例：wiki 的生成、矛盾检测、版本与质量治理（不需要 API）。
+"""第 44 章示例：wiki 的生成、矛盾检测、版本与质量治理（不需要 API）。
 
 运行：
     python code/ch30_wiki_ops/demo_wiki_ops.py

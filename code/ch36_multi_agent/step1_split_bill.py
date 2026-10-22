@@ -1,4 +1,4 @@
-"""第 43 章 step1：先看"你以为拆完会更好，实际上发生了什么"（离线）。
+"""第 44 章 step1：先看"你以为拆完会更好，实际上发生了什么"（离线）。
 
 运行：
     python code/ch36_multi_agent/step1_split_bill.py

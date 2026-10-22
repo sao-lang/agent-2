@@ -110,7 +110,7 @@ class Postmortem:
         elif not any(a.get("owner") and a.get("due") for a in self.action_items):
             problems.append("行动项缺少 owner 或 deadline")
         if not self.new_eval_cases:
-            problems.append("没有把故障变成评测用例（第 43 章）")
+            problems.append("没有把故障变成评测用例（第 44 章）")
         if self.failure_type is FailureType.UNKNOWN:
             problems.append("失败类型未分类，无法确定修复方向")
 

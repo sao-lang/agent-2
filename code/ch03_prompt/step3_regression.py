@@ -197,7 +197,7 @@ def main() -> None:
     print("      ② 固定用例：≥ 10 条真实样本，覆盖边界（不是只有 happy path）")
     print("      ③ 自动对比：任何指标掉超过 5% 就拦住")
     print()
-    print("  这三件事合起来叫「prompt 回归门」，第 55 章会把它做成流水线。")
+    print("  这三件事合起来叫「prompt 回归门」，第 56 章会把它做成流水线。")
 
     assert results["v1 基线"]["字段完整率"] > results["v4 一句话塞 5 条约束"]["字段完整率"]
 

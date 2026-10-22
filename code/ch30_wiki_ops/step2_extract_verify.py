@@ -1,4 +1,4 @@
-"""第 43 章 step2：模型抽取，必须配一个"回原文核对"的校验器（离线可跑）。
+"""第 44 章 step2：模型抽取，必须配一个"回原文核对"的校验器（离线可跑）。
 
 运行：
     python code/ch30_wiki_ops/step2_extract_verify.py

@@ -1,4 +1,4 @@
-"""第 43 章示例：多 Agent 的判据、形态与成本对比（不需要 API）。
+"""第 44 章示例：多 Agent 的判据、形态与成本对比（不需要 API）。
 
 运行：
     python code/ch36_multi_agent/demo_multi_agent.py

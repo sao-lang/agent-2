@@ -52,7 +52,7 @@ def build_cases() -> list[CaseMeta]:
         out.append(CaseMeta(AgentCase(f"real-{i:02d}", q, keys), "real"))
 
     incidents = [
-        # 每次事故补一条，见第 56 章
+        # 每次事故补一条，见第 57 章
         ("退货 7 天还是 15 天？", ["15 天"]),                 # 政策变更后答错
         ("耳机电流声能直接换新吗？", ["排查", "硬件故障"]),    # 跳过了排查步骤
         ("优惠券能退回来吗？", ["不返还"]),                    # 曾答成"可以"
@@ -108,7 +108,7 @@ def main() -> None:
 
     print("\n  每类为什么必须有：")
     print("    real     真实用户问题——最有代表性，决定'线上会怎样'")
-    print("    incident 历史故障——每修一个 bug 补一条，防复发（第 56 章）")
+    print("    incident 历史故障——每修一个 bug 补一条，防复发（第 57 章）")
     print("    boundary 边界——空输入 / 超长 / 域外；这类最容易在演示时消失")
     print("    redteam  攻击——防注入与越权（第 32 章）")
     print("    synth    合成——便宜、能批量造，但**容易讨好模型**，权重最低")

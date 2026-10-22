@@ -1,4 +1,4 @@
-"""第 43 章 step3：两种形态 + 三个最容易写错的坑（离线，真 LangGraph）。
+"""第 44 章 step3：两种形态 + 三个最容易写错的坑（离线，真 LangGraph）。
 
 运行：
     python code/ch36_multi_agent/step3_shapes.py
