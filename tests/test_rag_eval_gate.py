@@ -1,4 +1,4 @@
-"""第 15 章产出：RAG 检索质量的回归门禁（离线，无 API，秒级）。
+"""第 28 章产出：RAG 检索质量的回归门禁（离线，无 API，秒级）。
 
 它只做一件事：**证明检索没有退化**。不追求优秀，只追求"别人改坏了能拦住"。
 
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CASES_PATH = ROOT / "evals" / "rag_cases.json"
 DOC = (ROOT / "data" / "售后政策手册.md").read_text(encoding="utf-8")
 
-# 当前基线（第 15 章 step2 实测）：recall@5 = 0.90, recall@1 = 0.75
+# 当前基线（第 28 章 step2 实测）：recall@5 = 0.90, recall@1 = 0.75
 # 门禁比基线略低，留一点噪音余量；任何人把检索改坏到低于它，CI 会红。
 MIN_RECALL_AT_5 = 0.85
 MIN_RECALL_AT_1 = 0.70

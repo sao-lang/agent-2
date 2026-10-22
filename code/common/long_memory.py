@@ -1,4 +1,4 @@
-"""第 17 章产出：三层长期记忆 + 冲突处理。
+"""第 57 章产出：三层长期记忆 + 冲突处理。
 
 三层（业界常用划分）：
   semantic   语义记忆：稳定事实（用户偏好、身份、领域知识）
@@ -210,7 +210,7 @@ class MemoryWriter:
             "old_content": existing.content,
             "new_id": new.id,
             "conflict_ratio": round(ratio, 2),
-            # 高冲突时必须人工确认 —— 见第 19 章
+            # 高冲突时必须人工确认 —— 见第 32 章
             "needs_review": ratio > 0.6,
         }
 
@@ -225,7 +225,7 @@ class MemoryWriter:
 
         为什么不记失败的流程？
         因为"失败的流程"信息价值低（你不能照着做），而且会污染检索。
-        失败的教训应该进 Reflexion 的 lessons（第 7 章），不是程序记忆。
+        失败的教训应该进 Reflexion 的 lessons（第 34 章），不是程序记忆。
         """
         if not success:
             return None

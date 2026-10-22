@@ -32,14 +32,14 @@ class FailureType(str, Enum):
     @property
     def fix_direction(self) -> str:
         return {
-            FailureType.RETRIEVAL: "查第 11/12/14 章：分块、混合检索、重排、图扩展",
-            FailureType.TOOL: "查第 3/18/20 章：重试策略、参数校验、沙箱边界",
-            FailureType.PLANNING: "查第 6/8 章：计划结构、重规划触发条件",
-            FailureType.CONTEXT: "查第 10/16 章：预算分配、压缩策略、槽位",
-            FailureType.MODEL: "查第 7 章：加裁判；或第 21 章：换模型/路由",
-            FailureType.GUARDRAIL: "查第 18 章：规则过宽；加白名单；看误杀率",
-            FailureType.INFRA: "查第 3/22 章：超时、降级链、并发上限",
-            FailureType.UNKNOWN: "信息不足，先补 trace（第 2 章）",
+            FailureType.RETRIEVAL: "查第 31/29/32 章：分块、混合检索、重排、图扩展",
+            FailureType.TOOL: "查第 58/27/33 章：重试策略、参数校验、沙箱边界",
+            FailureType.PLANNING: "查第 33/35 章：计划结构、重规划触发条件",
+            FailureType.CONTEXT: "查第 43/40 章：预算分配、压缩策略、槽位",
+            FailureType.MODEL: "查第 34 章：加裁判；或第 34 章：换模型/路由",
+            FailureType.GUARDRAIL: "查第 27 章：规则过宽；加白名单；看误杀率",
+            FailureType.INFRA: "查第 58/35 章：超时、降级链、并发上限",
+            FailureType.UNKNOWN: "信息不足，先补 trace（第 39 章）",
         }[self]
 
 
@@ -63,7 +63,7 @@ class Evidence:
 class FiveQuestions:
     """五问法：30 分钟内必须能回答。
 
-    任何一问答不上来，说明你的可观测性还不够（第 2 章）。
+    任何一问答不上来，说明你的可观测性还不够（第 39 章）。
     """
 
     q1_how_much_worse: str = ""      # 变差多少（必须带数字）
@@ -104,13 +104,13 @@ class Postmortem:
         if self.five.completeness() < 1.0:
             problems.append(f"五问不完整，缺：{self.five.missing()}")
         if not any(e.kind == "trace" for e in self.evidence):
-            problems.append("缺少 trace 证据（第 2 章的 run_id）")
+            problems.append("缺少 trace 证据（第 39 章的 run_id）")
         if not self.action_items:
             problems.append("没有行动项")
         elif not any(a.get("owner") and a.get("due") for a in self.action_items):
             problems.append("行动项缺少 owner 或 deadline")
         if not self.new_eval_cases:
-            problems.append("没有把故障变成评测用例（第 26 章）")
+            problems.append("没有把故障变成评测用例（第 43 章）")
         if self.failure_type is FailureType.UNKNOWN:
             problems.append("失败类型未分类，无法确定修复方向")
 

@@ -1,8 +1,8 @@
-"""第 16 章产出：短期记忆（工作记忆）的生产实现。
+"""第 40 章产出：短期记忆（工作记忆）的生产实现。
 
 三个核心能力：
   1. 固定槽位（pinned slots）：无论多少轮，这几个事实永远在上下文里
-  2. 混合压缩：事实全留 + 其余摘要（复用第 10 章的 compress_hybrid）
+  2. 混合压缩：事实全留 + 其余摘要（复用第 43 章的 compress_hybrid）
   3. 会话状态：当前任务、已完成步骤、待办（工作记忆，不是聊天记录）
 
 为什么"槽位"比"选择性保留"更好？
@@ -87,7 +87,7 @@ class Slots:
 class WorkingMemory:
     """工作记忆：当前任务的执行状态，不是聊天记录。
 
-    和第 9 章的 checkpoint 的区别：
+    和第 36 章的 checkpoint 的区别：
       · checkpoint 是"系统状态快照"（用于恢复）
       · working memory 是"要喂给模型的上下文摘要"（用于推理）
     两者可以有重叠，但目的不同。
@@ -130,7 +130,7 @@ class ShortTermMemory:
         self.messages.append({"role": "assistant", "content": text})
 
     # 固定开销（槽位 + 工作记忆）最多占预算的这个比例，其余留给最近对话。
-    # 为什么要有上限？见 4.5 节的复现：不加限制时，槽位一多就会挤爆预算。
+    # 为什么要有上限？见 57.5 节的复现：不加限制时，槽位一多就会挤爆预算。
     fixed_ratio: float = 0.4
 
     # 槽位超配额时按这个优先级保留（数字越大越不能丢）。
@@ -193,7 +193,7 @@ class ShortTermMemory:
         return out
 
     def build_context_v2(self) -> list[dict[str, Any]]:
-        """⚠️ 有预算问题的版本，只用于第 16 章的失败实验。
+        """⚠️ 有预算问题的版本，只用于第 40 章的失败实验。
 
         问题：槽位 + 工作记忆是"固定开销"，它们可能**单独就超过 max_tokens**。
         build_context() 里 remain 用了 max(..., 300) 兜底，

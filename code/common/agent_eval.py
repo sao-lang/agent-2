@@ -1,7 +1,7 @@
-"""第 26 章产出：Agent 评测体系（结果评估 + 轨迹评估）。
+"""第 43 章产出：Agent 评测体系（结果评估 + 轨迹评估）。
 
-和第 15 章的 RAG 评测的区别：
-  第 15 章评的是"检索+生成"（单步）
+和第 28 章的 RAG 评测的区别：
+  第 28 章评的是"检索+生成"（单步）
   本章评的是"Agent 的整个执行过程"（多步、有工具、有路径）
 
 四个层次：
@@ -22,7 +22,7 @@ from typing import Any, Sequence
 
 @dataclass
 class TraceStep:
-    """轨迹中的一步（对应第 2 章的 step span）。"""
+    """轨迹中的一步（对应第 39 章的 step span）。"""
 
     idx: int
     kind: str                       # plan | tool | model | answer

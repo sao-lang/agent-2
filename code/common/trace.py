@@ -1,4 +1,4 @@
-"""第 2 章产出：最小 tracer（OpenTelemetry 风格，零外部依赖）。
+"""第 39 章产出：最小 tracer（OpenTelemetry 风格，零外部依赖）。
 
 为什么要手写一个？
 因为你要先懂 span 的层级关系，再谈"接 Langfuse"。

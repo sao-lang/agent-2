@@ -1,4 +1,4 @@
-"""第 10 章产出：上下文预算分配器 + 历史压缩三法。
+"""第 43 章产出：上下文预算分配器 + 历史压缩三法。
 
 核心洞察：Context 是一个**有预算的资源**，不是"能塞多少塞多少"。
 把预算可视化之后，你才会发现自己一直在用 70% 的空间装没用的历史。
@@ -141,7 +141,7 @@ def compress_hybrid(
 ) -> list[dict[str, Any]]:
     """混合：重要事实全留 + 其余摘要。
 
-    第 16 章会用它做短期记忆的默认实现。
+    第 40 章会用它做短期记忆的默认实现。
     """
     important = [m for m in history if is_important(m)]
     others = [m for m in history if not is_important(m)]
@@ -168,7 +168,7 @@ FACT_MARKERS = ("我叫", "我的", "记住", "偏好", "不要", "必须", "禁
 def is_fact(msg: dict[str, Any]) -> bool:
     """判定一条消息是否包含"事实"。
 
-    真实系统里这里会用小模型或用 LLM 标注（第 17 章的长期记忆抽取）。
+    真实系统里这里会用小模型或用 LLM 标注（第 57 章的长期记忆抽取）。
     这里先用关键词，够做实验。
     """
     if msg.get("role") != "user":

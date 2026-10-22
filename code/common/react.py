@@ -1,9 +1,9 @@
-"""第 4 章产出：ReAct 的三种实现，用来做对照实验。
+"""第 57 章产出：ReAct 的三种实现，用来做对照实验。
 
 为什么要实现三遍？
   · 手写文本解析版 —— 让你看见 ReAct 的本质（就是"思考-行动-观察"拼成文本再解析）
   · 原生 tool_calls 版 —— 现代做法，结构化
-  · 带刹车版 —— 把第 3 章的四道刹车接上去
+  · 带刹车版 —— 把第 58 章的四道刹车接上去
 
 三遍都跑同一个任务，你就能回答"为什么现在没人手写 ReAct 文本解析了"。
 """
@@ -146,7 +146,7 @@ def react_native(llm, tools: list, question: str, max_steps: int = 6) -> dict[st
 
 @dataclass
 class SafeReAct:
-    """把第 3 章的四道刹车接到 tool_calls 版上。
+    """把第 58 章的四道刹车接到 tool_calls 版上。
 
     这一版是本书之后所有 Agent 的基础形态。
     """

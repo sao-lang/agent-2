@@ -1,8 +1,8 @@
-"""第 17 章产出：短期记忆的回归门禁（离线，无 API，毫秒级）。
+"""第 57 章产出：短期记忆的回归门禁（离线，无 API，毫秒级）。
 
 它守住两件事：
   1. 槽位能保住"永不淘汰"的字段（滑窗保不住的那些）
-  2. 上下文**绝不**超过 max_tokens（第 17 章那个静默 bug 的回归）
+  2. 上下文**绝不**超过 max_tokens（第 57 章那个静默 bug 的回归）
 
 运行：
     pytest tests/test_memory_gate.py -q
@@ -61,7 +61,7 @@ def test_slots_override_on_restate() -> None:
 def test_context_never_exceeds_budget(budget: int) -> None:
     """核心回归：任何预算下，上下文总 token 都不能超。
 
-    这是 4.5 节那个 `max(x, 300)` bug 的门禁。
+    这是 57.5 节那个 `max(x, 300)` bug 的门禁。
     """
     mem = ShortTermMemory(max_tokens=budget)
     for user, assistant in DIALOG:

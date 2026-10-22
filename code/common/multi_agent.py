@@ -1,4 +1,4 @@
-"""第 26 章产出：多 Agent 的三条判据、三种形态、一个反例。
+"""第 43 章产出：多 Agent 的三条判据、三种形态、一个反例。
 
 核心结论（本章要证明的）：
   · 多 Agent 是**成本放大器**，不是能力放大器
@@ -35,7 +35,7 @@ class SplitCriteria:
         if not any([self.can_parallel, self.need_cross_read, self.context_too_large]):
             return False, "不该拆：三个判据都不满足，拆了只会更贵更慢"
         if not self.can_parallel and not self.context_too_large:
-            # 需要互相看结果，但装得下 → 用单 Agent + 反思（第 7 章）
+            # 需要互相看结果，但装得下 → 用单 Agent + 反思（第 34 章）
             return False, "不该拆：需要交叉验证但上下文装得下，用单 Agent + Reflection"
         return True, "可以拆"
 

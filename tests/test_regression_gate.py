@@ -1,4 +1,4 @@
-"""Agent 的回归门禁（第 26 章）。
+"""Agent 的回归门禁（第 43 章）。
 
 只检查"有没有退化"，不追求"优秀"。
 用很小的用例集（快、便宜、离线），适合每次提交跑。
@@ -103,7 +103,7 @@ def test_result_score_requires_all_keys() -> None:
 def test_publish_supersedes_old_version() -> None:
     """发布新版本后，旧版本必须自动 outdated，否则检索会同时命中两版。
 
-    第 25 章 step3 实测过：只改 status 不处理旧版本时，
+    第 30 章 step3 实测过：只改 status 不处理旧版本时，
     "7 天"和"15 天"两条会并列返回，模型只能靠运气挑。
     """
     from common.wiki import EntryStatus, EntryType, WikiEntry, WikiStore, publish, revise
@@ -167,7 +167,7 @@ def test_wiki_entry_numeric_claim_traceable() -> None:
 def test_print_diff_flags_relative_cost_change() -> None:
     """成本类指标必须用相对阈值，否则"降到 1/3"会被判成"无变化"。
 
-    第 37 章修过的真 bug：旧的 print_diff 一律用绝对阈值 0.005，
+    第 40 章修过的真 bug：旧的 print_diff 一律用绝对阈值 0.005，
     于是 ¥0.008 → ¥0.003 显示成 "＝"。
     """
     from common.agent_eval import AgentCase, AgentReport, AgentRun, print_diff, score_result, score_trajectory
