@@ -1,0 +1,5 @@
+{
+  "_type": "prompt",
+  "input_variables": ["diff", "rules"],
+  "template": "Review rules:\n{rules}\n\nDiff:\n{diff}"
+}

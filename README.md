@@ -60,7 +60,7 @@
 
 > ✅ = 已按 13 节模板完成（≥12,000 字符 / ≥500 行 / 术语表 / 💥 实验）；🚧 = 待撰写。
 > 完整结构见 [整合映射表.md](整合映射表.md)。
-> **当前进度：已完成 44 章（含总览）；待写 15（空档待定）、39、42–53、57–59 与附录 E/F/G。**
+> **当前进度：已完成 51 章（含总览）；待写 15、39、46（空档待定）、50–53、57–59 与附录 E/F/G。**
 >
 > **第 8 轮结构调整已完成**：第 14 章 = 「Skill 的使用」（使用者视角，不讲加载器）；
 > 原 `15-Harness装配.md` 已移为 **第 54 章**，并按「Skills 渐进式加载」补写了 54.3 全节。
@@ -132,14 +132,14 @@
 - 🚧 第 39 章 知识中枢：文档生命周期与数据层（待撰写）
 - ✅ [第 40 章 RAG 评测：把"感觉变了"变成数字](40-RAG评测.md)
 - ✅ [第 41 章 Agent 评测实战：答案全对，系统却在生病](41-评测体系.md)
-- 🚧 第 42 章 LangChain（一）：包结构、模型接入与消息（待撰写）
-- 🚧 第 43 章 LangChain（二）：提示词模板、输出解析与结构化输出（待撰写）
-- 🚧 第 44 章 LangChain（三）：LCEL、Runnable 与链式编排（待撰写）
-- 🚧 第 45 章 LangChain（四）：记忆、工具、向量库与 RAG 组装（待撰写）
-- 🚧 第 46 章 LangChain（五）：Agent 工厂与 MCP 接入（待撰写）
-- 🚧 第 47 章 LangGraph（一）：图、State 与 Reducer（待撰写）
-- 🚧 第 48 章 LangGraph（二）：节点、边、Send/Command 与 Runtime（待撰写）
-- 🚧 第 49 章 LangGraph（三）：流式、持久化、HITL、回溯、子图、多 Agent（待撰写）
+- ✅ [第 42 章 LangChain（一）：包结构、模型接入与消息](42-LangChain包结构与消息.md)
+- ✅ [第 43 章 LangChain（二）：输出解析、结构化输出与 LCEL](43-LangChain输出解析与LCEL.md)
+- ✅ [第 44 章 LangChain（三）：工具、检索、记忆与 MCP](44-LangChain工具检索与MCP.md)
+- ✅ [第 45 章 LangChain（四）：create_agent 与中间件体系](45-LangChain-Agent与中间件.md)
+- 🚧 第 46 章（空档，内容已并入 42–45）
+- ✅ [第 47 章 LangGraph（一）：图、State 与 Reducer](47-LangGraph图与Reducer.md)
+- ✅ [第 48 章 LangGraph（二）：节点、边、Send/Command 与 Runtime](48-LangGraph节点边与Runtime.md)
+- ✅ [第 49 章 LangGraph（三）：流式、持久化、HITL、回溯、子图与多 Agent](49-LangGraph流式持久化与多Agent.md)
 
 ### 第 8 部分 · Harness 落地
 
