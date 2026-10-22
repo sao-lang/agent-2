@@ -139,6 +139,13 @@ def make_card(action: str, args: dict[str, Any]) -> ApprovalCard:
     )
 
 
+def _card_payload(c: ApprovalCard) -> dict[str, Any]:
+    """对外暴露的卡片：既给"还剩多久"，也给"绝对过期时刻"。"""
+    d = c.to_dict()
+    d["expires_at"] = c.expires_at
+    return d
+
+
 # ============================================================ 状态与图
 
 @dataclass
@@ -195,7 +202,7 @@ def gate_node(state: dict) -> dict:
 
     # CONFIRM：生成卡片并中断
     card = make_card(state["action"], state.get("args", {}))
-    answer = interrupt(card.to_dict())   # ← 整个图在这里挂起，状态落进 checkpointer
+    answer = interrupt(_card_payload(card))   # ← 整个图在这里挂起，状态落进 checkpointer
 
     # resume 回来的值：True / False / {"decision": "modify", "args": {...}}
     if isinstance(answer, dict):
@@ -284,13 +291,30 @@ class HitlService:
         return {"status": "done", "result": out.get("result"), "log": out.get("log")}
 
     def list_pending(self) -> list[dict]:
+        """列出待审批卡片，并正确标注是否已过期。
+
+        ⚠️ 别写成 `now > expires_in_sec + now` —— 那个条件永远为 False，
+           卡片会"永不过期"，于是三周后的一次点击仍然生效（本书实测踩过）。
+           正确做法：卡片里存**绝对**过期时间（created_at + ttl），再和 now 比。
+        """
         now = time.time()
-        return [
-            {**c, "thread_id": tid, "expired": now > c.get("expires_in_sec", 0) + now}
-            for tid, c in self.pending.items()
-        ]
+        out: list[dict] = []
+        for tid, c in self.pending.items():
+            expires_at = c.get("expires_at") or (now + c.get("expires_in_sec", 0))
+            out.append({**c, "thread_id": tid, "expired": now >= expires_at})
+        return out
 
     def approve(self, thread_id: str, decision: str = "approve", new_args: dict | None = None) -> dict:
+        """审批并恢复。过期卡片一律作废，不恢复执行。"""
+        card = self.pending.get(thread_id)
+        if card is not None:
+            now = time.time()
+            expires_at = card.get("expires_at") or (now + card.get("expires_in_sec", 0))
+            if now >= expires_at:
+                self.pending.pop(thread_id, None)
+                return {"status": "expired", "thread_id": thread_id,
+                        "result": "审批卡片已过期，本次作废（需重新发起）"}
+
         if decision == "approve":
             resume: Any = {"decision": "approve", "args": new_args} if new_args else True
         elif decision == "modify":

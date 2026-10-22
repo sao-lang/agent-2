@@ -1,7 +1,7 @@
 """第 19 章示例：HITL 的完整链路（不需要 API）。
 
 运行：
-    python code/ch19_hitl/demo_hitl.py
+    python code/ch20_hitl/demo_hitl.py
 
 演示五个场景：
   1. 自动执行（只读动作，不打扰人）

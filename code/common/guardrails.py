@@ -71,7 +71,7 @@ def check_input(text: str) -> Decision:
             return Decision(Verdict.DENY, "检测到伪造的指令标记（间接注入）", rule="indirect_marker")
 
     # 越权意图：不是"能不能做"，而是"要不要转人工"
-    if re.search(r"(?:删库|drop\s+table|rm\s+-rf|清空表)", text, re.IGNORECASE):
+    if re.search(r"(?:删库|删掉|删除|drop\s+table|truncate|rm\s+-rf|清空表)", text, re.IGNORECASE):
         return Decision(Verdict.NEED_HUMAN, "检测到高危操作意图", rule="dangerous_intent")
 
     return Decision(Verdict.ALLOW)

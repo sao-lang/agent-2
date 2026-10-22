@@ -1,7 +1,7 @@
-"""第 18 章示例：用一批攻击样本测护栏的拦截率（不需要 API）。
+"""第 19 章示例 1：用一批攻击样本测护栏的拦截率（不需要 API）。
 
 运行：
-    python code/ch18_guardrails/demo_guardrails.py
+    python code/ch19_guardrails/demo_guardrails.py
 
 输出：
   · 每类攻击的拦截率与漏杀

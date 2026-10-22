@@ -1,7 +1,7 @@
 """第 20 章示例：沙箱边界攻击样本测试（不需要 Docker / API）。
 
 运行：
-    python code/ch20_sandbox/demo_sandbox.py
+    python code/ch21_sandbox/demo_sandbox.py
 
 它模拟一次"越界攻击"，逐条展示策略引擎拦住了什么、放过了什么，
 并输出审计报告（谁在什么时候试图做什么）。

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""第 20 章：Docker 沙箱执行器（真实隔离版）。
+"""第 21 章：Docker 沙箱执行器（真实隔离版）。
 
 前置条件：本机装了 Docker，且能拉 alpine 镜像。
 
 用法：
-    python code/ch20_sandbox/shell_sandbox.py "python -c 'print(1+1)'"
+    python code/ch21_sandbox/shell_sandbox.py "python -c 'print(1+1)'"
 
 安全要点（每一条都对应一个真实的逃逸场景）：
   1. --network none        断网（防数据外泄 / SSRF）
