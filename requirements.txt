@@ -24,6 +24,15 @@ python-dotenv==1.2.1
 structlog==26.1.0
 tenacity==9.2.1
 
+# ---------- 检索框架（第 50 章，可选）----------
+# LlamaIndex 与 langchain 无版本冲突，可直接装；只装 core 即可跑本章示例
+llama-index-core==0.14.25
+
+# ---------- RAG 评测（第 51 章）------------
+# ragas 会让 langchain-openai 降级到 1.1.9 并引入 langchain-classic，
+# 与上面锁定的 1.7.2 冲突。**故意不装**：第 51 章用 import 守卫。
+# 需要跑真实 RAGAS 时，另建 venv：pip install ragas==0.4.3
+
 # ---------- 检索与检索评测（第 11~15 章）----------
 # 向量库用内存版即可，避免评测环境依赖 Docker
 numpy==2.3.4
