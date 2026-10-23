@@ -429,6 +429,97 @@ middleware=[LLMToolSelectorMiddleware(max_tools=5)]
 
 **剩下的都是"画自己的图"（第 47–49 章）——但你已经知道一张 Agent 图长什么样了。**
 
+### 46.6.1 补充：中间件顺序的源码级证据
+
+46.5 讲了「洋葱皮」。这一节回答一个更细的问题：**`after_*` 到底是正序还是逆序？**
+
+💻 运行：`python code/framework/lc/ch46/step6_middleware_hooks.py`
+
+`langchain/agents/factory.py` 里的真实代码：
+
+```python
+entry_node      = f"{middleware_w_before_agent[0].name}.before_agent"
+loop_entry_node = f"{middleware_w_before_model[0].name}.before_model"
+loop_exit_node  = f"{middleware_w_after_model[0].name}.after_model"
+exit_node       = f"{middleware_w_after_agent[-1].name}.after_agent"
+```
+
+| 钩子 | 下标 | 含义 |
+|---|---|---|
+| `before_agent` | `[0]` | 正序：列表第一个最先进入 |
+| `before_model` | `[0]` | 正序 |
+| `after_model` | `[0]` | **看着是正序，实际是逆序** |
+| `after_agent` | `[-1]` | 逆序：列表最后一个最先退出 |
+
+**为什么 `after_model` 的 `[0]` 反而是「最后执行」？**
+
+因为**整个中间件栈被编译成了一张 LangGraph 图**，不是简单的函数链。
+`before_*` 是一条入链，`after_*` 是一条出链；出链从 `[0]` 这个**入口**接入，
+但图的实际执行是从最里层往外退的。
+
+> **可靠的记忆方式：不要记下标，记行为。**
+> `before` 正序进、`after` 逆序出 —— 不管你看到什么源码细节，行为永远符合洋葱皮。
+
+而 `wrap_*` 的源码注释直接写明：
+
+```
+Composes handlers so first in list becomes outermost layer.
+```
+
+→ **列表第一个 = 最外层。** 想「外层先拦截」，就把拦截器放在列表最前面。
+
+### 46.6.2 补充：`ToolCallLimitMiddleware` 的 `exit_behavior` 三档
+
+这是最容易配错的一个参数 —— **因为默认值不是你以为的那个**。
+
+```python
+ToolCallLimitMiddleware(
+    tool_name=None,          # None = 所有工具总计
+    thread_limit=None,       # 跨 run 累计
+    run_limit=None,          # 单次 run
+    exit_behavior="continue" # ← 默认值
+)
+```
+
+| 取值 | 行为 | 模型看到什么 | 什么时候用 |
+|---|---|---|---|
+| **`continue`（默认）** | 拦截超限的工具，其余继续 | 一个「被拦截」的 `ToolMessage`，可换策略 | 想让它自己想办法 |
+| `error` | 直接抛异常 | 整个 Agent 崩，调用方拿异常 | 严格场景：超限即 bug |
+| `end` | 立刻结束，为每个超限调用生成 `ToolMessage` | 说明为什么停的 AI 消息 | 成本敏感：超限就收工 |
+
+> 💥 **失败实验：以为超限会自动停**
+>
+> 写 `ToolCallLimitMiddleware(run_limit=5)`，然后让它循环调工具。
+> 观察：**它不会停下来**，而是继续跑，只是第 6 次之后的调用被拦成 `ToolMessage`。
+>
+> 模型收到"被拦截"之后，常见反应是**换一种方式再试**——于是你又多花了几次模型调用。
+>
+> **如果你的需求是「超了就停」，必须显式写 `exit_behavior="end"`。**
+
+### 46.6.3 补充：写自定义中间件的三个限制
+
+| 限制 | 说明 |
+|---|---|
+| `before_*` 的返回值会**合并进 state**，不是替换 | 想覆盖 `messages` 是做不到的（有 reducer 时会追加） |
+| `wrap_*` 里不调用 `handler` 就等于「不发生」 | 这既是权力也是坑：权限拦截用它，别不小心跳过真正的调用 |
+| 中间件**别在 `self` 上存可变状态** | 同一个实例被多个请求共用，并发会串数据 |
+
+第三条最容易被误解 —— 很多人以为中间件是"有状态对象"。
+**可以存，但并发不安全。** 临时状态应该放 `state` 或 `runtime.context`。
+
+#### 检查清单
+
+| 问题 | 结论 |
+|---|---|
+| 要「观察」还是「阻止」？ | 观察用 `before/after`，阻止必须用 `wrap_*` |
+| 要不要跨步记忆？ | 要 → 读写 state；不要 → 保持纯函数 |
+| 异常时怎么办？ | 抛出（调用方处理）还是返回降级值（继续跑） |
+| 并发安全吗？ | `self` 上不存可变状态 |
+| 放第几层？ | 见 46.5 的推荐顺序 |
+| 异步版实现了吗？ | 服务端是 `async` 的话，只写同步版会阻塞事件循环 |
+
+---
+
 ---
 
 ## 46.7 全部 0.x 写法的对照表（这一节请收藏）

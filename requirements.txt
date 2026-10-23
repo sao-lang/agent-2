@@ -44,6 +44,27 @@ fastapi==0.161.0
 uvicorn[standard]==0.54.0
 httpx==0.28.1
 
+
+# ---------- 其他框架对比（第 62 章）----------
+# pydantic-ai：依赖注入 + 强类型输出。安装无冲突（2.60.0）。
+# 用 slim 版：不带 openai/anthropic 等模型客户端，仓库已有 openai==3.36.1。
+pydantic-ai-slim==2.60.0
+# AutoGen 0.7.x：群聊 + 发言顺序。只引入 autogen-core + protobuf，不降级其他包。
+autogen-agentchat==0.7.5
+
+# ⚠️ 故意**不装** crewai 与 openai-agents
+#   pip install --dry-run crewai 的真实解析结果：
+#     Would install crewai-0.11.2 langchain-0.1.20 langchain-core-0.1.53
+#                   langchain-openai-0.0.5 openai-1.109.1 ...
+#   即会把这个仓库的 langchain 降 4 个大版本、openai 降 2 个大版本，
+#   打挂第 43–46 章的代码。第 62 章只给写法示范，不给可运行示例。
+#   openai-agents 与 openai 版本强绑定，同样暂不引入。
+
+# ---------- Agent 评测（第 61 章）----------
+# 第 61 章主体是手写实现（step1~3 零依赖，只需要标准库 + langgraph）。
+# DeepEval 仅作为「可选补课」里的对照工具，装了不影响主流程。
+deepeval==4.3.1
+
 # ---------- 测试 ----------
 pytest==8.4.2
 
