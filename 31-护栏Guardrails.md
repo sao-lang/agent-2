@@ -401,7 +401,7 @@ PII_PATTERNS = {
         原因：检索文档包含指令型文本
 ```
 
-**防线要加在"检索之后、喂给模型之前"**——这段代码在 `common/guardrails.py` 的 `retrieved()` 里，第 40 章讲 RAG 评测时也会用到这个位置。
+**防线要加在"检索之后、喂给模型之前"**——这段代码在 `common/guardrails.py` 的 `retrieved()` 里，第 41 章讲 RAG 评测时也会用到这个位置。
 
 ---
 
@@ -668,7 +668,7 @@ judge 判 risky → NEED_HUMAN
 
 | 产出 | 文件 | 后续使用 |
 |---|---|---|
-| 三道防线 | `code/common/guardrails.py` | 项目 A/B、第 39 章网关 |
+| 三道防线 | `code/common/guardrails.py` | 项目 A/B、第 41 章网关 |
 | SQL 守卫 | `guardrails.SQLGuard` | 所有 NL2SQL 场景 |
 | PII 脱敏 | `guardrails.PII_PATTERNS` | 所有对外输出 |
 | 回归门禁 | `tests/test_safety_gate.py` | CI，每次提交跑 |
@@ -699,7 +699,7 @@ judge 判 risky → NEED_HUMAN
 - 第 32 章：`NEED_HUMAN` 之后怎么办——真正的中断、审批与恢复
 - 第 33 章：护栏之后还有沙箱——就算命令通过了，也跑不出破坏
 - 第 25 章：意图路由表里的「风险字段」，是护栏的上游信号
-- 第 38 章：拦截记录要带 `trace_id`，才能串进整条链路
+- 第 40 章：拦截记录要带 `trace_id`，才能串进整条链路
 
 ---
 

@@ -41,7 +41,7 @@ EVIDENCE_MAP = {
     "cost_attribution": "code/common/cost.py（CostBreakdown）",
     "three_level_budget": "code/common/cost.py（BudgetManager）",
     "cache": "code/common/cache.py",
-    "eval_set": "evals/ + code/ch38_eval/",
+    "eval_set": "evals/ + code/ch41_eval/",
     "trajectory_eval": "code/common/agent_eval.py（score_trajectory）",
     "stability": "code/common/agent_eval.py（stability）",
     "ci_gate": ".github/workflows/ci.yml + tests/",
