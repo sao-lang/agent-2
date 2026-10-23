@@ -395,7 +395,147 @@ def bad_add(left, right):
 
 ---
 
-## 48.8 常见错误速查
+## 48.8 补充：两种 API 与「预置 Agent 已废弃」
+
+前面讲的全是**图式 API**（`StateGraph` + `add_node`/`add_edge`）。
+LangGraph 还有第二种写法，而且预置 Agent 的入口在 1.x 已经变了。
+
+💻 运行：`python code/framework/lg/ch48/step3_functional_and_prebuilt.py`
+
+### 48.8.1 函数式 API：`@entrypoint` + `@task`
+
+```python
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.func import entrypoint, task
+
+@task
+def double(x: int) -> int:
+    return x * 2
+
+@task
+def add(a: int, b: int) -> int:
+    return a + b
+
+@entrypoint(checkpointer=InMemorySaver())
+def wf(n: int) -> int:
+    a = double(n).result()      # ← .result() 才是"取值"，不写拿到的是 future
+    b = double(a).result()
+    return add(a, b).result()
+
+print(wf.invoke(3, {"configurable": {"thread_id": "f1"}}))   # 18
+```
+
+真实输出：
+
+```
+  wf.invoke(3) = 18
+  执行过的 task = [('double', 3), ('double', 6)]
+  同一 thread 再 invoke(3) = 18
+  执行过的 task = [('double', 3), ('double', 6)]
+```
+
+> 💥 **两个必须知道的事实**
+>
+> 1. **`.result()` 是阻塞式取结果。** 写 `double(n)` 得到的是一个 future，
+>    不调用 `.result()` 你拿不到值。
+> 2. **同一 `thread_id` 再 invoke 不会复用上次的结果** —— 上面第二次调用
+>    task 又跑了一遍。想复用要显式配 `cache_policy`（第 50 章补课）。
+
+**函数式 vs 图式：**
+
+| 维度 | 函数式 API | 图式 API |
+|---|---|---|
+| 怎么写 | `@entrypoint` + `@task` | `StateGraph` + `add_node`/`add_edge` |
+| 适合 | **线性、无环、无分支**的流程 | 有分支/循环/并行/中断 |
+| 可视化 | 不能画图 | `get_graph().draw_mermaid()` |
+| 中断 `interrupt` | 可用但很别扭 | 原生支持 |
+| 什么时候选它 | 脚本式数据处理、ETL 式流水 | Agent 这类有循环和分支的 |
+
+> **一句话：写 Agent 用图式，写流水线用函数式。**
+> 图式 API 能表达函数式能表达的一切，反之不成立。
+
+### 48.8.2 `create_react_agent` 已废弃
+
+在 `langgraph 1.2.16` 上，**导入**它就会触发（不用调用）：
+
+```
+LangGraphDeprecatedSinceV10: create_react_agent has been moved to
+`langchain.agents`. Please update your import to
+`from langchain.agents import create_agent`.
+Deprecated in LangGraph V1.0 to be removed in V2.0.
+```
+
+**迁移路径：**
+
+| 旧写法 | 新写法 |
+|---|---|
+| `from langgraph.prebuilt import create_react_agent` | `from langchain.agents import create_agent` |
+| `create_react_agent(model, tools)` | `create_agent(model, tools=tools)` |
+| `model` 需要自己 `bind_tools` | `create_agent` 内部处理 |
+
+> **这是本书反复强调的一件事的实例：0.x 的写法到 1.x 会变。**
+> 第 46 章那张 0.x→1.x 对照表就是这个原因。
+
+### 48.8.3 离线跑通一次完整 ReAct 循环
+
+```python
+from langchain.agents import create_agent
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage
+
+@tool
+def get_order(order_id: str) -> str:
+    """按订单号查询订单。"""
+    return f"order {order_id}: 399元"
+
+class FakeToolModel(GenericFakeChatModel):
+    # GenericFakeChatModel 没实现 bind_tools，这里补一个空实现
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+model = FakeToolModel(messages=iter([
+    AIMessage(content="", tool_calls=[
+        {"name": "get_order", "args": {"order_id": "A8821"}, "id": "1"},
+    ]),
+    AIMessage(content="已查到：399 元"),
+]))
+
+agent = create_agent(model, tools=[get_order])
+out = agent.invoke({"messages": [("user", "A8821 多少钱")]})
+```
+
+真实输出：
+
+```
+    HumanMessage   | A8821 多少钱                    | tool_calls=None
+    AIMessage      |                                | tool_calls=[{'name': 'get_order', ...}]
+    ToolMessage    | order A8821: 399元              | tool_calls=None
+    AIMessage      | 已查到：399 元                    | tool_calls=[]
+```
+
+**这就是第 17 章 ReAct 的标准形状：**
+
+```
+HumanMessage -> AIMessage(带 tool_calls) -> ToolMessage -> AIMessage(最终答案)
+```
+
+> 💥 **一个必须知道的技术坑**
+>
+> `GenericFakeChatModel` **没有实现 `bind_tools`**。
+> 直接用 `create_react_agent` / `create_agent` 会抛 `NotImplementedError`。
+>
+> 解法：派生一个子类，补一个什么都不做的 `bind_tools`（如上）。
+
+> ⚠️ **一个评测上的提醒**
+>
+> 这里的答案是「我写死的剧本」决定的，
+> 所以这种离线测试**只能验证「接线通不通」**。
+>
+> 「模型会不会选对工具、参数对不对」—— 必须用真实模型 + 评测集（**第 61 章**）。
+
+---
+
+## 48.9 常见错误速查
 
 | 症状 | 原因 | 修法 |
 |---|---|---|
@@ -412,7 +552,7 @@ def bad_add(left, right):
 
 ---
 
-## 48.9 章末自测
+## 48.10 章末自测
 
 **Q1** 节点返回的 dict 是"完整状态"还是"补丁"？
 
@@ -456,7 +596,7 @@ LangGraph 里如果两条分支从同一个节点出发，它们属于**同一 s
 
 ---
 
-## 48.10 可选补课：`add_messages` 与消息去重
+## 48.11 可选补课：`add_messages` 与消息去重
 
 > ⚠️ **这一节可以先跳过。** 等你发现"消息越长越多、出现重复"时再看。
 
@@ -480,7 +620,7 @@ class State(TypedDict):
 
 ---
 
-## 48.11 📦 本章沉淀
+## 48.12 📦 本章沉淀
 
 | 产出 | 文件 | 后续使用 |
 |---|---|---|
@@ -491,7 +631,7 @@ class State(TypedDict):
 
 ---
 
-## 48.12 ✅ 验收
+## 48.13 ✅ 验收
 
 跑完两个脚本，检查五件事：
 

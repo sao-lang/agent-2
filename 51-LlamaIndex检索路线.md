@@ -443,6 +443,147 @@ agent = create_agent(model, tools=[tool])   # ← 第 46 章的 Agent
 
 ---
 
+### 51.7.1 补充：LlamaIndex Workflow —— 它和 LangGraph 是直接竞品
+
+上面讲的全是"检索路线"。但 LlamaIndex 1.x 还有一块**和 LangGraph 直接竞争**的东西：**Workflow**。
+
+💻 运行：`python code/framework/li/ch51/step6_workflow.py`
+
+#### 最小例子
+
+```python
+from llama_index.core.workflow import (
+    Context, Event, StartEvent, StopEvent, Workflow, step,
+)
+
+class Ping(Event):
+    n: int
+
+class W(Workflow):
+    @step
+    async def start(self, ctx: Context, ev: StartEvent) -> Ping:
+        return Ping(n=ev.get("n", 1))
+
+    @step
+    async def work(self, ctx: Context, ev: Ping) -> StopEvent:
+        return StopEvent(result=ev.n * 7)
+
+print(asyncio.run(W(timeout=10).run(n=6)))   # 42
+```
+
+**三句话理解它：**
+
+| 概念 | 含义 |
+|---|---|
+| `StartEvent` | 入口（就是 `run()` 的参数） |
+| `StopEvent` | 出口（`result` 就是 `run()` 的返回值） |
+| 自定义 `Event` | step 之间的传递物 |
+
+#### 分支：靠「返回什么事件」来分流
+
+```python
+class NeedKB(Event):
+    q: str
+
+class NeedCalc(Event):
+    q: str
+
+class W(Workflow):
+    @step
+    async def route(self, ctx: Context, ev: StartEvent) -> NeedKB | NeedCalc:
+        q = ev.get("q", "")
+        await ctx.store.set("q", q)
+        if any(c.isdigit() for c in q):
+            return NeedCalc(q=q)      # -> calc 会收到
+        return NeedKB(q=q)            # -> kb 会收到
+
+    @step
+    async def kb(self, ctx: Context, ev: NeedKB) -> BranchResult: ...
+    @step
+    async def calc(self, ctx: Context, ev: NeedCalc) -> BranchResult: ...
+```
+
+真实输出：
+
+```
+  无数字: {'answer': 'KB回答[退款要多久]', 'q': '退款要多久'}
+  有数字: {'answer': '计算[退款 399 元多久到]', 'q': '退款 399 元多久到'}
+```
+
+#### 和 LangGraph 的关键差异
+
+| 维度 | LlamaIndex Workflow | LangGraph |
+|---|---|---|
+| 怎么分流 | 返回**不同类型的事件** | 返回 `Command(goto=...)` 或条件边 |
+| 下游怎么知道接谁 | 按**事件类型自动匹配** | 按**节点名显式指定** |
+| 状态存在哪 | `ctx.store`（键值）+ 事件字段 | State（TypedDict，有 reducer） |
+| 并行扇出 | `ctx.send_event` + `collect_events` | `Send`（第 49 章） |
+| 可视化 | 没有内置图 | `get_graph().draw_mermaid()` |
+
+> **一句话**：Workflow 是「事件路由」，LangGraph 是「显式图」。
+> 前者更类型化、更松耦合；后者更可控、能画出来、有成熟的 checkpointer。
+
+#### 三个真实坑（我们都撞过）
+
+> 💥 **坑 1：`ctx.store` 是异步的**
+>
+> ```python
+> # 错：不 await
+> ctx.store.set("q", q)     # RuntimeWarning: never awaited
+> ctx.store.get("q")        # 返回 <coroutine object>
+>
+> # 对：await
+> await ctx.store.set("q", q)
+> await ctx.store.get("q")
+> ```
+>
+> **这个坑特别隐蔽：不报错，只是拿到一个 coroutine 对象。**
+> 你会看到输出里 `q` 变成 `<coroutine object StateStoreFacade.get at 0x...>`。
+
+> 💥 **坑 2：事件类不能用 `@dataclass`**
+>
+> ```python
+> # 错：会导致无限递归
+> @dataclass
+> class One(Event):
+>     item: str
+> # -> RecursionError: maximum recursion depth exceeded
+>
+> # 对：直接继承
+> class One(Event):
+>     item: str
+> ```
+>
+> 原因：`Event` 本身是 Pydantic 模型，再叠 `@dataclass` 会让属性访问无限递归。
+>
+> 另外：**字段名不能叫 `items`**（会 shadow 父类同名属性），会给出 `UserWarning`。
+
+> 💥 **坑 3：step 忘了 `return` 会静默停住**
+>
+> | 返回什么 | 行为 |
+> |---|---|
+> | `StopEvent(result=...)` | 流程结束 |
+> | 某个 `Event` 实例 | 该事件类型的 step 收到 |
+> | `None` | 本步结束但流程继续（用于只发副作用） |
+> | `list[Event]` | 并发触发多个下游 |
+>
+> 忘了 return → **既不报错也不返回结果，直到 timeout**。排查时极难定位。
+
+#### 什么时候选 Workflow，什么时候选 LangGraph
+
+| 情况 | 选 | 理由 |
+|---|---|---|
+| 系统已用 LlamaIndex 做检索 | **Workflow** | 同一个库，不用装两套 |
+| 需要「中断 + 人工审批 + 恢复」 | **LangGraph** | checkpointer + `interrupt` 成熟 |
+| 需要把流程图导出来 | **LangGraph** | 内置 mermaid |
+| 流程是「事件驱动、类型安全」的 | **Workflow** | 按事件类型路由，比节点名更类型化 |
+| 需要跨 session 长期记忆 | 两者都有 | 看生态 |
+
+> **一个实务建议：不要为了"统一技术栈"把两个框架硬拼在一起。**
+> 混用两套状态管理是最容易出事的地方（第 23 章讲过 State 的坑）。
+
+---
+
 ## 51.8 三个小练习（从易到难）
 
 ### 练习 1（5 分钟）：改一个参数
