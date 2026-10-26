@@ -26,4 +26,7 @@ jobs:
         run: pytest -q
 
       - name: Harness self-check
-        run: python code/ch28_harness/demo_harness.py
+        run: python code/ch57_harness/demo_harness.py
+
+      - name: Chapter gate (structure / references / content)
+        run: python tools/check_chapters.py --strict
