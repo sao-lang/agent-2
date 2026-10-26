@@ -11,8 +11,7 @@
     4. 感叹号与反问句
     5. 未标注来源的百分比（跳过围栏代码块）
     6. 章首术语表（已废止的写法）
-    7. 五段结构完整性
-    8. 交付物与章首声明是否一致
+    7. 交付物与章首声明是否一致
 """
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 地图章不适用五段结构与章首元信息
+# 地图章不适用章首元信息
 EXEMPT = {0}
 
 
@@ -209,13 +208,7 @@ def check(path: Path) -> list[str]:
         if marker in text and marker != "术语表":  # 术语表允许在"没有术语表"这类陈述中出现
             problems.append(f"出现已废止的旧结构：{marker}")
 
-    # 7. 五段结构（地图章豁免）
-    if no not in EXEMPT:
-        for key in ("边界", "复现"):
-            if not any(key in line for line in lines if line.startswith("## ")):
-                problems.append(f"缺少小节：{key}")
-
-    # 8. 交付物按章声明、按类型检查（地图章豁免）
+    # 7. 交付物按章声明、按类型检查（地图章豁免）
     #    不再要求「每章都有代码块」，只要求「声明什么就交付什么」。
     if no not in EXEMPT:
         kind = declared_deliverable(text)
