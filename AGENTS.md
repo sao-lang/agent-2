@@ -67,12 +67,17 @@
 ## 检查脚本
 
 ```bash
+python -m pytest tests/ -q            # 单测（第 5 章起）
 python tools/check_style.py            # 标题、禁用语、主观词、数据出处、交付核对
-python tools/check_refs.py             # 章号引用、code/ 路径是否存在
-python tools/check_chapter.py          # 章首元信息、小节编号连续、必需小节
+python tools/check_refs.py             # 章号引用、code 路径与文件是否存在
+python tools/check_chapter.py          # 章首四行、小节编号连续、必需小节
 ```
 
 **未通过检查的章节不算完成。**
+
+## 写卷 2 时用现成的提示词
+
+`docs/PROMPT-VOL2.md` 里有可直接用于新会话的完整提示词。开新会话时把它复制过去，本文件不必重复粘贴。
 
 ## 代码约定
 

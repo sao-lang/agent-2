@@ -475,7 +475,7 @@ Context : assemble(State, Budget) -> list[dict]
 
 各组件之间的通信只经过下面这些数据类型与接口。**后续各章不得更改这些签名**，只能增加字段。
 
-**五个数据类型**（第 5 章起逐步补全）
+**五个数据类型**（第 5 章起逐步补全，另有 `ToolCall` 见 5.8.1）
 
 | 类型 | 字段 | 首次定义章 |
 |---|---|---|
@@ -484,6 +484,7 @@ Context : assemble(State, Budget) -> list[dict]
 | `ActionResult` | `step: Step`、`ok: bool`、`output: str`、`error: str \| None`、`tokens: int` | 5 |
 | `Verdict` | `passed: bool`、`reason: str`、`action: Literal["accept","retry","patch","replan_all"]` | 9 |
 | `Plan` | `id: str`、`steps: list[Step]`、`rev: int` | 8 |
+| `ToolCall` | `name: str`、`args: dict` | 5（详见 5.8.1） |
 
 **五个接口**（Python `Protocol`）
 
@@ -541,18 +542,38 @@ run(goal: Goal, actor: Actor, state: State, max_steps: int = 10) -> RunResult
 
 ### 5.8.1 离线 Actor 的形态
 
-全书代码离线可跑，`Actor.step()` 必须在没有真实模型的情况下产出 `tool_calls`。
+全书代码离线可跑，`Actor.step()` 必须在没有真实模型的情况下产出工具调用。
 
-**第 5 章采用脚本化响应注入**：`Actor` 持有一个 `responder`，它是一个函数 `responder(step, state) -> str | ToolCall`。离线测试时注入固定脚本，接入真实模型时替换为 Provider 调用。
+**第 5 章采用脚本化响应注入**：`Actor` 持有一个 `responder`，签名固定为 `responder(step, state) -> str | ToolCall`。离线测试时注入固定脚本，接入真实模型时替换为 Provider 调用。
 
 ```
 Actor(responder: Callable[[Step, State], str | ToolCall])
 ```
 
+**`ToolCall` 是第 5 章新增的第六个数据类型**（补入 5.7 的清单）：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `name` | `str` | 工具名，必须存在于注册表中 |
+| `args` | `dict` | **已解析**的参数对象 |
+
+**参数解析的边界**：provider 返回的原始参数是 JSON 字符串（B1 的核心），解析发生在 `ProviderResponder` 内部，`ToolCall.args` 拿到的一定是 `dict`。`ScriptedResponder` 直接返回 `dict`，跳过解析。这样 `Actor` 不需要关心参数来源是文本还是对象。
+
+**`responder` 返回值的语义**：
+
+| 返回 | 含义 | `loop.py` 的动作 |
+|---|---|---|
+| `ToolCall` | 模型请求执行动作 | 交给 `_call_tool` 执行，结果写入 `state.messages`，步号加一 |
+| `str` | 模型给出最终回答 | 写入 `state.messages`，`reason="answered"`，退出循环 |
+
+**这一条消除了"以模型不再请求工具作为结束条件"的歧义**：结束条件就是 `responder` 返回 `str`。
+
 | 形态 | responder 实现 | 用途 |
 |---|---|---|
-| `ScriptedResponder` | 按预置序列返回，用完返回终止 | 第 5 章的演示与单测 |
-| `ProviderResponder` | 调用真实模型，解析 `tool_calls` | 第 5 章正文之外的完整示例 |
+| `ScriptedResponder` | 持有一个 `list[str \| ToolCall]`，每次调用 `pop(0)`；列表耗尽时抛 `StopIteration`，`Actor` 将其转为"终止" | 第 5 章的演示与单测 |
+| `ProviderResponder` | 调用真实模型，解析 `tool_calls` 为 `ToolCall` | 第 5 章正文之外的完整示例 |
+
+`ScriptedResponder` 的构造形式：`ScriptedResponder(script: list[str | ToolCall])`。
 
 **第 5 章的脚本一律使用 `ScriptedResponder`**，正文必须写明"这是脚本化响应，不是模型实测"。
 
@@ -573,6 +594,59 @@ _call_tool(self, name: str, args: dict) -> str
 工具注册表的访问方式固定为 `ToolRegistry.get(name) -> Tool`，找不到时抛 `KeyError`。
 
 这两条是本卷唯一的代码级接线抓手。**第 5 章完成后必须把实际实现写入 `docs/CONTRACT.md`。**
+
+### 5.8.3 步号的推进责任
+
+`Step.index` 与 `State.step_index` 由 **`loop.py` 独家维护**，`Actor` 只读不改。
+
+| 时机 | `loop.py` 的动作 |
+|---|---|
+| 循环开始 | `state.step_index = 0`，构造首个 `Step(index=0)` |
+| `responder` 返回 `ToolCall` | 执行后 `state.step_index += 1`，构造下一个 `Step` |
+| `responder` 返回 `str` | 不递增，退出 |
+
+`Actor` 不得修改 `state.step_index`。这条避免两处递增导致步号跳变。
+
+### 5.8.4 `no_progress` 的判定
+
+第 5 章只做粗判：**连续两次 `Step` 的 `(tool_name, args)` 完全相同**，即判为 `no_progress`。
+
+- 比较时对 `args` 做 `sorted()` 后的序列化比较，避免字典顺序差异导致误判。
+- 精确指纹检测（含 `sort_keys`、上下文哈希）属第 7 章的 B4，**第 5 章不实现**。
+- 第 5 章正文必须写明这是粗判，第 7 章会替换。
+
+### 5.8.5 `ActionResult.tokens` 的取值
+
+离线场景没有真实 `usage`。第 5 章的约定：
+
+| 情况 | 取值 |
+|---|---|
+| `ScriptedResponder` | 填 `0` |
+| `ProviderResponder` | 填真实 `usage.prompt_tokens + completion_tokens` |
+
+**填 `0` 时，正文与代码注释必须同时注明"离线脚本无真实 token 计数，此处为占位"**，符合 A4"估算须标注"的要求。
+
+### 5.8.6 `tests/` 的约定
+
+第 5 章起建立 `tests/` 目录。
+
+| 项 | 约定 |
+|---|---|
+| 框架 | `pytest`（已在依赖中） |
+| 路径 | `tests/test_<组件名>.py`，如 `tests/test_actor.py` |
+| 内容 | 只用 `ScriptedResponder`，不调模型、不联网 |
+| 运行 | `python -m pytest tests/ -q` |
+| 覆盖要求 | 每个组件的公开方法至少一个用例；终止三态各一个用例 |
+
+`pytest.ini` 的 `pythonpath` 需包含 `code/`，以便 `from harness import ...` 可用。
+
+### 5.8.7 章号与文件名
+
+章节文件名为 `NN-<章标题>.md`，`NN` 为两位章号，标题与 `OUTLINE.md` 第六节完全一致。
+
+例：第 5 章 → `05-工具调用与最小循环.md`。
+
+`tools/check_chapter.py` 会校验标题与文件名是否一致。
 
 ### 5.9 卷 2 代码的物理形态
 
