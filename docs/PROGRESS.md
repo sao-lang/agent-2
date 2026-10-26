@@ -10,7 +10,7 @@
 | 1 | `01-一次调用的完整链路.md` | A1 A2 | `code/ch01_call_lifecycle/` | 通过 |
 | 2 | `02-生成机制与不实输出的成因.md` | A3 A7 | `code/ch02_generation/` | 通过 |
 | 3 | `03-token计量成本与上下文窗口.md` | A4 A5 A6 | `code/ch03_tokens/` | 通过 |
-| 4 | `04-提示词的组成与回归测试.md` | A8 A9 | `code/ch04_prompt/` | 通过 |
+| 4 | `04-提示词工程.md` | A8 A9 | `code/ch04_prompt/`（4 个脚本） | 通过 |
 
 ## 下一章
 
