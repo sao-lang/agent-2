@@ -727,6 +727,8 @@ code/
 
 **卷 2 结束时已装 9 个组件，能跑生产任务**，但只能处理"不需要外部知识、不需要查边界"的任务。
 
+**代码落点**：`code/harness/`，在 5.9 的五个文件基础上按章节增加：`resilience.py`（6）、`budget.py` + `tracer.py`（7）、`planner.py`（8）、`reflector.py`（9）、`durability.py`（11）、`skills.py`（12）。
+
 ### 卷 3 · 素材与分流：填满插点 ①② 与循环外的供给（第 13–18 章）→ B20 B21 C1–C12
 
 **本卷产出**：Router / Knowledge / Context / Memory
@@ -744,6 +746,7 @@ code/
 >
 > **Knowledge 与 Context 分开两章**：召回质量与窗口预算分开归因，是卷 3 验收方式（对坏回答做归因）的结构前提。
 
+**代码落点**：`code/harness/` 增加 `router.py`（13）、`knowledge.py`（14–16）、`context.py`（17）、`memory.py`（18）。`knowledge.py` 内部按 14→15→16 逐步扩充检索实现，接口不变。
 
 ### 卷 4 · 边界：填满插点 ⑤ 与执行后端（第 19–24 章）→ D1–D15
 
@@ -760,6 +763,8 @@ code/
 
 > 卷 4 是**唯一"只加约束、不加能力"**的卷。装配完，Harness 从"能跑"变成"撞得住"。
 
+**代码落点**：`code/harness/guard.py`（20–22）、`code/harness/executors/`（19，本地与沙箱两种执行后端）。第 23 章多 Agent 不新增顶层文件，用 `build.py` 的装配配置区分。第 24 章部署层独立于 `code/harness/`，放 `code/serving/`。
+
 ### 卷 5 · 度量：验证插点 ⑧ 是否真的生效（第 25–29 章）→ E1–E14
 
 **本卷产出**：Tracer 完整实现 + `eval/`
@@ -775,6 +780,8 @@ code/
 > 评测按你的要求拆三章：RAG 评测（含 RAGAS）、Agent 评测、统计与门禁。
 >
 > **卷 5 的特殊地位**：它不是加组件，而是**验证前四卷装的组件是否真的生效**。Tracer 是唯一在本卷才写完实现的组件（卷 2 只是骨架）。
+
+**代码落点**：`code/harness/tracer.py` 从骨架补成完整实现（25），评测代码放 `code/eval/`（26–28），成本与延迟报表放 `code/harness/budget.py` 的报表侧（29）。
 
 ### 卷 6 · 框架与平台（第 30–37 章）→ F1–F18
 
@@ -794,6 +801,8 @@ code/
 | **37** | 其他框架与平台化编排 | pydantic-ai（依赖注入 `RunContext`、`output_type`、`@agent.tool`）｜AutoGen（`AssistantAgent`/`GroupChat`/speaker selection）｜CrewAI（`Agent`/`Task`/`Crew`/`Process`）｜OpenAI Agents SDK（`Agent`/`Runner`/`handoff`/`guardrail`/`session`）｜MCP 官方 SDK｜**平台化**：Coze/Dify 的节点类型、界面上看不见的三类状态（上下文窗口、索引版本、节点级计量）、成本上界 |
 
 **卷 6 的验收**：给你一个真实需求（例如"支持 30 个工具的客服 Agent，需要审批和断点续跑"），你能说出**用框架的话每个组件对应哪个类、还需要自己写哪些**。
+
+**代码落点**：卷 6 **不修改** `code/harness/`。每章的示例代码独立放在 `code/framework/` 下，按框架分子目录（`langchain/`、`langgraph/`、`deepagents/`、`llamaindex/`、`others/`）。框架示例可以联网，但必须提供离线替代或在正文标注需要的环境。
 
 **框架卷与手写组件的对照表**（附录 E 的正文版，每章都要填一行）：
 
@@ -823,7 +832,23 @@ code/
 | 40 | GraphRAG | G4 |
 | 41 | Harness 成熟度自评 | G5 |
 
+**代码落点**：卷 7 的代码与卷 6 分离。微调（38–39）放 `code/finetune/`，需要 GPU 与联网，必须提供不跑训练也能走通的判据部分；GraphRAG（40）放 `code/harness/knowledge.py` 的扩展，但标记为可选实现；成熟度自评（41）放 `code/harness/selfcheck.py`。
+
 **合计：41 章（含第 0 章）。**
+
+### 各卷的代码落点汇总
+
+| 卷 | 章节 | 代码位置 | 是否修改 `code/harness/` |
+|---|---|---|---|
+| 1 | 1–4 | `code/ch01_*` … `code/ch04_*`，每章独立 | 否 |
+| 2 | 5–12 | `code/harness/`（9 个组件文件） | **是（建立）** |
+| 3 | 13–18 | `code/harness/`（router/knowledge/context/memory） | 是 |
+| 4 | 19–24 | `code/harness/` + `code/harness/executors/` + `code/serving/` | 是 |
+| 5 | 25–29 | `code/harness/tracer.py` 补完 + `code/eval/` | 是 |
+| 6 | 30–37 | `code/framework/<框架名>/` | 否 |
+| 7 | 38–41 | `code/finetune/`、`code/harness/knowledge.py` 扩展、`selfcheck.py` | 部分 |
+
+**这张表是提示词的依据**：提示词只写"按本章所在卷查 OUTLINE 的代码落点"，不写死路径。
 
 ### 章节 → 组件的最终对照
 

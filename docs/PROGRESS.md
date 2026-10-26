@@ -26,7 +26,7 @@
 
 ## 待办
 
-- [ ] 第 5 章（B1 B2）—— 用 `docs/PROMPT-VOL2.md` 的提示词开新会话
+- [ ] 第 5 章（B1 B2）—— 用 `docs/PROMPT.md` 的通用提示词开新会话
 - [ ] 第 1 章可选：补一节真实调用（需 API Key）
 - [x] `tests/` 已建立，含基础设施自检（`tests/test_infra.py`）
 
