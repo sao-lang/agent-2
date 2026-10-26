@@ -25,45 +25,84 @@ ROOT = Path(__file__).resolve().parent.parent
 # 地图章不适用五段结构与章首元信息
 EXEMPT = {0}
 
-# 产物判定：连续代码块至少这么多行，才算「完整产物」而非片段
-PRODUCT_MIN_LINES = 15
 
+def declared_deliverable(text: str) -> str | None:
+    """读取章首元信息里声明的交付物类型。
 
-def count_products(text: str) -> int:
-    """统计章节内的「完整产物」。
-
-    判定规则：
-        1. 围栏代码块，且块内行数 >= PRODUCT_MIN_LINES，算 1 个产物
-        2. 带编号且含判定条件的步骤列表，算 1 个产物
-
-    片段式的短代码块不计入：它们只用于说明，不能直接使用。
+    章首必须写 `> **交付**：<类型>`，类型取自 DELIVERABLE_KINDS。
+    没有声明时返回 None，由调用方决定如何处理。
     """
-    products = 0
+    for line in text.split("\n")[:10]:
+        if "**交付**" in line:
+            body = line.split("**交付**", 1)[1].lstrip("：: ")
+            for kind in DELIVERABLE_KINDS:
+                if body.startswith(kind):
+                    return kind
+    return None
 
-    # 1. 完整代码块
+
+DELIVERABLE_KINDS = ("标准范式", "可运行脚本", "操作序列", "无")
+
+
+def has_standard_pattern(text: str) -> bool:
+    """标准范式：一个 >= 12 行的围栏块，且块前一行有用途说明。
+
+    用于「提示词标准范式」这类必须给出完整成品的内容。
+    """
+    lines = text.split("\n")
     in_block = False
     block_len = 0
-    for line in text.split("\n"):
+    prev_blank_ok = False
+    for i, line in enumerate(lines):
         if line.startswith("```"):
             if in_block:
-                if block_len >= PRODUCT_MIN_LINES:
-                    products += 1
+                if block_len >= 12 and prev_blank_ok:
+                    return True
                 in_block = False
                 block_len = 0
             else:
                 in_block = True
                 block_len = 0
+                # 检查块前 3 行内是否有说明文字
+                ctx = " ".join(lines[max(0, i - 3) : i])
+                prev_blank_ok = len(ctx.strip()) > 10
             continue
         if in_block:
             block_len += 1
+    return False
 
-    # 2. 带判定条件的步骤列表
-    step_rows = [l for l in text.split("\n")
-                 if l.startswith(("1.", "2.", "3.")) and ("→" in l or "判定" in l or "则" in l)]
-    if len(step_rows) >= 3:
-        products += 1
 
-    return products
+def has_runnable_script_ref(text: str) -> bool:
+    """可运行脚本：正文引用了 code/ 下的脚本，且该脚本文件存在。"""
+    for m in re.finditer(r"code/(ch\d{2}_[a-z0-9_]+)/([a-z0-9_]+\.py)", text):
+        p = ROOT / "code" / m.group(1) / m.group(2)
+        if p.exists():
+            return True
+    return False
+
+
+def has_operation_sequence(text: str) -> bool:
+    """操作序列：>= 3 条编号步骤，且每条含判定条件（则/判定/若/→）。"""
+    steps = [l for l in text.split("\n")
+             if re.match(r"^\s*[1-9]\.\s", l) and any(k in l for k in ("则", "判定", "若", "→"))]
+    return len(steps) >= 3
+
+
+def check_deliverable(text: str, kind: str) -> str | None:
+    """按声明的类型检查是否真的交付了。返回问题描述或 None。"""
+    if kind == "标准范式":
+        if not has_standard_pattern(text):
+            return "声明交付「标准范式」，但未给出 >=12 行、带用途说明的完整成品"
+        return None
+    if kind == "可运行脚本":
+        if not has_runnable_script_ref(text):
+            return "声明交付「可运行脚本」，但未引用任何存在的 code/ 脚本"
+        return None
+    if kind == "操作序列":
+        if not has_operation_sequence(text):
+            return "声明交付「操作序列」，但未给出 >=3 条带判定条件的编号步骤"
+        return None
+    return None
 
 # 标题中不允许出现的修饰成分
 TITLE_BANNED = ("★", "！", "?", "？", "：为什么", "你必须", "一定要", "千万")
@@ -162,14 +201,18 @@ def check(path: Path) -> list[str]:
             if not any(key in line for line in lines if line.startswith("## ")):
                 problems.append(f"缺少小节：{key}")
 
-    # 8. 必须至少有一个可直接使用的产物（地图章豁免）
+    # 8. 交付物按章声明、按类型检查（地图章豁免）
+    #    不再要求「每章都有代码块」，只要求「声明什么就交付什么」。
     if no not in EXEMPT:
-        n_products = count_products(text)
-        if n_products == 0:
+        kind = declared_deliverable(text)
+        if kind is None:
             problems.append(
-                "缺少可直接使用的产物：需要有 >=15 行的完整代码块，"
-                "或带判定条件的三步以上操作序列（见 WRITING-SPEC 0.2）"
+                "缺少章首交付声明：需写 `> **交付**：标准范式 | 可运行脚本 | 操作序列 | 无`"
             )
+        else:
+            msg = check_deliverable(text, kind)
+            if msg:
+                problems.append(msg)
 
     return problems
 
