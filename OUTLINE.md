@@ -412,19 +412,19 @@ Agent 的每个坏法都能追到内层：停不下来 → 模型不知道停（
 | **R5 治理不可选** | 一旦装配，任何路径都不能跳过 Guard/Budget/Tracer | "内部调用"绕过 Guard |
 | **R6 每个组件可离线测** | 无模型、无网络能单测 | 测不了 = 耦合了 |
 
-**契约集合**（6 个数据类型 + 8 个 Protocol）：
+**契约集合**：完整清单见 5.7，共 5 个数据类型与 5 个接口（第 5 章落地），其余随章节增加。这里只列依赖关系的示意：
 
 ```
-Goal  Route  Plan  Step  ActionResult  Verdict
+Goal  Step  ActionResult  Verdict  Plan          ← 数据类型
 ──────────────────────────────────────────────
-Router  : route(Goal) -> Route
-Planner : plan(Goal, State) -> Plan
 Actor   : step(Step, State) -> ActionResult
-Reflector: review(ActionResult, Plan) -> Verdict | Plan   # Verdict 含 retry/patch/replan_all
-Context : assemble(State, Budget) -> Messages
-Guard   : allow(Step) -> Decision
-Tool    : invoke(args) -> Result
+Tool    : invoke(args) -> str
+Planner : plan(Goal, State) -> Plan
+Reflector: review(ActionResult, Plan) -> Verdict
+Context : assemble(State, Budget) -> list[dict]
 ```
+
+`Router`、`Guard`、`Resilience`、`Budget`、`Tracer`、`Durability` 的接口随对应章节定义，见 5.7。
 
 ---
 
@@ -471,6 +471,146 @@ Tool    : invoke(args) -> Result
 
 **结论**：14 个组件与主流 harness 的构成吻合。其中 `Router` 与 `Resilience` 在多数框架里**没有独立组件**（散落在中间件里或干脆没有），恰好是线上出问题最多的两个位置。
 
+### 5.7 组件契约（写代码前必须先定）
+
+各组件之间的通信只经过下面这些数据类型与接口。**后续各章不得更改这些签名**，只能增加字段。
+
+**五个数据类型**（第 5 章起逐步补全）
+
+| 类型 | 字段 | 首次定义章 |
+|---|---|---|
+| `Goal` | `text: str`、`user_id: str`、`session_id: str` | 5 |
+| `Step` | `index: int`、`plan_id: str`、`instruction: str`、`tool_name: str \| None`、`args: dict` | 5 |
+| `ActionResult` | `step: Step`、`ok: bool`、`output: str`、`error: str \| None`、`tokens: int` | 5 |
+| `Verdict` | `passed: bool`、`reason: str`、`action: Literal["accept","retry","patch","replan_all"]` | 9 |
+| `Plan` | `id: str`、`steps: list[Step]`、`rev: int` | 8 |
+
+**五个接口**（Python `Protocol`）
+
+| 接口 | 签名 | 定义章 |
+|---|---|---|
+| `Actor` | `step(step: Step, state: State) -> ActionResult` | 5 |
+| `Tool` | `name: str`、`schema() -> dict`、`invoke(args: dict) -> str` | 5 |
+| `Planner` | `plan(goal: Goal, state: State) -> Plan` | 8 |
+| `Reflector` | `review(result: ActionResult, plan: Plan) -> Verdict` | 9 |
+| `Context` | `assemble(state: State, budget: int) -> list[dict]` | 17 |
+
+**四条约束**：
+
+1. **`State` 是唯一可变载体。** 组件之间不传 State 的字段，只传 State 本身。
+2. **接口只依赖上面的数据类型。** 不出现 `Actor` 依赖 `Planner` 的具体实现。
+3. **数据类型只增不改。** 后续章节可以给 `Step`、`ActionResult` 增加字段，但不删除、不重命名、不改变类型。新增字段必须有默认值。
+4. **必填字段以本章为准。** 下表标注"首定章"的字段，在该章之前可以填默认值。
+
+**`State` 的最小定义（第 5 章即可确定，第 10 章细化）**
+
+`State` 在第 10 章才讲设计与演进，但第 5 章的 `Actor.step()` 必须拿到它。第 5 章先用下面这个最小形态，**字段只增不改**。
+
+| 字段 | 类型 | 用途 | 第 5 章是否使用 |
+|---|---|---|---|
+| `goal` | `Goal` | 本次任务的目标 | 是 |
+| `step_index` | `int` | 当前步号，从 0 开始 | 是 |
+| `messages` | `list[dict]` | 累积的对话与工具结果 | 是 |
+| `plan` | `Plan \| None` | 当前计划，未拆计划时为 `None` | 否，占位 |
+| `verdicts` | `list[Verdict]` | 历次判定结果 | 否，占位 |
+| `budget_used` | `dict[str, int]` | 已消耗的步数、token、金额 | 否，占位 |
+
+**第 5 章只需初始化前三个字段**，后三个留空即可。这样第 6 章增加超时与重试、第 9 章增加判定、第 10 章讲状态演进时，都不需要改动已有字段。
+
+### 5.8 `loop.py` 的入口契约
+
+第 5 章的循环入口固定为：
+
+```
+run(goal: Goal, actor: Actor, state: State, max_steps: int = 10) -> RunResult
+```
+
+| 返回字段 | 类型 | 含义 |
+|---|---|---|
+| `RunResult.state` | `State` | 结束时的最终状态 |
+| `RunResult.reason` | `str` | 三种终止原因之一：`answered` / `max_steps` / `no_progress` |
+| `RunResult.actions` | `list[ActionResult]` | 本次运行的全部动作记录 |
+
+三条约定：
+
+1. **`reason` 只有三种取值**，由第 5 章定义，后续章节不得新增。扩展原因时用 `RunResult.extra`。
+2. **`max_steps` 必须有默认值**，第 7 章的预算控制在此基础上接管。
+3. **循环体内不直接调用 `Tool.invoke()`**，只调用 `actor.step()`。第 6 章的 `Resilience` 包在 `Actor` 与 `Tool` 之间的调用点上，**不改 `loop.py`**。
+
+第 3 条是第 5 章与第 6 章的接线点。第 6 章只改 `actor.py` 内部与 `tools.py` 的调用处，不动 `loop.py` 的签名。
+
+### 5.8.1 离线 Actor 的形态
+
+全书代码离线可跑，`Actor.step()` 必须在没有真实模型的情况下产出 `tool_calls`。
+
+**第 5 章采用脚本化响应注入**：`Actor` 持有一个 `responder`，它是一个函数 `responder(step, state) -> str | ToolCall`。离线测试时注入固定脚本，接入真实模型时替换为 Provider 调用。
+
+```
+Actor(responder: Callable[[Step, State], str | ToolCall])
+```
+
+| 形态 | responder 实现 | 用途 |
+|---|---|---|
+| `ScriptedResponder` | 按预置序列返回，用完返回终止 | 第 5 章的演示与单测 |
+| `ProviderResponder` | 调用真实模型，解析 `tool_calls` | 第 5 章正文之外的完整示例 |
+
+**第 5 章的脚本一律使用 `ScriptedResponder`**，正文必须写明"这是脚本化响应，不是模型实测"。
+
+### 5.8.2 `Actor` → `Tool` 的调用点
+
+`Actor` 内部访问工具只经过一个函数，**第 6 章把它的实现替换为带韧性包装的版本**：
+
+```
+_call_tool(self, name: str, args: dict) -> str
+```
+
+三条约束：
+
+1. **函数名固定为 `_call_tool`**，第 6 章不得改名。
+2. **签名固定**：`(self, name: str, args: dict) -> str`。第 6 章可在内部增加超时与重试，不改变签名。
+3. **`Actor` 之外不调用 `Tool.invoke()`**。`loop.py` 只调 `actor.step()`。
+
+工具注册表的访问方式固定为 `ToolRegistry.get(name) -> Tool`，找不到时抛 `KeyError`。
+
+这两条是本卷唯一的代码级接线抓手。**第 5 章完成后必须把实际实现写入 `docs/CONTRACT.md`。**
+
+### 5.9 卷 2 代码的物理形态
+
+前四章是互不相干的脚本，第 5 章起改为**一个可 import 的包**。
+
+```
+code/
+├── ch01_call_lifecycle/     第 1 章，独立脚本
+├── ch02_generation/         第 2 章，独立脚本
+├── ch03_tokens/             第 3 章，独立脚本
+├── ch04_prompt/             第 4 章，独立脚本
+└── harness/                 第 5 章起，包
+    ├── __init__.py          导出 5.7 与 5.8 的全部契约
+    ├── types.py             Goal/Step/ActionResult/State/RunResult
+    ├── actor.py             Actor
+    ├── tools.py             Tool 与注册表
+    └── loop.py              run()
+```
+
+**检查器适配**：`code/harness/` 不在 `chXX_*` 命名规则内，因此：
+
+- `tools/check_refs.py` 放行 `code/harness/` 路径
+- `tools/check_style.py` 的「可运行脚本」判定同时接受 `code/harness/*.py`
+
+**"只往上加"的含义**：后续章节在 `harness/` 内新增文件或新增函数，**不改变已有函数签名与字段**。每次改动需通过 `tests/` 下对应组件的离线单测。
+
+第 5 章的示例任务：查订单并回答退货政策。工具两个，`get_order(order_id)` 与 `get_policy(topic)`，均为本地函数，无网络。
+
+### 5.10 第 5 章不做的三件事
+
+为避免与第 6、7 章冲突，第 5 章明确不做：
+
+| 不做 | 由哪章负责 | 第 5 章怎么留位 |
+|---|---|---|
+| 指纹检测与重复判定 | 第 7 章（B4） | `reason` 保留 `no_progress` 取值，第 5 章只按"连续两次相同的 `Step`"粗判 |
+| 超时、重试、降级 | 第 6 章 | `Actor` 与 `Tool` 之间留一个调用点，第 5 章直接调用 |
+| 判定任务是否完成 | 第 9 章 | 第 5 章以"模型不再请求工具"作为结束条件 |
+
 ---
 
 ## 六、卷与章（94 个知识点装进 41 章）
@@ -500,14 +640,14 @@ Tool    : invoke(args) -> Result
 
 | 章 | 标题 | 知识点 | 新装的组件（插点） |
 |---|---|---|---|
-| 5 | 让它有手：Actor 与最小循环 | B1 B2 | **Actor**(④) + **Tools**(⑥) + State |
-| 6 | 第一次调用就挂了：超时、重试与韧性 | B3（局部） | **Resilience**(⑥) |
-| 7 | 停不下来：四道刹车 | B3 B4 B5 | **Budget**(⑧) + **Tracer**(⑧) ＋ Resilience 补全（限流/熔断/降级） |
-| 8 | 路径该由谁定：三种编排范式 | B6 B7 | **Planner**(③)（含 `ImplicitPlanner`） |
-| 9 | 错了怎么自己发现：裁判与修复 | B8 B9 | **Reflector**(⑦)（含 retry/patch/replan_all） |
-| 10 | State：放什么、怎么写不坏 | B10 B11 | State 的契约与 reducer |
-| 11 | 断了怎么办：持久化与幂等 | B12 B13 | **Durability**(⑧) |
-| 12 | 工具生态：MCP、Skill 与能力编排 | B14 B15 B16 B17 B18 B19 | **Skills** + 工具收窄 + 冲突裁决 |
+| 5 | 工具调用与最小循环 | B1 B2 | **Actor**(④) + **Tools**(⑥) + State |
+| 6 | 调用的超时、重试与降级 | B3（局部） | **Resilience**(⑥) |
+| 7 | 循环的四类失控与约束机制 | B3 B4 B5 | **Budget**(⑧) + **Tracer**(⑧) ＋ Resilience 补全（限流/熔断/降级） |
+| 8 | 三种编排范式的适用条件 | B6 B7 | **Planner**(③)（含 `ImplicitPlanner`） |
+| 9 | 任务完成的判定与修复策略 | B8 B9 | **Reflector**(⑦)（含 retry/patch/replan_all） |
+| 10 | State 的字段范围与并发写入 | B10 B11 | State 的契约与 reducer |
+| 11 | 中断恢复与副作用幂等 | B12 B13 | **Durability**(⑧) |
+| 12 | MCP、Skill 与能力编排 | B14 B15 B16 B17 B18 B19 | **Skills** + 工具收窄 + 冲突裁决 |
 
 > 第 12 章偏重（6 个知识点），见第十一节。
 
@@ -537,12 +677,12 @@ Tool    : invoke(args) -> Result
 
 | 章 | 标题 | 知识点 | 新装的组件 / 层 |
 |---|---|---|---|
-| 19 | 沙箱：它能碰什么 | D1 | Tools 的执行后端 |
+| 19 | 沙箱的访问边界 | D1 | Tools 的执行后端 |
 | 20 | 护栏：把"不要"写成代码 | D2 D3 D4 D5 | **Guard**(⑤) |
-| 21 | 防绕过：用户和文档都会骗它 | D6 D7 | Guard 的输入面 |
-| 22 | 人机协作：哪一步必须有人点头 | D8 D9 | Guard 的审批态 + Durability 的中断态 |
-| 23 | 多 Agent：拆了为什么更慢更贵 | D10 | 认知族的多实例装配 |
-| 24 | 交付：从能跑到能上线 | D11 D12 D13 D14 D15 | 部署层（不属于组件） |
+| 21 | 直接注入与间接注入的防护 | D6 D7 | Guard 的输入面 |
+| 22 | 人工审批的分级与中断恢复 | D8 D9 | Guard 的审批态 + Durability 的中断态 |
+| 23 | 多 Agent 的拆分条件与成本 | D10 | 认知族的多实例装配 |
+| 24 | 服务交付与部署 | D11 D12 D13 D14 D15 | 部署层（不属于组件） |
 
 > 卷 4 是**唯一"只加约束、不加能力"**的卷。装配完，Harness 从"能跑"变成"撞得住"。
 
@@ -711,13 +851,17 @@ P7 是毕业线。
 
 ## 九、每章统一写法（五段）
 
-| 段 | 回答 | 不合格的样子 |
-|---|---|---|
-| 1. 缺了它会怎样 | 没有这个机制，系统会怎么坏 | "某某技术非常重要" |
-| 2. 机制 | 为什么坏 | 直接贴代码不给因果 |
-| 3. **装哪个组件** | 这一节结束时，骨架里多了什么 | 独立脚本，接不上上一章 |
-| 4. 边界 | 什么时候别这么做 | 没有反例 |
-| 5. 弄坏它 | 自己动手复现一次失败 | 只有"练习题" |
+**本节与 `docs/WRITING-SPEC.md` 第三节必须一致。修改任一处时同步另一处。**
+
+| 段 | 回答 | 对应小节 | 不合格的样子 |
+|---|---|---|---|
+| 1. 是什么 | 定义、结构、组成部分 | `N.1` 起 | 只给结论不给结构 |
+| 2. 为什么 | 因果，不成立时的后果 | 并入第 1 段 | "某某技术非常重要" |
+| 3. 怎么做 | 复现步骤或实现说明，指向 `code/` | `N.M` | 独立脚本，接不上上一章 |
+| 4. 不适用 | 明确列出不在本章范围内的情况 | `N.X 边界` | 没有反例 |
+| 5. 弄坏它 | 改动什么、观察什么现象 | `N.Y 复现` | 只有"练习题" |
+
+每章另需一个小结（`这一章建立的 N 件事`）和一个衔接（`下一章`）。
 
 **删掉**：章首术语表（术语就地解释，汇总进附录）、"本章产出/验收标准/遗留问题"三节、标题里的 ★ 与一串顿号、重复 30 次的"先看一个具体的坏事 / 为什么现有手段不够"。
 
@@ -750,7 +894,7 @@ P7 是毕业线。
 
 | 规则 | 手段 |
 |---|---|
-| **代码只往上加** | 全书一条连续的骨架；每章只在 loop 上**新增一个组件**，不改已有组件 |
+| **代码只往上加** | 全书一条连续的骨架；每章**新增组件或给已有组件增加实现**，不改变已有函数签名与字段。第 5 章例外，需同时落 Actor 与 Tools 才能跑通一次工具调用 |
 | **每个组件必带单测** | 没有模型、没有网络的离线测试；测不了说明耦合了 |
 | 引用永远有效 | `第 N 章` / `code/` 路径 / 相对链接由脚本校验 |
 | **知识点可追溯** | 每章开头标注它覆盖 A1–G5 中的哪几条、装配了哪个组件 |
@@ -772,16 +916,25 @@ P7 是毕业线。
 | `OUTLINE.md` | 结构依据：94 个知识点、41 章、14 个组件、写作规则 | 每次写作任务开始 |
 | `docs/WRITING-SPEC.md` | 写作规范：内容、标题、结构、代码、引用 | 每次写作任务开始 |
 | `docs/CHAPTER-TEMPLATE.md` | 章节模板与检查清单 | 每次写作任务开始 |
+| `docs/CONTRACT.md` | **已落地的接口签名与字段**，后续章节只能增不能改 | 写代码前读，写完更新 |
 | `docs/PROGRESS.md` | 进度：已完成、下一章、待办 | 每次写作任务开始与结束 |
+
+### 为什么需要 CONTRACT.md
+
+`OUTLINE.md` 5.7 只能写**计划中的**契约。实际实现时可能出现命名不一致、字段类型不同、参数顺序不同。如果下一章只读 5.7，就会与上一章的实际代码对不上。
+
+`docs/CONTRACT.md` 记录**实际落地**的东西。第 5 章完成后必须把 `harness/` 的真实签名写进去；第 6 章读它，不读第 5 章的代码。
 
 ### 11.2 强制流程
 
 ```
 读 PROGRESS.md → 确认章号与知识点编号
              → 读 WRITING-SPEC.md + CHAPTER-TEMPLATE.md
-             → 在 OUTLINE.md 中确认组件归属与代码接续点
+             → 读 CONTRACT.md，确认已落地的接口与字段
+             → 查 OUTLINE.md 5.7 / 5.8 / 5.9（契约计划与代码形态）
              → 写代码并运行
              → 写正文（实例与输出来自真实运行）
+             → 把本章落地的实际签名写入 CONTRACT.md
              → 跑三个检查脚本
              → 更新 PROGRESS.md
 ```
@@ -792,7 +945,7 @@ P7 是毕业线。
 |---|---|
 | `tools/check_style.py` | 章首元信息、标题修饰词、主观/情绪词、感叹号、未标注的百分比、旧结构残留、五段完整性 |
 | `tools/check_refs.py` | 章号是否超范围、`code/` 目录是否存在、代码目录编号与章号是否一致、相对链接是否有效 |
-| `tools/check_chapter.py` | 单章对照模板逐项检查（待实现） |
+| `tools/check_chapter.py` | 章首四行元信息、小节编号连续不重复、四个必需小节 |
 
 **未通过检查的章节不算完成。**
 
@@ -808,24 +961,6 @@ WRITING-SPEC.md  >  OUTLINE.md  >  CHAPTER-TEMPLATE.md  >  PROGRESS.md
 
 ---
 
-| # | 决定 | 理由 |
-|---|---|---|
-| 1 | **14 个组件**，按 loop 插点划分 | 挂不到具体插点的就不是组件 |
-| 2 | `Tools` 与 `Skills` 分开 | 能力清单 vs 流程说明书；数量级与加载时机都不同 |
-| 3 | `Knowledge` 与 `Context` 分开 | 召回质量 vs 窗口预算；合并后无法归因"答错" |
-| 4 | `Budget`/`Guard`/`Tracer` 放插点 ⑤⑧，不塞进 Actor | 治理不可被决策绕过 |
-| 5 | **`Resilience` 独立成组件** | 超时/重试/限流/熔断/降级共享同一份失败计数，拆开必然跨组件共享状态 |
-| 6 | **`Replanner` 合回 `Reflector`** | 两者只隔一个 `Verdict`，三种修复策略就是 `Verdict` 的三个取值 |
-| 7 | **`Provider` 是部件不是组件** | 它是 Actor 的执行后端；但它会改变 token 口径等四件事，单独在第 3 章讲 |
-| 8 | **`Cache` 归入 `Budget`** | 只影响"少花一次钱"，不改变任何决策 |
-| 9 | 第 12 章不拆 | 6 个知识点同属"工具生态"，拆开反而割裂 |
-| 10 | 框架卷拆 8 章（第 30–37 章） | 逐 API 讲解需要篇幅；第 33 章中间件最重 |
-| 11 | 主项目 Coding Agent，另两个作对照实验 | 有天然裁判、天然副作用、天然长任务 |
-| 12 | **`Prompt` 不列为组件** | 它是插点 ② 的产物，与 `Context` 职责重叠；提示词工程内容归入第 4 章与 `Context` |
-| 13 | **`Provider`/`Executor` 是部件** | 分别为 Actor 与 Tools 的内部实现，不是顶层组件 |
-| 14 | **`Cache` 归入 `Budget`** | 只影响单次成本，不改变任何决策 |
-
----
 
 ## 十二、已确认的设计决定
 

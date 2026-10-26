@@ -17,15 +17,18 @@
 **第 5 章 工具调用与最小循环**
 
 - 知识点：B1（工具定义与 `tool_calls` 解析）、B2（最小循环与终止条件）
-- 组件：**Actor**（插点 ④）+ **Tools**（插点 ⑥）+ State
-- 代码目录：`code/ch05_agent_loop/`
-- 注意：这是卷 2 起点，代码开始"只往上加"，后续各章在其基础上增量添加。
+- 组件：**Actor**（插点 ④）、**Tools**（插点 ⑥）
+- 代码：`code/harness/` 包，新增 `types.py`、`actor.py`、`tools.py`、`loop.py`
+- 契约：`OUTLINE.md` 5.7（只用到 `Goal`/`Step`/`ActionResult`/`Actor`/`Tool`）
+- 代码形态：`OUTLINE.md` 5.8
+- 示例任务：查订单并回答退货政策。工具 `get_order`、`get_policy`，本地函数，无网络
+- 交付类型建议：可运行脚本
 
 ## 待办
 
 - [ ] 第 5 章（B1 B2）
-- [ ] 校对 `requirements.txt`（当前仍引用旧章号，且需补 tiktoken）
 - [ ] 第 1 章可选：补一节真实调用（需 API Key）
+- [ ] 卷 2 起需补 `tests/` 离线单测（大纲 10.3 要求，尚未建立）
 
 ## 全书状态
 
@@ -43,7 +46,8 @@
 ## 写新章之前必须重新读的文件
 
 1. `OUTLINE.md` 第四节（该章的知识点）
-2. `OUTLINE.md` 第五节（组件归属，如果需要写代码）
-3. `OUTLINE.md` 第十节（写作规则）
-4. `docs/WRITING-SPEC.md`
-5. `docs/PROGRESS.md`（本文件）
+2. `OUTLINE.md` 5.7（组件契约）、5.8（代码形态）
+3. `OUTLINE.md` 第六节（该章在卷中的位置与组件归属）
+4. `docs/WRITING-SPEC.md`（写作规范）
+5. `docs/CHAPTER-TEMPLATE.md`（结构模板）
+6. `docs/PROGRESS.md`（本文件）

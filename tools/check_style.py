@@ -73,8 +73,13 @@ def has_standard_pattern(text: str) -> bool:
 
 
 def has_runnable_script_ref(text: str) -> bool:
-    """可运行脚本：正文引用了 code/ 下的脚本，且该脚本文件存在。"""
-    for m in re.finditer(r"code/(ch\d{2}_[a-z0-9_]+)/([a-z0-9_]+\.py)", text):
+    """可运行脚本：正文引用了真实存在的 .py 文件。
+
+    接受两类路径：
+        code/chXX_名称/stepN.py（第 1-4 章）
+        code/harness/*.py    （第 5 章起的包）
+    """
+    for m in re.finditer(r"code/(ch\d{2}_[a-z0-9_]+|harness)/([a-z0-9_]+\.py)", text):
         p = ROOT / "code" / m.group(1) / m.group(2)
         if p.exists():
             return True
@@ -142,7 +147,15 @@ def check(path: Path) -> list[str]:
             problems.append("缺少章首元信息：读完应当能回答")
 
     # 2-3. 标题与正文用词
+    #    围栏代码块内的内容不是正文，跳过检查。
+    #    否则提示词示例里的 "## 任务" 会被当成章节标题误判。
+    in_fence = False
     for i, line in enumerate(lines, 1):
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         if line.startswith("#"):
             title = line.lstrip("# ").strip()
             for w in TITLE_BANNED:

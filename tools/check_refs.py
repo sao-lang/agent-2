@@ -30,6 +30,18 @@ def code_dirs() -> set[str]:
     return {p.name for p in code.iterdir() if p.is_dir()}
 
 
+def check_step_numbering(text: str, path: Path, problems: list[str]) -> None:
+    """同一章内 stepN 的 N 不得重复。"""
+    nums = {}
+    for m in re.finditer(r"code/ch(\d{2})_[a-z0-9_]+/step(\d+)_", text):
+        ch, step = m.group(1), int(m.group(2))
+        nums.setdefault(ch, set()).add(step)
+    for ch, steps in nums.items():
+        expect = list(range(1, len(steps) + 1))
+        if sorted(steps) != expect:
+            problems.append(f"chapter {ch} 的 step 编号不连续或重复：实际 {sorted(steps)}")
+
+
 def check(path: Path, chapters: dict[int, Path], cdirs: set[str]) -> list[str]:
     text = path.read_text(encoding="utf-8")
     problems: list[str] = []
@@ -42,20 +54,32 @@ def check(path: Path, chapters: dict[int, Path], cdirs: set[str]) -> list[str]:
         if n > 41:
             problems.append(f"引用了超出范围的第 {n} 章（全书共 41 章）")
 
-    # 2. code/chXX_* 路径是否存在对应目录
-    for m in re.finditer(r"code/(ch\d{2}_[a-z0-9_]+)", text):
-        name = m.group(1)
-        if name not in cdirs:
-            problems.append(f"引用了不存在的代码目录：code/{name}")
+    # 2. code/chXX_* 与 code/harness/* 路径是否存在
+    for m in re.finditer(r"code/(ch\d{2}_[a-z0-9_]+|harness)(?:/([a-z0-9_]+\.py))?", text):
+        pkg = m.group(1)
+        fname = m.group(2)
+        if pkg == "harness":
+            if not (ROOT / "code" / "harness").is_dir():
+                problems.append("引用了不存在的代码包：code/harness")
+            elif fname and not (ROOT / "code" / "harness" / fname).exists():
+                problems.append(f"引用了不存在的文件：code/harness/{fname}")
+        else:
+            if pkg not in cdirs:
+                problems.append(f"引用了不存在的代码目录：code/{pkg}")
+            elif fname and not (ROOT / "code" / pkg / fname).exists():
+                problems.append(f"引用了不存在的文件：code/{pkg}/{fname}")
 
-    # 3. 代码目录编号应与所在章一致
+    # 3. 代码目录编号应与所在章一致（仅对 chXX_* 适用）
     own = path.name[:2]
     if own.isdigit():
         for m in re.finditer(r"code/ch(\d{2})_", text):
             if m.group(1) != own:
                 problems.append(f"代码目录编号 ch{m.group(1)} 与本章 {own} 不一致")
 
-    # 4. 相对链接
+    # 4. 同一章内 step 编号不得重复
+    check_step_numbering(text, path, problems)
+
+    # 5. 相对链接
     for m in re.finditer(r"\]\(([^)#][^)]*)\)", text):
         target = m.group(1)
         if target.startswith(("http://", "https://", "mailto:")):

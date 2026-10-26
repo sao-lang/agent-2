@@ -7,7 +7,8 @@
 1. `OUTLINE.md` —— 全书大纲：94 个知识点、41 章、14 个组件、写作规则。**这是唯一的结构依据。**
 2. `docs/WRITING-SPEC.md` —— 写作规范：标题、正文、数据、禁止事项。
 3. `docs/CHAPTER-TEMPLATE.md` —— 章节模板。
-4. `docs/PROGRESS.md` —— 当前进度：哪些章已写、下一章是什么。
+4. `docs/CONTRACT.md` —— **已落地的接口签名与字段**。写代码前必读，写完必更新。
+5. `docs/PROGRESS.md` —— 当前进度：哪些章已写、下一章是什么。
 
 **不要凭记忆或推测写。凡涉及结构、章号、知识点编号，以 `OUTLINE.md` 为准。**
 
@@ -51,20 +52,24 @@
 ```
 ① 读 docs/PROGRESS.md，确认下一章号与它覆盖的知识点编号
 ② 读 docs/WRITING-SPEC.md 和 docs/CHAPTER-TEMPLATE.md
-③ 在 OUTLINE.md 中找到该章的组件归属，确认代码要接着哪一章往上加
-④ 写 code/chXX_*/*.py，逐个运行，确认输出
-⑤ 写正文，实例与输出必须来自 ④ 的真实运行结果
-⑥ 确认章首声明的交付类型与本章主题匹配，并真的交付了
-⑦ 运行检查脚本，全部通过
-⑧ 更新 docs/PROGRESS.md
+③ 读 docs/CONTRACT.md，确认已落地的接口与字段
+④ 在 OUTLINE.md 中查 5.7（契约计划）与 5.8/5.9（代码形态）
+⑤ 写代码并运行，确认输出
+⑥ 写正文，实例与输出来自 ⑤ 的真实运行结果
+⑦ 确认章首声明的交付类型与本章主题匹配，并真的交付了
+⑧ 把本章落地的实际签名写入 docs/CONTRACT.md
+⑨ 运行三个检查脚本，全部通过
+⑩ 更新 docs/PROGRESS.md
 ```
+
+**第 ⑧ 步不可省略。** 下一章的会话只读 `CONTRACT.md` 里的实际签名，不读你的代码。
 
 ## 检查脚本
 
 ```bash
 python tools/check_style.py            # 标题、禁用语、主观词、数据出处、交付核对
 python tools/check_refs.py             # 章号引用、code/ 路径是否存在
-python tools/check_chapter.py 01       # 单章对照模板
+python tools/check_chapter.py          # 章首元信息、小节编号连续、必需小节
 ```
 
 **未通过检查的章节不算完成。**
@@ -72,6 +77,6 @@ python tools/check_chapter.py 01       # 单章对照模板
 ## 代码约定
 
 - 全部离线可跑，不需要 API Key、不需要网络。
-- 每章一个目录 `code/chXX_名称/`，内含 `stepN_*.py`。
+- 第 1–4 章：`code/chXX_名称/stepN_*.py`；第 5 章起：`code/harness/` 包（见 OUTLINE 5.9）。
 - 输出必须可复现：固定随机种子，不依赖执行时间。
 - 计数类的数字如果是估算，必须在代码注释和正文中同时注明"非真实值"。
