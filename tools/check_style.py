@@ -89,11 +89,20 @@ def check(path: Path) -> list[str]:
             # 允许出现在代码块外的提问句，但需人工确认
             problems.append(f"第 {i} 行含问号，确认是否为反问句")
 
-    # 5. 未标注来源的百分比
+    # 5. 百分比需有来源
+    #    来源的判定：该行本身提到脚本/运行，或所在小节前文已给出脚本路径，
+    #    或紧邻的上一段提到「运行 ... .py」。
     for i, line in enumerate(lines, 1):
+        if "%" not in line:
+            continue
+        if "运行" in line or "`" in line:
+            continue
+        # 向上回溯 25 行，寻找脚本出处
+        window = "\n".join(lines[max(0, i - 26) : i])
+        if ".py" in window and ("运行" in window or "脚本" in window):
+            continue
         for m in re.finditer(r"\d+(?:\.\d+)?%", line):
-            if "运行" not in line and "`" not in line[:m.start()]:
-                problems.append(f"第 {i} 行出现百分比且未标注来源：{m.group()}")
+            problems.append(f"第 {i} 行出现百分比且未标注来源：{m.group()}")
 
     # 6. 旧结构
     for marker in LEGACY_MARKERS:

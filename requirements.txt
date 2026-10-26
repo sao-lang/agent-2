@@ -1,74 +1,22 @@
-# 《Agent 工程化进阶》案例依赖
+# 《Agent 与 Harness 工程》依赖
 #
-# Python 版本要求：3.11 ~ 3.13（3.14 下部分依赖尚未完全兼容；已在 3.14 上验证 59 个测试全过）
-# 使用方式：在项目根目录执行
+# Python 版本：3.11 ~ 3.13
+# 使用方式（项目根目录）：
 #   python -m venv .venv
-#   .venv\Scripts\activate          # Windows PowerShell
-#   source .venv/bin/activate       # macOS / Linux
+#   .venv\Scripts\activate
 #   pip install -r requirements.txt
+#
+# 全书代码默认离线可跑。只有完整示例与结业项目需要 API Key。
 
-# ---------- 核心编排（第 43~46、48~50 章）----------
+# ---------- token 计量（第 3 章）----------
+tiktoken==0.14.0
+
+# ---------- 数据校验 ----------
+pydantic==2.14.1
+pydantic-settings==2.13.0
+
+# ---------- 框架卷（第 30~37 章，可选）----------
 langgraph==1.2.16
 langchain==1.4.7
 langchain-openai==1.7.2
-
-# ---------- 检查点持久化（第 22、50 章）----------
 langgraph-checkpoint-sqlite==2.0.11
-
-# ---------- 数据校验 / 配置 ----------
-pydantic==2.14.1
-pydantic-settings==2.13.0
-python-dotenv==1.2.1
-
-# ---------- 日志 / 重试 ----------
-structlog==26.1.0
-tenacity==9.2.1
-
-# ---------- 检索框架（第 51 章，可选）----------
-# LlamaIndex 与 langchain 无版本冲突，可直接装；只装 core 即可跑本章示例
-llama-index-core==0.14.25
-
-# ---------- RAG 评测（第 52 章）------------
-# ragas 会让 langchain-openai 降级到 1.1.9 并引入 langchain-classic，
-# 与上面锁定的 1.7.2 冲突。**故意不装**：第 51 章用 import 守卫。
-# 需要跑真实 RAGAS 时，另建 venv：pip install ragas==0.4.3
-
-# ---------- 检索与检索评测（第 7~10、40 章）----------
-# 向量库用内存版即可，避免评测环境依赖 Docker
-numpy==2.3.4
-# BM25 手写实现（第 12 章），不需要额外依赖
-
-# ---------- HTTP / 服务化（第 41 章）----------
-# FastAPI 用来把 Agent 暴露成 API；TestClient 离线可用，不需要起真服务器
-fastapi==0.161.0
-uvicorn[standard]==0.54.0
-httpx==0.28.1
-
-
-# ---------- 其他框架对比（第 62 章）----------
-# pydantic-ai：依赖注入 + 强类型输出。安装无冲突（2.60.0）。
-# 用 slim 版：不带 openai/anthropic 等模型客户端，仓库已有 openai==3.36.1。
-pydantic-ai-slim==2.60.0
-# AutoGen 0.7.x：群聊 + 发言顺序。只引入 autogen-core + protobuf，不降级其他包。
-autogen-agentchat==0.7.5
-
-# ⚠️ 故意**不装** crewai 与 openai-agents
-#   pip install --dry-run crewai 的真实解析结果：
-#     Would install crewai-0.11.2 langchain-0.1.20 langchain-core-0.1.53
-#                   langchain-openai-0.0.5 openai-1.109.1 ...
-#   即会把这个仓库的 langchain 降 4 个大版本、openai 降 2 个大版本，
-#   打挂第 43–46 章的代码。第 62 章只给写法示范，不给可运行示例。
-#   openai-agents 与 openai 版本强绑定，同样暂不引入。
-
-# ---------- Agent 评测（第 61 章）----------
-# 第 61 章主体是手写实现（step1~3 零依赖，只需要标准库 + langgraph）。
-# DeepEval 仅作为「可选补课」里的对照工具，装了不影响主流程。
-deepeval==4.3.1
-
-# ---------- 测试 ----------
-pytest==8.4.2
-
-# ---------- 第 41 章的 Docker 部分 ----------
-# 不需要 pip 包：需要 Docker Desktop（镜像构建与 compose 编排）。
-#   examples/full-stack/  docker compose up -d --build
-# 不装 Docker 也能跑 code/ch41_integration/step1~3（纯离线模拟）。
