@@ -513,7 +513,7 @@ out = agent.invoke({"messages": [("user", "A8821 多少钱")]})
     AIMessage      | 已查到：399 元                    | tool_calls=[]
 ```
 
-**这就是第 17 章 ReAct 的标准形状：**
+**这就是第 18 章 ReAct 的标准形状：**
 
 ```
 HumanMessage -> AIMessage(带 tool_calls) -> ToolMessage -> AIMessage(最终答案)
@@ -677,5 +677,5 @@ class State(TypedDict):
 上一章的图只有"一条直路"。下一章给它加上**条件边**（按情况走）、**Send**（一份输入变 N 路并行）、
 **Command**（跳转和改状态一步完成），以及**Runtime**（怎么把"当前租户"传进节点而不污染状态）。
 
-> 📎 参考：本章对应基础教程第 22 章《LangGraph 概述与快速入门》、第 23 章《API：图与状态》的知识点。
+> 📎 参考：本章对应基础教程第 23 章《LangGraph 概述与快速入门》、第 24 章《API：图与状态》的知识点。
 > 本书增加了一段基础教程没有的内容：**"不加 reducer 在顺序执行下不报错"**——这是最容易在真实项目里漏掉的前提。

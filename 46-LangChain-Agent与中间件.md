@@ -94,7 +94,7 @@ $env:PYTHONIOENCODING="utf-8"
 |---|---|
 | `messages.append(reply)` | 模型看不到自己刚说过的话，无限重复同一个工具调用 |
 | 配对 `tool_call_id` | 400 错误（工具结果必须对应某次调用） |
-| 加**步数上限** | 死循环，账单爆炸（第 16 章） |
+| 加**步数上限** | 死循环，账单爆炸（第 17 章） |
 | 工具报错要 catch | 一个工具抖动，整条请求 500 |
 | 记录每次调用的耗时/来源 | 出问题只能靠猜（第 38 章） |
 | 上下文太长要摘要 | 撞上下文窗口，报 `context_length_exceeded` |
@@ -161,7 +161,7 @@ agent = create_agent(
     state_schema=None,                    # 自定义 state（进阶）
     context_schema=None,                  # 运行时上下文类型（第 49 章 Runtime）
     checkpointer=InMemorySaver(),         # ★ 记忆的载体
-    store=None,                           # 跨会话长期记忆（第 27 章）
+    store=None,                           # 跨会话长期记忆（第 28 章）
     interrupt_before=None,                # 在某个节点前停下（HITL）
     interrupt_after=None,
     debug=False,
@@ -255,15 +255,15 @@ agent.with_mem.invoke({"messages": [HumanMessage("我叫什么？")]}, cfg)
 
 | 中间件 | 对应本书第几章 |
 |---|---|
-| `ModelCallLimit` / `ToolCallLimit` | 第 16 章（循环失控） |
+| `ModelCallLimit` / `ToolCallLimit` | 第 17 章（循环失控） |
 | `ModelRetry` / `ToolRetry` / `ModelFallback` | 第 35 章（延迟工程）+ 附录 F |
-| `ToolError` | 第 12 章（工具调用）+ 44.3 |
+| `ToolError` | 第 13 章（工具调用）+ 44.3 |
 | `Summarization` | 第 24、26 章（上下文 / 短期记忆） |
 | `HumanInTheLoop` | 第 32 章（HITL） |
-| `TodoList` | 第 19 章（Plan-and-Execute） |
+| `TodoList` | 第 20 章（Plan-and-Execute） |
 | `PII` | 第 31 章（护栏） |
-| `LLMToolSelector` | 第 12 章（工具越多越选不对） |
-| `ContextEditing` | 第 24 章（上下文工程） |
+| `LLMToolSelector` | 第 13 章（工具越多越选不对） |
+| `ContextEditing` | 第 25 章（上下文工程） |
 
 **所以中间件不是"新知识"，是"你已经学过的东西的落地形态"。**
 
@@ -278,7 +278,7 @@ agent.with_mem.invoke({"messages": [HumanMessage("我叫什么？")]}, cfg)
   第 2 步：模型给出最终答案 → '在保修期内，可以免费维修。'
   → 这 15 行没有一个 import 来自框架。你现在能指出 create_agent 替你做了什么：
     · messages 的管理（自动追加 / 自动配对 tool_call_id）
-    · 循环上限（不设置会死循环，见第 16 章）
+    · 循环上限（不设置会死循环，见第 17 章）
     · 状态持久化（checkpointer）与中断（interrupt）
     · 中间件（限流/重试/摘要/审批/脱敏）
     · 流式（stream_mode）
@@ -374,7 +374,7 @@ class Audit(AgentMiddleware):
 > 💥 **失败实验 1：删掉限流，看它转多少圈**
 > 把 `step2` ② 的 `ModelCallLimitMiddleware(run_limit=5)` 删掉，同时把假模型剧本改成"永远返回 tool_calls"（比如复制 30 条 `ai(tool_calls=[...])`）。
 > 重跑，观察它执行了多少次工具调用。
-> **结论：框架默认**不会**帮你限制循环次数。这不是 bug，是"给你选择权"。第 16 章讲的那四种失控，在框架里一个都不少。**
+> **结论：框架默认**不会**帮你限制循环次数。这不是 bug，是"给你选择权"。第 17 章讲的那四种失控，在框架里一个都不少。**
 
 ---
 
@@ -415,7 +415,7 @@ middleware=[ModelCallLimitMiddleware(run_limit=5)]
 middleware=[LLMToolSelectorMiddleware(max_tools=5)]
 ```
 
-**结论**：先用一个小模型"挑 5 个候选工具"，再让主模型在这 5 个里选。第 12 章实测：工具数越少，选对率越高。
+**结论**：先用一个小模型"挑 5 个候选工具"，再让主模型在这 5 个里选。第 13 章实测：工具数越少，选对率越高。
 
 ### 🎯 到这里，你已经掌握了"用框架搭 Agent"
 
@@ -634,7 +634,7 @@ SummarizationMiddleware(
 )
 ```
 
-**注意它替换的是"早期消息"**，不是"整段历史"。所以"用户名字"这种早期事实**很可能被摘要掉**——第 26 章讲过这个坑。
+**注意它替换的是"早期消息"**，不是"整段历史"。所以"用户名字"这种早期事实**很可能被摘要掉**——第 27 章讲过这个坑。
 
 ### 中间件的执行成本
 
@@ -695,7 +695,7 @@ SummarizationMiddleware(
 完整历史：第 n 轮时有 `2n` 条，累计发送 `2 × (1+2+...+10) × 100 = 11,000 token`
 只发最近 4 条：`10 × 4 × 100 = 4,000 token`
 
-差 **2.75 倍**。这就是第 24 章"上下文预算"和第 26 章"只留最近 N 轮会翻车"之间的张力：
+差 **2.75 倍**。这就是第 25 章"上下文预算"和第 27 章"只留最近 N 轮会翻车"之间的张力：
 **要么花更多钱，要么丢信息，要么上摘要。** 没有第四种选择。
 
 </details>
@@ -707,6 +707,6 @@ SummarizationMiddleware(
 **下一章预告**：第 47 章 LlamaIndex——另一套检索路线。
 框架部分换一条线：不画图、不做 Agent，只做"把文档变成可查询的索引"。你会看到它和 LangChain 的分工在哪里重叠、在哪里互补。
 
-> 📎 参考：本章对应基础教程第 21 章《Agent 智能体》的知识点。
+> 📎 参考：本章对应基础教程第 22 章《Agent 智能体》的知识点。
 > **但基础教程用的是 0.x 的 `AgentExecutor` + `agent_scratchpad`**，本书第 45.7 节专门列了对照表，
 > 并在 `step3` 里手写了那个循环，让你看清"框架替你做了什么"。

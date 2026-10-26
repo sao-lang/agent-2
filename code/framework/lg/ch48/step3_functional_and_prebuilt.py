@@ -188,7 +188,7 @@ def demo_create_agent() -> None:
     print()
     print("  ---- 这说明 create_agent 的循环是：")
     print("     HumanMessage -> AIMessage(带 tool_calls) -> ToolMessage -> AIMessage(最终答案)")
-    print("     也就是第 17 章 ReAct 的标准形状。")
+    print("     也就是第 18 章 ReAct 的标准形状。")
     print()
     print("  ---- 但它也暴露了一个评测上的问题：")
     print("     **这里答案对不对，完全取决于我写死的剧本。**")

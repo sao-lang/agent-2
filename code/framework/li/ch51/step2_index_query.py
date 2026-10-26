@@ -123,7 +123,7 @@ def main() -> None:
     for n in filtered:
         print(f"    {n.score:.3f}  {n.node.get_content().replace(chr(10), ' ')[:48]}…")
     print("  → 作用：把'分数很低但也进了 top_k'的块剔掉，避免噪声进 prompt。")
-    print("    这是第 10 章'重排之后还要过滤'的框架化写法。")
+    print("    这是第 11 章'重排之后还要过滤'的框架化写法。")
 
     line("⑤ 顺序很重要：先 top_k 再阈值 vs 反过来")
     print("  顺序 A：先取 top_6 → 再按 0.33 过滤 →", len(filtered), "条")
@@ -143,7 +143,7 @@ def main() -> None:
     print("""  VectorStoreIndex   向量索引（最常用，本章用这个）
   SummaryIndex       全文顺序遍历（适合"总结整篇"，不适合 QA）
   KeywordTableIndex  关键词表（简单但脆，现在很少用）
-  PropertyGraphIndex 图索引（对应第 28 章 GraphRAG）
+  PropertyGraphIndex 图索引（对应第 29 章 GraphRAG）
 
   → 90% 的 RAG 项目用 VectorStoreIndex + 好的切分 + 好的 rerank 就够了。
   """)

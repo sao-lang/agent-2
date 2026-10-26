@@ -1,4 +1,4 @@
-"""第 28 章产出：RAG 评测的最小可用框架。
+"""第 29 章产出：RAG 评测的最小可用框架。
 
 为什么自己写而不直接用 RAGAS？
 因为你要先知道"这些指标到底在算什么"，再用 RAGAS（它是把这些算好的封装）。
@@ -32,7 +32,7 @@ class EvalCase:
     alternatives: list[list[str]] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     # 答案锚点：文档里的"第几章第几节"。gold chunk 由它映射，而不是靠文本匹配。
-    # 这是"分块策略换了以后评测集还能复用"的关键（第 28 章）。
+    # 这是"分块策略换了以后评测集还能复用"的关键（第 29 章）。
     anchor: str = ""
     # 样本来源：真实日志 / 人工编写 / 模型生成+人工筛
     source: str = ""

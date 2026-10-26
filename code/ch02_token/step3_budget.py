@@ -172,7 +172,7 @@ def main() -> None:
     print("      ③ retrieval 和 history 争剩下的空间，**优先保 retrieval**")
     print("         （你需要知道用户问什么，不需要知道上个月聊了什么）")
     print()
-    print("  这一章给了「怎么算」，第 24 章给「怎么压」——")
+    print("  这一章给了「怎么算」，第 25 章给「怎么压」——")
     print("  历史压缩、检索去重、摘要替换，都在那一章。")
 
     assert assemble(window, 10, len(POLICIES), out_need).input_tokens > 0

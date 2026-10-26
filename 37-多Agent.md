@@ -123,7 +123,7 @@ python code/ch37_multi_agent/step1_split_bill.py
 ```
 ① 单个上下文装不下吗？  → 是：必须拆（再谈怎么拆）
 ② 子任务能并行吗？      → 是：值得拆（延迟 sum → max）
-③ 需要互相看结果吗？    → 是且装得下：不拆，用单 Agent + Reflection（第 20 章）
+③ 需要互相看结果吗？    → 是且装得下：不拆，用单 Agent + Reflection（第 21 章）
 ```
 
 第三步是最反直觉的：**"需要交叉验证"听起来像"多 Agent 协作"，其实恰恰是不该拆的理由。**
@@ -140,7 +140,7 @@ python code/ch37_multi_agent/step2_criteria.py
 任务                              并行    互看    装不下   结论
 ----------------------------------------------------------------------------------------
 写三份不同产品的文案                       Y     -      -   ✅ 值得拆：真并行，延迟从 sum 变 max
-写文案 + 审文案                        -     Y      -   ❌ 不拆：需要交叉验证但装得下 → 单 Agent + Reflection（第 20 章）
+写文案 + 审文案                        -     Y      -   ❌ 不拆：需要交叉验证但装得下 → 单 Agent + Reflection（第 21 章）
 读 500 页手册后总结                     Y     -      Y   ✅ 必须拆：单个上下文装不下
 查一个订单状态                          -     -      -   ❌ 不拆：没有并行收益，拆了只是更贵
 对比 5 家竞品定价                       Y     -      -   ✅ 值得拆：真并行，延迟从 sum 变 max
@@ -157,7 +157,7 @@ python code/ch37_multi_agent/step2_criteria.py
 
 实际上：**审核者只看到写手的输出，看不到写手的推理过程**。而单 Agent 做反思时，它看到的是自己完整的上文——能定位到"我这句话的依据不足"。
 
-第 20 章实测过：在上下文装得下的前提下，单 Agent + Reflection 更便宜也更准。
+第 21 章实测过：在上下文装得下的前提下，单 Agent + Reflection 更便宜也更准。
 
 只有材料大到装不下（比如 12 份合同附件），才必须拆开分头看。
 
@@ -307,7 +307,7 @@ class Fact(BaseModel):
 | **带 author** | 出错时知道是谁写的 |
 | **带 version** | 后续 Agent 能判断"我看到的是最新版吗" |
 
-这就是第 30 章 wiki 矛盾检测的多 Agent 版本：**冲突不裁决，先标记，再交给验证者或人。**
+这就是第 31 章 wiki 矛盾检测的多 Agent 版本：**冲突不裁决，先标记，再交给验证者或人。**
 
 ### 预算分摊（防止一个跑飞拖垮全局）
 
@@ -321,7 +321,7 @@ per_worker = total_budget / workers * 0.8    # 留 20% 给协调者
 
 **Supervisor 必须有显式终止条件。**
 
-第 16 章讲过 Agent Loop 的四种失控。到了多 Agent，它会变成"协调者永远觉得信息还不够"，而且每一轮都在花 **N 个 Agent** 的钱。
+第 17 章讲过 Agent Loop 的四种失控。到了多 Agent，它会变成"协调者永远觉得信息还不够"，而且每一轮都在花 **N 个 Agent** 的钱。
 
 ```python
 if rounds >= 3 or coverage(findings) >= 0.9 or budget_exhausted:
@@ -409,7 +409,7 @@ if rounds >= 3 or coverage(findings) >= 0.9 or budget_exhausted:
 
 > **所以多 Agent 唯一站得住脚的价值是「容错」，不是「更聪明」。**
 >
-> - 想让系统更准 → 先别加 Agent，先改 prompt / 检索（第 2–10 章）
+> - 想让系统更准 → 先别加 Agent，先改 prompt / 检索（第 2–11 章）
 > - 想让系统更稳 → 加**冗余**（同样的活派给 N 个，取多数）
 > - 不要为了"看起来更架构化"把串行环节拆多
 
@@ -549,7 +549,7 @@ if rounds >= 3 or coverage(findings) >= 0.9 or budget_exhausted:
 | 一直不结束、账单飙升 | 没有终止条件 | 轮次上限 + 覆盖度 + 预算三重条件 |
 | 一个 worker 挂了，其他全失败 | 共享预算池 / 共享异常 | 独立预算 + 独立兜底 |
 | 拆完更慢 | 用了串行 Supervisor，但任务本可并行 | 换 fan-out（26.4） |
-| 拆完不准 | 需要互看却硬拆成两个角色 | 退回单 Agent + Reflection（第 20 章） |
+| 拆完不准 | 需要互看却硬拆成两个角色 | 退回单 Agent + Reflection（第 21 章） |
 | 出错不知道谁背锅 | 没有 author / 没有按 Agent 分 trace | 黑板带 author，trace 打 agent 标签（第 39 章） |
 
 ---
@@ -601,7 +601,7 @@ if rounds >= 3 or coverage(findings) >= 0.9 or budget_exhausted:
 |---|---|---|
 | LangGraph 的 `Send` / 子图 | fan-out / 嵌套编排 | 子图 ≈ "把一层拆成独立模块" |
 | 多 Agent 协作框架的 Supervisor 模式 | 26.4 形态 A | 概念一样 |
-| 工具调用（第 17 章） | **最便宜的分工方式** | 很多"多 Agent"需求，其实一个 Agent + 多个工具就够 |
+| 工具调用（第 18 章） | **最便宜的分工方式** | 很多"多 Agent"需求，其实一个 Agent + 多个工具就够 |
 
 ### 一句话
 

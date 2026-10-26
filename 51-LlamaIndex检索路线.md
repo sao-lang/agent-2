@@ -100,7 +100,7 @@ $env:PYTHONIOENCODING="utf-8"
 | `SimpleDirectoryReader` | 第 1 行（一行读整个目录） |
 | `IngestionPipeline` | 第 6–7 行（流水线 + 去重 + 增量） |
 | `Node` 体系 | 第 3 行（带 id/关系，方便"取相邻块"） |
-| `PostProcessor` 链 | 检索后过滤/压缩（第 10 章那些技巧的现成实现） |
+| `PostProcessor` 链 | 检索后过滤/压缩（第 11 章那些技巧的现成实现） |
 
 **所以不是"LlamaIndex 更好"，是"它把脏活做成了默认值"。**
 
@@ -269,7 +269,7 @@ filtered = pp.postprocess_nodes(raw, query_str=q)
 | 行 | 在做什么 | 不这么写会怎样 |
 |---|---|---|
 | ① | 先取 6 条（比最终需要的多） | 直接取 2 条再过滤：过滤完可能剩 0 条 |
-| ② | 按相似度阈值剔除 | 不剔除：低分噪声进 prompt（第 24 章的"上下文污染"） |
+| ② | 按相似度阈值剔除 | 不剔除：低分噪声进 prompt（第 25 章的"上下文污染"） |
 
 真实输出（段 ④）：
 
@@ -369,7 +369,7 @@ tools = [
 router = RouterQueryEngine(selector=LLMSingleSelector.from_defaults(), query_engine_tools=tools)
 ```
 
-**`description` 就是路由的"门牌"**——和第 14 章 Skill 的 description、第 12 章工具的 description 是同一件事。
+**`description` 就是路由的"门牌"**——和第 15 章 Skill 的 description、第 13 章工具的 description 是同一件事。
 
 ### 问题 ③：它和 LangChain 到底怎么选？
 
@@ -580,7 +580,7 @@ class W(Workflow):
 | 需要跨 session 长期记忆 | 两者都有 | 看生态 |
 
 > **一个实务建议：不要为了"统一技术栈"把两个框架硬拼在一起。**
-> 混用两套状态管理是最容易出事的地方（第 23 章讲过 State 的坑）。
+> 混用两套状态管理是最容易出事的地方（第 24 章讲过 State 的坑）。
 
 ---
 
@@ -611,7 +611,7 @@ class W(Workflow):
 
 **实验 C：把 `RouterQueryEngine` 的 description 改成"知识库"。**
 重跑 `step3` ①。观察候选工具变成"两个都叫知识库"。
-结论：**路由靠 description 区分，写得一样等于没法路由**（和第 14 章 skill description 同一个坑）。
+结论：**路由靠 description 区分，写得一样等于没法路由**（和第 15 章 skill description 同一个坑）。
 
 ---
 
@@ -770,7 +770,7 @@ Index / Retriever / QueryEngine，各给你什么、你给它什么。
 每天：`572 × 5,000 = 2,860,000 token` ≈ **286 万 token/天**
 
 按 ¥0.001/1k input 计 = **¥2.86/天** ≈ ¥86/月。
-数字不大，但**更重要的是质量**：那 4 条低分噪声会干扰模型，而且越长的上下文越容易"lost in the middle"（第 24 章）。
+数字不大，但**更重要的是质量**：那 4 条低分噪声会干扰模型，而且越长的上下文越容易"lost in the middle"（第 25 章）。
 
 </details>
 
@@ -782,6 +782,6 @@ Index / Retriever / QueryEngine，各给你什么、你给它什么。
 前面所有评测都是"自己写指标"。下一章看业界框架怎么定义"忠实度""上下文精度"，
 以及**为什么你仍然需要自己算一遍**（框架的指标口径和你的业务不一定一致）。
 
-> 📎 参考：本章对应基础教程第 18 章《向量数据库与 Embedding 实战》、第 19 章《RAG 检索增强生成》的知识点，
-> 但**换了一条主线**：不重复"什么是向量/什么是 RAG"（第 7–10 章讲过），
+> 📎 参考：本章对应基础教程第 19 章《向量数据库与 Embedding 实战》、第 20 章《RAG 检索增强生成》的知识点，
+> 但**换了一条主线**：不重复"什么是向量/什么是 RAG"（第 7–11 章讲过），
 > 只讲"怎么把 1000 份文档喂进去、怎么验证喂得对"。

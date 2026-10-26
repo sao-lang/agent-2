@@ -87,7 +87,7 @@ def main() -> None:
 
     print("  → 这 15 行没有一个 import 来自框架。你现在能指出 create_agent 替你做了什么：")
     print("    · messages 的管理（自动追加 / 自动配对 tool_call_id）")
-    print("    · 循环上限（不设置会死循环，见第 16 章）")
+    print("    · 循环上限（不设置会死循环，见第 17 章）")
     print("    · 状态持久化（checkpointer）与中断（interrupt）")
     print("    · 中间件（限流/重试/摘要/审批/脱敏）")
     print("    · 流式（stream_mode）")
@@ -126,7 +126,7 @@ def main() -> None:
       ├── tools            第 45 章（@tool / MCP 转过来的 StructuredTool）
       ├── system_prompt    第 43 章（ChatPromptTemplate 的 system 部分）
       ├── middleware       第 46 章（限流/重试/摘要/审批/脱敏）
-      └── checkpointer     第 47–49 章 + 第 26 章（记忆分层）
+      └── checkpointer     第 47–49 章 + 第 27 章（记忆分层）
     """)
 
 

@@ -1,4 +1,4 @@
-"""第 28 章 step0：从零生成一份评测集骨架，并告诉你"怎么填"。
+"""第 29 章 step0：从零生成一份评测集骨架，并告诉你"怎么填"。
 
 运行：
     python code/ch41_eval/rag_step0_make_eval_set.py      # 预览

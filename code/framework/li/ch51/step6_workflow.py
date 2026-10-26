@@ -202,7 +202,7 @@ def demo_when_to_use() -> None:
     print("     **不要为了「统一技术栈」而把两个框架拼在一起。**")
     print("     如果检索已经在 LlamaIndex 里，就用它的 Workflow；")
     print("     如果核心是有状态的长流程，就用 LangGraph，检索只当工具。")
-    print("     混用两套状态管理是最容易出事的地方（第 23 章讲过 State 的坑）。")
+    print("     混用两套状态管理是最容易出事的地方（第 24 章讲过 State 的坑）。")
 
 
 if __name__ == "__main__":

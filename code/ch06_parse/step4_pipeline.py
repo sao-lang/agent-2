@@ -300,7 +300,7 @@ def main() -> None:
     print("  ⑦ 全程记账（调用次数、成本、失败原因）")
     print()
     print("  这七步合起来，就是本书后面所有章节的「最小可用单元」。")
-    print("  第 12 章的工具调用、第 17 章的 ReAct，都是在这个单元上叠出来的。")
+    print("  第 13 章的工具调用、第 18 章的 ReAct，都是在这个单元上叠出来的。")
 
     assert c.get("ok", 0) + c.get("retried", 0) >= 8, f"救回率太低: {dict(c)}"
     assert c.get("gave_up", 0) == 3  # 三条 hopeless

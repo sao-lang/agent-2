@@ -16,7 +16,7 @@ from __future__ import annotations
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-# 三路检索，互不依赖（第 30 章的混合检索就是这个结构）
+# 三路检索，互不依赖（第 31 章的混合检索就是这个结构）
 TASKS = [
     ("向量检索", 240),
     ("BM25 检索", 80),

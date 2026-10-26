@@ -96,7 +96,7 @@ def main() -> None:
         print(f"  不补会怎样：{type(e).__name__}: {str(e)[:70]}")
     print(f"  补齐后：{recall_user_pref.invoke({'user_id': 'u1'})}")
 
-    line("④ InjectedStore：工具直接读写长期记忆（第 27 章的分层存储）")
+    line("④ InjectedStore：工具直接读写长期记忆（第 28 章的分层存储）")
     print("""  from langgraph.store.memory import InMemoryStore
   from langgraph.prebuilt import InjectedStore
 

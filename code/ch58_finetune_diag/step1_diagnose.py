@@ -188,7 +188,7 @@ def demo_decision_tree() -> None:
         │      └─ 否 ↓
         │
         └─ 失败原因是"推理链不够长/不够对"吗？
-               ├─ 是 → 先试 CoT / Reflection（第 20 章）
+               ├─ 是 → 先试 CoT / Reflection（第 21 章）
                └─ 仍不行 → 换更大模型，而不是微调小模型
     """
     print(tree)

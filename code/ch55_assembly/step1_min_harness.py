@@ -4,9 +4,9 @@
     python code/ch55_assembly/step1_min_harness.py
 
 前面几章你有了散零件：
-  · 第 12 章：Tool（怎么调能力）
-  · 第 13 章：MCP（能力从哪来）
-  · 第 14 章：Skill（流程怎么挑、怎么用）
+  · 第 13 章：Tool（怎么调能力）
+  · 第 14 章：MCP（能力从哪来）
+  · 第 15 章：Skill（流程怎么挑、怎么用）
 
 这一级做什么：写一个约 200 行的 Harness，把五层装起来并跑真实请求：
 
@@ -54,7 +54,7 @@ class Registry:
 
     def register_mcp(self, server_name: str, tools: list[dict],
                      handlers: dict[str, Callable]) -> None:
-        """从 MCP 的 tools/list 结果批量登记（第 13 章的形状）。"""
+        """从 MCP 的 tools/list 结果批量登记（第 14 章的形状）。"""
         for spec in tools:
             self.register(
                 Tool(
@@ -142,7 +142,7 @@ class SkillLoader:
 
 # ============================================================ ③ Guard：四层检查
 class Guard:
-    """第 12 章的四层检查，装进 Harness 的一层。"""
+    """第 13 章的四层检查，装进 Harness 的一层。"""
 
     def __init__(self) -> None:
         self.denied: set[str] = set()
@@ -319,7 +319,7 @@ def main() -> None:
     print()
     print("  ③ **skill 的 allowed-tools 收窄工具集**")
     print("     code-review 只挂 git_diff/read_file，deploy 只挂 run_test/deploy_instance")
-    print("     可见工具从 7 个降到 2 个（第 13 章：选对率随之上升）")
+    print("     可见工具从 7 个降到 2 个（第 14 章：选对率随之上升）")
 
     print("\n" + "=" * 90)
     print("结论")

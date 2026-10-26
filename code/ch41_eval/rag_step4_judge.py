@@ -1,4 +1,4 @@
-"""第 28 章 step4：加上"引用校验"和"忠实度 judge"，并证明 judge 必须先被校验。
+"""第 29 章 step4：加上"引用校验"和"忠实度 judge"，并证明 judge 必须先被校验。
 
 运行：
     python code/ch41_eval/rag_step4_judge.py

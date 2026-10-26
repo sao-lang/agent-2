@@ -1,4 +1,4 @@
-"""第 28 章 step1：先给评测集做体检（离线，不花钱）。
+"""第 29 章 step1：先给评测集做体检（离线，不花钱）。
 
 运行：
     python code/ch41_eval/rag_step1_eval_set_check.py

@@ -160,7 +160,7 @@ def main() -> None:
     print("  → 旧块必须标记 invalid，否则检索会同时命中「7 天」和「30 天」两个答案")
     print(f"    本例：v1 的块 id 前缀 = {d1.chunks[0].chunk_id}")
     print(f"           v2 的块 id 前缀 = {d2.chunks[0].chunk_id}")
-    print("    → **块 id 里带版本号**，是「能精确失效」的前提（第 30 章 LLMWiki 的同一招）")
+    print("    → **块 id 里带版本号**，是「能精确失效」的前提（第 31 章 LLMWiki 的同一招）")
 
     line("④ 最经典的线上事故：文档删了，索引还在")
     print("  场景：运营在后台删了《2024 旧政策.pdf》，但只删了文件，没删索引。")

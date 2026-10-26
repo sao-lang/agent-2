@@ -314,7 +314,7 @@ def publish(store: WikiStore, entry_id: str, reviewer: str, tenant_id: str = "de
     """把条目置为 published。
 
     ⚠️ 发布一条"新版本"时，必须把**同主题的旧版本**一起置为 outdated，
-    否则检索会同时命中两版（第 30 章 step3 实测：v1 7 天和 v2 15 天并列返回）。
+    否则检索会同时命中两版（第 31 章 step3 实测：v1 7 天和 v2 15 天并列返回）。
     这里按"id 去掉 -vN 后缀"识别同主题版本。
     """
     e = store.get(entry_id)

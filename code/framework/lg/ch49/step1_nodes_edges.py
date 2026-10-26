@@ -116,7 +116,7 @@ def main() -> None:
     g2.add_conditional_edges("step", router2)
     out2 = g2.compile().invoke({"n": 0, "trace": []})
     print(f"\n  循环 3 次 → n={out2['n']}，trace={out2['trace']}")
-    print("  → 条件边返回 END 就是「结束」；这一步构成 while 循环（第 16 章的步数上限要自己加）")
+    print("  → 条件边返回 END 就是「结束」；这一步构成 while 循环（第 17 章的步数上限要自己加）")
 
     line("③ 一个坑：条件边返回了不存在的节点名")
     g3 = StateGraph(S)

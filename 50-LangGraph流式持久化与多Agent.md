@@ -513,7 +513,7 @@ app = g.compile(cache=InMemoryCache())     # ← 少了这句，缓存静默不�
 | 产出 | 文件 | 后续使用 |
 |---|---|---|
 | 六种流式模式 | `code/framework/lg/ch50/step1_streaming.py` | 第 41 章 Docker 交付的 SSE 接口 |
-| checkpointer + HITL + 回溯 | `code/framework/lg/ch50/step2_persist_hitl.py` | 第 32 章 HITL、第 22 章长任务 |
+| checkpointer + HITL + 回溯 | `code/framework/lg/ch50/step2_persist_hitl.py` | 第 32 章 HITL、第 23 章长任务 |
 | 子图 + Supervisor + 策略 | `code/framework/lg/ch50/step3_subgraph_multiagent.py` | 第 36 章多 Agent 判据 |
 
 **这一节建立的"可复用资产"**：`stream_mode=["updates","messages"]` 这段循环，在第 41 章会变成 FastAPI 的 SSE 端点。
@@ -555,7 +555,7 @@ app = g.compile(cache=InMemoryCache())     # ← 少了这句，缓存静默不�
 1000 用户：`400MB/天` ≈ **12GB/月**
 
 这就是为什么生产必须配**清理策略**（按天/按任务数删），
-也是为什么"把完整文档塞进 State"会很快把数据库撑爆（第 23 章 State 设计）。
+也是为什么"把完整文档塞进 State"会很快把数据库撑爆（第 24 章 State 设计）。
 
 </details>
 
@@ -567,5 +567,5 @@ app = g.compile(cache=InMemoryCache())     # ← 少了这句，缓存静默不�
 LangChain/LangGraph 的路线是"装配 + 画图"，LlamaIndex 的路线是"数据 + 索引 + 查询引擎"。
 你会看到它在"把 1000 份 PDF 变成可查询索引"这件事上，比 LangChain 省多少代码。
 
-> 📎 参考：本章对应基础教程第 25 章《LangGraph 高级特性》、第 26 章《LangGraph 多智能体与 A2A》的知识点。
+> 📎 参考：本章对应基础教程第 26 章《LangGraph 高级特性》、第 27 章《LangGraph 多智能体与 A2A》的知识点。
 > 本书额外补充了**"没有 checkpointer 时中断不报错却续不上"**这个真实坑，以及 `interrupt` 前后副作用的影响。

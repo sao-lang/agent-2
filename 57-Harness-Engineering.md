@@ -45,7 +45,7 @@
 - 有 trace（第 38 章）
 - 有护栏（第 31 章）
 - 有 HITL（第 32 章）
-- 有预算刹车（第 16 章）
+- 有预算刹车（第 17 章）
 - 有缓存（第 34 章）
 
 **做个体检，结果是 L3。** 缺的是：`幂等`、`评测集`、`轨迹评估`、`稳定性`、`CI 门禁`。
@@ -536,7 +536,7 @@ python code/ch57_harness/step3_evidence_not_memory.py
 |---|---|
 | **做项目** | 见 [项目说明](项目说明.md)：A Coding Agent / B Computer Use / C 企业知识中枢 |
 | **补深度** | 挑一个能力域做到 L5（通常是"质量门"或"可观测"） |
-| **补框架** | 第 27–36 章：LangChain / LangGraph / LlamaIndex / RAGAS / 平台 |
+| **补框架** | 第 28–36 章：LangChain / LangGraph / LlamaIndex / RAGAS / 平台 |
 | **补交付** | 第 39–41 章：提示工程化、数据层、Docker 交付 |
 | **日常运转** | 每周跑一次 `health_check()`，PR 里贴等级，故障后补用例 |
 

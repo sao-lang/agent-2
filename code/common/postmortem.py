@@ -1,4 +1,4 @@
-"""第 27 章产出：故障复盘的结构化模板与自动分类。
+"""第 28 章产出：故障复盘的结构化模板与自动分类。
 
 复盘的目标不是"找到谁错了"，而是**把一次故障变成一条永久性的防线**。
 
@@ -37,7 +37,7 @@ class FailureType(str, Enum):
             FailureType.PLANNING: "查第 33/35 章：计划结构、重规划触发条件",
             FailureType.CONTEXT: "查第 43/40 章：预算分配、压缩策略、槽位",
             FailureType.MODEL: "查第 34 章：加裁判；或第 34 章：换模型/路由",
-            FailureType.GUARDRAIL: "查第 27 章：规则过宽；加白名单；看误杀率",
+            FailureType.GUARDRAIL: "查第 28 章：规则过宽；加白名单；看误杀率",
             FailureType.INFRA: "查第 58/35 章：超时、降级链、并发上限",
             FailureType.UNKNOWN: "信息不足，先补 trace（第 39 章）",
         }[self]

@@ -459,7 +459,7 @@ output_reserve     160     300   188% ⚠️
 | system | 10% | 一般 200–500 token，占 8K 的 3–6%，留 10% 有余量 |
 | output | 20% | 中文回答 300–800 token。**低于 15% 会频繁腰斩** |
 | retrieval | 45% | RAG 场景下这是质量的主要来源 |
-| history | 25% | 只留最近的，远期靠摘要或长期记忆（第 27 章） |
+| history | 25% | 只留最近的，远期靠摘要或长期记忆（第 29 章） |
 
 **如果你的场景不是 RAG（比如纯聊天），把 retrieval 的比例挪给 history。** 比例不是重点，"先扣输出"这个顺序才是。
 
@@ -502,7 +502,7 @@ python code/ch02_token/step4_real_usage.py
 **没有 API key 也能跑** —— 脚本会自动降级为离线演示（用经验分词率模拟），输出格式完全一样，只是标记为"模拟"。
 
 > ⚠️ **上表的数字是示意值。** 你必须在自己机器上跑一遍，因为**每个模型的分词率都不一样**。
-> 换模型时重跑一次，把系数写进配置——这是第 24 章上下文预算能算准的前提。
+> 换模型时重跑一次，把系数写进配置——这是第 26 章上下文预算能算准的前提。
 
 ### 2.6.2 校准参数
 
@@ -514,7 +514,7 @@ python code/ch02_token/step4_real_usage.py
 | **校准系数** | 真实 / 本地估算 | 1.27 |
 | **窗口 ? K 最多装 ? 个汉字** | 你的实际容量 | 32K → 约 33,000 字 |
 
-**这三个数说不出来，第 24 章的上下文预算做不出来。** 因为它要你回答"这 8K 预算里该给检索留多少"，而这个"多少"必须建立在"1 个字等于多少 token"上。
+**这三个数说不出来，第 26 章的上下文预算做不出来。** 因为它要你回答"这 8K 预算里该给检索留多少"，而这个"多少"必须建立在"1 个字等于多少 token"上。
 
 ### 2.6.3 能力与脚本对应关系
 
@@ -668,11 +668,11 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 
 | 产出 | 文件 | 后续使用 |
 |---|---|---|
-| 三种 token 估算口径 | [`code/ch02_token/step1_count_tokens.py`](code/ch02_token/step1_count_tokens.py) | 第 24 章上下文预算的基础 |
+| 三种 token 估算口径 | [`code/ch02_token/step1_count_tokens.py`](code/ch02_token/step1_count_tokens.py) | 第 26 章上下文预算的基础 |
 | 成本模型与单价表 | [`code/ch02_token/step2_cost.py`](code/ch02_token/step2_cost.py) + [`code/common/meter.py`](code/common/meter.py) | 第 35 章成本工程、第 38 章计量 |
-| 窗口预算与三种失败形态 | [`code/ch02_token/step3_budget.py`](code/ch02_token/step3_budget.py) | 第 24 章上下文工程 |
+| 窗口预算与三种失败形态 | [`code/ch02_token/step3_budget.py`](code/ch02_token/step3_budget.py) | 第 26 章上下文工程 |
 | 真实 usage 校准器 | [`code/ch02_token/step4_real_usage.py`](code/ch02_token/step4_real_usage.py) | **换模型必跑**，结果写进配置 |
-| `ContextBudget` 分配器 | [`code/common/context.py`](code/common/context.py) | 第 24 章直接复用 |
+| `ContextBudget` 分配器 | [`code/common/context.py`](code/common/context.py) | 第 26 章直接复用 |
 
 **这一章和 `common/` 的关系**：`meter.py` 里的 `PRICING` 表是**全书唯一的单价来源**。第 35 章的成本优化、第 38 章的计量报表、第 41 章的评测成本，全部从这里读。**你要换模型时只改这一处。**
 
@@ -702,7 +702,7 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 > 窗口 32K 最多能装约 33,000 个纯汉字
 > ```
 >
-> **如果你说不出这三个数，第 24 章的上下文预算你做不出来。**
+> **如果你说不出这三个数，第 26 章的上下文预算你做不出来。**
 > 因为它要你回答"这 8K 预算里该给检索留多少"，而这个"多少"必须建立在"1 个字等于多少 token"上。
 
 ---
@@ -712,7 +712,7 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 | 问题 | 由谁解决 |
 |---|---|
 | 估算有偏差，怎么系统地逼近真实值 | 本章 2.6 给了校准方法；工程化落地见 **第 38 章**：可计量 |
-| 窗口不够用了，具体怎么压缩、怎么排 | **第 24 章**：上下文工程 |
+| 窗口不够用了，具体怎么压缩、怎么排 | **第 26 章**：上下文工程 |
 | 想把单次成本压到最低 | **第 35 章**：成本工程 |
 | 采样参数（temperature / top_p）怎么取 | 本章 2.10 有速查表；调优场景见 **第 36 章**：延迟工程 |
 | 缓存命中率怎么监控 | **第 35 章**：成本工程 |
@@ -720,7 +720,7 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 **本章三条硬约束对应的后续章节**：
 
 - **钱** → 第 35 章（成本工程）
-- **长度** → 第 24 章（上下文工程）
+- **长度** → 第 26 章（上下文工程）
 - **可靠性** → 第 38 章（可计量）、第 41 章（评测）
 
 ---
@@ -738,7 +738,7 @@ print(count_chars(text), count_cjk_aware(text), count_bytes(text))
 
 - **继续主线** → [第 3 章 提示词：怎么让模型听懂你要什么](03-提示词.md)，把"上下文里装什么"从"装多少"推进到"装什么"。
 - **立刻解决成本** → [第 35 章 成本工程](35-成本工程.md)
-- **立刻解决窗口** → [第 24 章 上下文工程](24-上下文工程.md)
+- **立刻解决窗口** → [第 26 章 上下文工程](24-上下文工程.md)
 
 ---
 

@@ -166,7 +166,7 @@ def main() -> None:
     print("  " + "-" * 88)
     for a, b, c, d in [
         ("① 分块", "第 9 章", "块大小/重叠", "第 9 章"),
-        ("② 检索", "step1 FlatStore", f"Recall@{K}", "第 10 章"),
+        ("② 检索", "step1 FlatStore", f"Recall@{K}", "第 11 章"),
         ("③ 生成", "step2 extractive_answer", "答案正确率", "第 3 章"),
         ("④ 校验", "step2 check_citations", "拒答率/引用率", "本章"),
     ]:

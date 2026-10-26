@@ -1,4 +1,4 @@
-"""第 28 章 step2：跑一次基线（离线，只算 L1 检索层，不花钱）。
+"""第 29 章 step2：跑一次基线（离线，只算 L1 检索层，不花钱）。
 
 运行：
     python code/ch41_eval/rag_step2_baseline.py

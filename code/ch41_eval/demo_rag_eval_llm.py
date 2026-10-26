@@ -1,4 +1,4 @@
-"""第 28 章示例 2：完整 RAG 流水线 + L3 忠实度评测（需要 API key）。
+"""第 29 章示例 2：完整 RAG 流水线 + L3 忠实度评测（需要 API key）。
 
 运行：
     python code/ch41_eval/demo_rag_eval_llm.py            # 全量

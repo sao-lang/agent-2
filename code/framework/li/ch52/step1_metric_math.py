@@ -176,7 +176,7 @@ def main() -> None:
     print(f"    recall={c0[1]:.2f} precision={c0[2]:.2f}")
     print("    → 金标被召回了（recall 1.00），precision 也是 1.00：")
     print("      因为 precision = 有用句 / 命中句，那一条无关内容只是让分母 +1。")
-    print("      这是「召回对了、但上下文不干净」。修法：阈值过滤 / 重排（第 10 章）。")
+    print("      这是「召回对了、但上下文不干净」。修法：阈值过滤 / 重排（第 11 章）。")
 
     print("\n  case 2（会员优惠券）：")
     print(f"    recall={c1[1]:.2f} precision={c1[2]:.2f} faithful={c1[3]:.2f}")

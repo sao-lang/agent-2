@@ -110,7 +110,7 @@ def main() -> None:
     print("    第 36 章实测：简单任务拆多 Agent 更慢、更贵、更差。只在**边界清晰且互不干扰**时拆。")
     print("  ⚠️ 注意上面那个 if state['result']：没有它，supervisor 会一直派活，")
     print("     直到 GraphRecursionError（默认 recursion_limit 很高，能空转上万步）。")
-    print("     这就是第 16 章说的「循环失控」，在多 Agent 里同样存在。")
+    print("     这就是第 17 章说的「循环失控」，在多 Agent 里同样存在。")
 
     line("③ Handoff：转交 = Command(goto=..., update=...)，而不是「我来做」")
     print("""  def refund_agent(state):

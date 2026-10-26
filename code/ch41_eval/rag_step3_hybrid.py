@@ -1,4 +1,4 @@
-"""第 28 章 step3：只加一个概念 —— 混合检索（向量 + 关键词，用 RRF 合并）。
+"""第 29 章 step3：只加一个概念 —— 混合检索（向量 + 关键词，用 RRF 合并）。
 
 运行：
     python code/ch41_eval/rag_step3_hybrid.py

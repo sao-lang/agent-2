@@ -590,7 +590,7 @@ llm = init_chat_model(model_name, model_provider="openai", temperature=0, timeou
 ### 参考
 
 > 📎 基础教程里有更细的 Ollama 部署（下载、模型列表、显存要求）：
-> 第 12 章《Ollama 本地部署与调用》—— https://github.com/didilili/ai-agents-from-zero
+> 第 13 章《Ollama 本地部署与调用》—— https://github.com/didilili/ai-agents-from-zero
 > 本书只讲"接进来怎么写"，不讲"怎么装 Ollama"。
 
 ---
@@ -658,6 +658,6 @@ llm = init_chat_model(model_name, model_provider="openai", temperature=0, timeou
 模型总会多说一句"好的，这是结果："，然后才是 JSON。下一章教你把"模型说的话"变成程序能用的**对象**，
 以及怎么用 `|` 把提示词、模型、解析器串成一条**能重试、能降级、能流式**的链。
 
-> 📎 参考：本章对应基础教程第 9 章《LangChain 概述与架构》、第 10 章《快速上手与 HelloWorld》、
-> 第 11 章《Model I/O 与模型接入》、第 13 章《提示词与消息模板》的知识点，
+> 📎 参考：本章对应基础教程第 9 章《LangChain 概述与架构》、第 11 章《快速上手与 HelloWorld》、
+> 第 12 章《Model I/O 与模型接入》、第 14 章《提示词与消息模板》的知识点，
 > 但**叙述顺序完全重写**：先"旧写法为什么不能用"，再"消息是什么"，最后"怎么换厂商"。

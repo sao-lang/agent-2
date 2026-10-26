@@ -1,4 +1,4 @@
-"""第 28 章示例：RAG 分层评测 + A/B 对比（检索部分不需要 API）。
+"""第 29 章示例：RAG 分层评测 + A/B 对比（检索部分不需要 API）。
 
 运行：
     python code/ch41_eval/demo_rag_eval.py
@@ -36,7 +36,7 @@ def gold_ids_for(case, idx: Index) -> list[str]:
     """把"答案锚点"映射到当前分块下的 chunk id。
 
     [!] 这里用的是**关键词匹配**来近似锚点，只为了能跑通定长切分的对比。
-    第 28 章正文用的是真正的锚点（章节号 + meta），那样换分块策略也不会失效。
+    第 29 章正文用的是真正的锚点（章节号 + meta），那样换分块策略也不会失效。
     """
     return [
         c.id for c in idx.chunks
