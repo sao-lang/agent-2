@@ -475,7 +475,7 @@ Context : assemble(State, Budget) -> list[dict]
 
 各组件之间的通信只经过下面这些数据类型与接口。**后续各章不得更改这些签名**，只能增加字段。
 
-**五个数据类型**（第 5 章起逐步补全，另有 `ToolCall` 见 5.8.1）
+**六个数据类型**（第 5 章起逐步补全，另有 `ToolCall` 见 5.8.1）
 
 | 类型 | 字段 | 首次定义章 |
 |---|---|---|
@@ -570,10 +570,12 @@ Actor(responder: Callable[[Step, State], str | ToolCall])
 
 | 形态 | responder 实现 | 用途 |
 |---|---|---|
-| `ScriptedResponder` | 持有一个 `list[str \| ToolCall]`，每次调用 `pop(0)`；列表耗尽时抛 `StopIteration`，`Actor` 将其转为"终止" | 第 5 章的演示与单测 |
+| `ScriptedResponder` | 持有一个 `list[str \| ToolCall]`，每次调用 `pop(0)`；列表耗尽时抛 `StopIteration`，`Actor` 将其转为"本步不含 `tool_calls`" | 第 5 章的演示与单测 |
 | `ProviderResponder` | 调用真实模型，解析 `tool_calls` 为 `ToolCall` | 第 5 章正文之外的完整示例 |
 
 `ScriptedResponder` 的构造形式：`ScriptedResponder(script: list[str | ToolCall])`。
+
+列表耗尽抛 `StopIteration` 时，`Actor` 将其转为"本步不含 `tool_calls`"，从而命中第 5 章唯一的结束条件。这样脚本化响应与真实模型走的是同一条终止路径。
 
 **第 5 章的脚本一律使用 `ScriptedResponder`**，正文必须写明"这是脚本化响应，不是模型实测"。
 
@@ -638,6 +640,16 @@ _call_tool(self, name: str, args: dict) -> str
 | 运行 | `python -m pytest tests/ -q` |
 | 覆盖要求 | 每个组件的公开方法至少一个用例；终止三态各一个用例 |
 
+**第 5 章最低测试清单**（缺一不算完成）：
+
+| 文件 | 必须包含的用例 |
+|---|---|
+| `tests/test_tools.py` | 注册后可取回；取不存在的名字抛 `KeyError`；执行抛异常时返回 `ActionResult` 而非崩溃 |
+| `tests/test_actor.py` | 模型给出最终答案时返回终止步；模型给出 `ToolCall` 时经 `_call_tool` 执行并回填结果 |
+| `tests/test_loop.py` | `completed` / `max_steps` / `no_progress` 三态各一例；步号从 1 递增且连续 |
+
+三态的判定条件见 5.8.4 与 5.10。
+
 `pytest.ini` 的 `pythonpath` 需包含 `code/`，以便 `from harness import ...` 可用。
 
 ### 5.8.7 章号与文件名
@@ -683,7 +695,9 @@ code/
 |---|---|---|
 | 指纹检测与重复判定 | 第 7 章（B4） | `reason` 保留 `no_progress` 取值，第 5 章只按"连续两次相同的 `Step`"粗判 |
 | 超时、重试、降级 | 第 6 章 | `Actor` 与 `Tool` 之间留一个调用点，第 5 章直接调用 |
-| 判定任务是否完成 | 第 9 章 | 第 5 章以"模型不再请求工具"作为结束条件 |
+| 判定任务是否完成 | 第 9 章 | `loop.py` 只要 `Actor.step()` 返回的 `Step` 不含 `tool_calls` 就判 `completed`，不做语义上的完成判定 |
+
+**结束条件在第 5 章只有一条**：`Step` 不含 `tool_calls`（即模型给的是最终答案），记为 `completed`。`ScriptedResponder` 的列表耗尽只是让这一步没有内容可返回，等价于"不再请求工具"，不是第二条结束条件。`Reflector`（第 9 章）接入后才加入语义完成判定。
 
 ---
 
@@ -1034,7 +1048,7 @@ P7 是毕业线。
              → 写代码并运行
              → 写正文（实例与输出来自真实运行）
              → 把本章落地的实际签名写入 CONTRACT.md
-             → 跑三个检查脚本
+             → 跑 pytest 与四个检查脚本（全部通过）
              → 更新 PROGRESS.md
 ```
 
@@ -1042,9 +1056,11 @@ P7 是毕业线。
 
 | 脚本 | 检查内容 |
 |---|---|
-| `tools/check_style.py` | 章首元信息、标题修饰词、主观/情绪词、感叹号、未标注的百分比、旧结构残留、五段完整性 |
+| `python -m pytest tests/ -q` | 单测与基础设施清点（章节文件、代码目录、入口文件同步） |
+| `tools/check_style.py` | 章首元信息、标题修饰词、主观/情绪词、感叹号、未标注的百分比、旧结构残留、交付类型 |
 | `tools/check_refs.py` | 章号是否超范围、`code/` 目录是否存在、代码目录编号与章号是否一致、相对链接是否有效 |
-| `tools/check_chapter.py` | 章首四行元信息、小节编号连续不重复、四个必需小节 |
+| `tools/check_chapter.py` | 章首四行元信息、五段齐全、小节编号连续不重复、四个必需小节 |
+| `tools/check_handoff.py` | `AGENTS.md` 与 `.github/copilot-instructions.md` 内容是否一致、引用路径是否存在 |
 
 **未通过检查的章节不算完成。**
 

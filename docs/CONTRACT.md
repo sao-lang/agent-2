@@ -68,7 +68,7 @@ run(...) -> ...
 
 记录本章刻意没做的事，避免后续章节重复实现或误以为已存在。示例：
 
-- 第 5 章没有超时与重试，`Actor` 直接调用 `Tool.invoke()`，第 6 章在该调用点插入 `Resilience`
+- 第 5 章没有超时与重试，`Actor` 只经 `_call_tool(name, args)` 访问工具，第 6 章在该方法内部插入 `Resilience`（见 OUTLINE 5.8.2）
 - 第 5 章没有重复检测，`reason` 的 `no_progress` 只按"连续两次相同 Step"粗判，第 7 章替换为指纹
 
 ---

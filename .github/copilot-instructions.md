@@ -58,7 +58,7 @@
 ⑥ 写正文，实例与输出来自 ⑤ 的真实运行结果
 ⑦ 确认章首声明的交付类型与本章主题匹配，并真的交付了
 ⑧ 把本章落地的实际签名写入 docs/CONTRACT.md
-⑨ 运行三个检查脚本，全部通过
+⑨ 运行 `python -m pytest tests/ -q` 与四个检查脚本，全部通过
 ⑩ 更新 docs/PROGRESS.md
 ```
 
@@ -71,6 +71,7 @@ python -m pytest tests/ -q            # 单测（第 5 章起）
 python tools/check_style.py            # 标题、禁用语、主观词、数据出处、交付核对
 python tools/check_refs.py             # 章号引用、code 路径与文件是否存在
 python tools/check_chapter.py          # 章首四行、小节编号连续、必需小节
+python tools/check_handoff.py          # 两份入口文件是否同步、引用路径是否存在
 ```
 
 **未通过检查的章节不算完成。**
