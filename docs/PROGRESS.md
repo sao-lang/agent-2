@@ -7,10 +7,10 @@
 | 章 | 文件 | 知识点 | 代码 | 检查 |
 |---|---|---|---|---|
 | 0 | `00-内容与结构.md` | 无（地图章） | 无 | 通过 |
-| 1 | `01-一次调用的完整链路.md` | A1 A2 | `code/ch01_call_lifecycle/` | 通过（产物：CallLogger） |
-| 2 | `02-生成机制与不实输出的成因.md` | A3 A7 | `code/ch02_generation/` | 通过（产物：依据判定器） |
-| 3 | `03-token计量成本与上下文窗口.md` | A4 A5 A6 | `code/ch03_tokens/` | 通过（产物：TokenMeter） |
-| 4 | `04-提示词工程.md` | A8 A9 | `code/ch04_prompt/`（5 个脚本） | 通过（产物：完整提示词） |
+| 1 | `01-一次调用的完整链路.md` | A1 A2 | `code/ch01_call_lifecycle/`（4 个脚本） | 通过 |
+| 2 | `02-生成机制与不实输出的成因.md` | A3 A7 | `code/ch02_generation/`（4 个脚本） | 通过 |
+| 3 | `03-token计量成本与上下文窗口.md` | A4 A5 A6 | `code/ch03_tokens/`（4 个脚本） | 通过 |
+| 4 | `04-提示词工程.md` | A8 A9 | `code/ch04_prompt/`（5 个脚本） | 通过 |
 
 ## 下一章
 
