@@ -25,6 +25,46 @@ ROOT = Path(__file__).resolve().parent.parent
 # 地图章不适用五段结构与章首元信息
 EXEMPT = {0}
 
+# 产物判定：连续代码块至少这么多行，才算「完整产物」而非片段
+PRODUCT_MIN_LINES = 15
+
+
+def count_products(text: str) -> int:
+    """统计章节内的「完整产物」。
+
+    判定规则：
+        1. 围栏代码块，且块内行数 >= PRODUCT_MIN_LINES，算 1 个产物
+        2. 带编号且含判定条件的步骤列表，算 1 个产物
+
+    片段式的短代码块不计入：它们只用于说明，不能直接使用。
+    """
+    products = 0
+
+    # 1. 完整代码块
+    in_block = False
+    block_len = 0
+    for line in text.split("\n"):
+        if line.startswith("```"):
+            if in_block:
+                if block_len >= PRODUCT_MIN_LINES:
+                    products += 1
+                in_block = False
+                block_len = 0
+            else:
+                in_block = True
+                block_len = 0
+            continue
+        if in_block:
+            block_len += 1
+
+    # 2. 带判定条件的步骤列表
+    step_rows = [l for l in text.split("\n")
+                 if l.startswith(("1.", "2.", "3.")) and ("→" in l or "判定" in l or "则" in l)]
+    if len(step_rows) >= 3:
+        products += 1
+
+    return products
+
 # 标题中不允许出现的修饰成分
 TITLE_BANNED = ("★", "！", "?", "？", "：为什么", "你必须", "一定要", "千万")
 TITLE_BANNED_PHRASES = ("补充说明", "其他内容", "小结", "杂项")
@@ -79,21 +119,28 @@ def check(path: Path) -> list[str]:
                 if w in line:
                     problems.append(f"第 {i} 行含主观/情绪词：{w}")
 
-    # 4. 感叹号与反问
+    # 4. 感叹号与反问（跳过代码块、表格、引用块）
+    in_fence = False
     for i, line in enumerate(lines, 1):
-        if line.startswith("|") or line.startswith("```"):
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or line.startswith(("|", ">")):
             continue
         if "！" in line:
             problems.append(f"第 {i} 行含感叹号")
-        if "？" in line and not line.startswith(">"):
-            # 允许出现在代码块外的提问句，但需人工确认
+        if "？" in line:
             problems.append(f"第 {i} 行含问号，确认是否为反问句")
 
     # 5. 百分比需有来源
-    #    来源的判定：该行本身提到脚本/运行，或所在小节前文已给出脚本路径，
-    #    或紧邻的上一段提到「运行 ... .py」。
+    #    来源的判定：该行本身提到脚本/运行，或所在小节前文已给出脚本路径。
+    #    围栏代码块内的百分比属于代码，不检查。
+    in_fence = False
     for i, line in enumerate(lines, 1):
-        if "%" not in line:
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or "%" not in line:
             continue
         if "运行" in line or "`" in line:
             continue
@@ -114,6 +161,15 @@ def check(path: Path) -> list[str]:
         for key in ("边界", "复现"):
             if not any(key in line for line in lines if line.startswith("## ")):
                 problems.append(f"缺少小节：{key}")
+
+    # 8. 必须至少有一个可直接使用的产物（地图章豁免）
+    if no not in EXEMPT:
+        n_products = count_products(text)
+        if n_products == 0:
+            problems.append(
+                "缺少可直接使用的产物：需要有 >=15 行的完整代码块，"
+                "或带判定条件的三步以上操作序列（见 WRITING-SPEC 0.2）"
+            )
 
     return problems
 

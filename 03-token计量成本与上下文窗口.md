@@ -41,6 +41,90 @@ token 是模型处理文本的最小单位。它不是字符，也不是字。�
 
 **结论**：估算只用于事前粗判。计费与预算必须使用服务端返回的 `usage`。
 
+### 一个可直接使用的 token 计量器
+
+下面的代码提供三个能力：按真实词表计数、按测算准、按窗口判断能否装下。
+
+```python
+"""token 计量器：本地估算 + 服务端校准 + 窗口记账。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+class TokenMeter:
+    """优先使用服务端返回的 usage，缺失时才回落到本地估算。"""
+
+    def __init__(self, encoding: str = "cl100k_base") -> None:
+        import tiktoken
+
+        self.enc = tiktoken.get_encoding(encoding)
+        self._calibration: float | None = None
+
+    def count(self, text: str) -> int:
+        """本地计数。词表与服务端一致时，误差主要来自消息结构开销。"""
+        return len(self.enc.encode(text))
+
+    def count_messages(self, messages: list[dict], overhead: int = 4) -> int:
+        """按消息计数，加上每条消息的结构开销。"""
+        return sum(self.count(m["content"]) + overhead for m in messages) + 2
+
+    def calibrate(self, local: int, actual: int) -> None:
+        """用一次真实调用的 usage 校准本地估算。"""
+        if local > 0:
+            self._calibration = actual / local
+
+    def estimate(self, text: str) -> int:
+        """用于预算的估算值。已校准时优先使用校准系数。"""
+        raw = self.count(text)
+        if self._calibration is None:
+            return raw
+        return round(raw * self._calibration)
+
+
+@dataclass
+class WindowBudget:
+    window: int              # 模型窗口上限
+    reserve_output: int      # 为输出预留
+    system_tokens: int       # 系统消息
+    tool_tokens: int = 0     # 工具定义
+
+    @property
+    def available(self) -> int:
+        """可用于对话历史的 token 数。"""
+        return self.window - self.reserve_output - self.system_tokens - self.tool_tokens
+
+    def fits(self, history_tokens: int) -> bool:
+        return history_tokens <= self.available
+
+    def overflow(self, history_tokens: int) -> int:
+        """超出量。未超出返回 0。"""
+        return max(0, history_tokens - self.available)
+```
+
+使用方式：
+
+```python
+meter = TokenMeter()
+budget = WindowBudget(window=128_000, reserve_output=4_000,
+                      system_tokens=meter.count_messages([system_msg]),
+                      tool_tokens=meter.count(json.dumps(tools)))
+
+history = meter.count_messages(messages)
+if not budget.fits(history):
+    messages = trim(messages, budget.overflow(history))
+
+resp = call_model(...)
+meter.calibrate(local=history, actual=resp["usage"]["prompt_tokens"])
+```
+
+三个设计要点：
+
+- **`calibrate` 用真实值修正估算。** 一次调用之后，后续估算会向服务端口径靠拢。
+- **`WindowBudget.available` 先扣输出预留。** 这是第 1 章 `finish_reason=length` 的前置防线。
+- **`fits` 与 `overflow` 分开。** 调用方可以先判断、再决定裁剪多少，不需要自己算两次。
+
 ## 3.2 成本结构
 
 一次调用的成本由输入、输出两部分构成，两者单价不同。部分厂商对重复前缀提供缓存折扣。
