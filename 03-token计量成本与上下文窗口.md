@@ -109,15 +109,10 @@ class WindowBudget:
 ```python
 meter = TokenMeter()
 budget = WindowBudget(window=128_000, reserve_output=4_000,
-                      system_tokens=meter.count_messages([system_msg]),
-                      tool_tokens=meter.count(json.dumps(tools)))
-
+                      system_tokens=meter.count_messages([system_msg]))
 history = meter.count_messages(messages)
 if not budget.fits(history):
     messages = trim(messages, budget.overflow(history))
-
-resp = call_model(...)
-meter.calibrate(local=history, actual=resp["usage"]["prompt_tokens"])
 ```
 
 三个设计要点：
@@ -170,9 +165,7 @@ meter.calibrate(local=history, actual=resp["usage"]["prompt_tokens"])
 
 ### 记账方法
 
-```
-可用输入 = 窗口上限 − 输出预留 − 系统消息 − 工具定义
-```
+可用输入 = 窗口上限 − 输出预留 − 系统消息 − 工具定义。
 
 输出预留必须预先扣除。若不扣除，请求在生成阶段超出上限，表现为 `finish_reason` 为 `length`，或请求被服务端拒绝。
 
