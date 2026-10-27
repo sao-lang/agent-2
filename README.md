@@ -83,6 +83,7 @@
 
 - 主线示例在 `code/knowledge/chNN_*/`，每章一个目录，入口文件单独运行即可。
 - 卷 4 第 25 章（对外形态）的示例在 `code/serving/`：那是唯一会起本机端口的目录。
+- 卷 5 的评测跑批在 `code/eval/`：用例 → 运行 → 指标 → 门禁的一条完整链路。
 - 卷 6 的封装在 `code/harness/`。两侧代码互不 import。
 - 示例只用 Python 标准库，离线可跑，不要求先装框架。
 - 示例里的模型调用是脚本化的假后端，用于演示流程，正文会标注。接入真实模型的示例从第 1 章开始。
@@ -91,6 +92,7 @@
 ```bash
 python code/knowledge/ch00_start/three_shapes.py
 python code/serving/sse_server.py      # 本机回环，不需要外网
+python code/eval/run_eval.py           # 评测跑批与门禁判定
 ```
 
 ## 写法
@@ -140,6 +142,11 @@ python code/serving/sse_server.py      # 本机回环，不需要外网
 ├── 24-多Agent拆分的判据是上下文隔离.md  第 24 章
 ├── 25-对外形态同步异步流式.md           第 25 章
 ├── 26-交付队列幂等限流鉴权与容器.md     第 26 章
+├── 27-计量与可观测.md                   第 27 章
+├── 28-RAG评测把四个环节分开评.md        第 28 章
+├── 29-Agent评测结果轨迹稳定成本.md      第 29 章
+├── 30-统计与门禁一个数字什么时候算数.md 第 30 章
+├── 31-成本延迟与复盘.md                 第 31 章
 ├── docs/
 │   └── WRITING-SPEC.md        写作规范：骨架、篇幅、判定清单
 └── code/
@@ -169,6 +176,12 @@ python code/serving/sse_server.py      # 本机回环，不需要外网
     │   ├── ch22_injection/    第 22 章：投毒文档、攻击面、注入检测器
     │   ├── ch23_approval/     第 23 章：分级、审批卡片、断点续跑
     │   ├── ch24_multiagent/   第 24 章：拆分判据、成本对照、并发写
-    │   └── ch26_delivery/     第 26 章：四件套、优雅关闭、镜像体积
-    └── serving/               第 25 章：三种形态与可重连的 SSE
+    │   ├── ch26_delivery/     第 26 章：四件套、优雅关闭、镜像体积
+    │   ├── ch27_observability/ 第 27 章：调用树、落盘、字段口径
+    │   ├── ch28_rag_eval/     第 28 章：分层打分、四个指标的逐项计算
+    │   ├── ch29_agent_eval/   第 29 章：轨迹判据、裁判 kappa、多轮用例
+    │   ├── ch30_stats/        第 30 章：区间与门禁
+    │   └── ch31_cost/         第 31 章：成本瀑布、延迟分解、事故到用例
+    ├── serving/               第 25 章：三种形态与可重连的 SSE
+    └── eval/                  第 30 章：用例→运行→指标→门禁的最小跑批
 ```
