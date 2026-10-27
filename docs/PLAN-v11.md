@@ -151,13 +151,57 @@
 
 ---
 
-## 五、LangChain agent 侧（9–12）与过渡
+## 五、LangChain agent 侧（9–12）：逐节内容
 
-- 9 基础：包结构、`init_chat_model`、四种消息、三类元信息、`trim_messages`、流式、`with_structured_output` 三策略。
-- 10 组合：Runnable 协议、七个组合子、三种模板、四种解析器 + 两种自愈。
-- 11 工具：`@tool`/`BaseTool`/`StructuredTool`、`bind_tools`/`tool_choice`、三种注入、错误回灌、工具收窄。
-- 12 Agent：`create_agent` 全参数、六个钩子与洋葱顺序、19 个内置中间件、自定义中间件三个限制、与第 7 章手写循环对照。
-- **12.6 过渡**：演示"agent 答不出自家文档"的失败 → 预告 RAG 卷的组件清单 → 第 13 章接上。
+> 按本机安装的 **LangChain 1.4.7** 实际接口核对过；正文锁定该版本，章首标注版本号。
+
+**第 9 章 · 基础**
+
+| 节 | 内容 | API |
+|---|---|---|
+| 9.1 | 包结构与版本边界 | `langchain-core`/`langchain`/`langchain-openai`/`langchain-community`；版本不匹配的典型报错 |
+| 9.2 | 模型接入 | `init_chat_model(model, model_provider, configurable_fields, config_prefix, **kwargs)`；OpenAI 兼容端点 `base_url` |
+| 9.3 | 四种消息 | `SystemMessage`/`HumanMessage`/`AIMessage`/`ToolMessage`；`content` vs `content_blocks` |
+| 9.4 | 三类元信息 | `additional_kwargs`/`response_metadata`/`usage_metadata`，对上第 1 章字段 |
+| 9.5 | 消息裁剪 | `trim_messages(max_tokens, strategy, token_counter, include_system)` |
+| 9.6 | 流式 | `.stream()`/`.astream()`/`.astream_events()`；与第 31 章 SSE 对应 |
+| 9.7 | 结构化输出 | `with_structured_output(schema, method=...)` 三策略，与第 4 章五种做法对照 |
+
+**第 10 章 · 组合**
+
+| 节 | 内容 | API |
+|---|---|---|
+| 10.1 | Runnable 协议 | `invoke`/`batch`/`stream`/`astream_events` 与输入输出契约 |
+| 10.2 | 七个组合子 | `|`、`RunnableParallel`、`RunnablePassthrough`、`RunnableLambda`、`RunnableBranch`、`with_fallbacks`、`with_retry` |
+| 10.3 | 模板 | `ChatPromptTemplate`、`MessagesPlaceholder`、`FewShotChatMessagePromptTemplate` |
+| 10.4 | 解析器 | `StrOutputParser`/`JsonOutputParser`/`PydanticOutputParser`/`CommaSeparatedListOutputParser` |
+| 10.5 | 自愈 | `OutputFixingParser`/`RetryOutputParser`，对上第 4 章"校验失败回灌" |
+| 10.6 | 调试 | `astream_events` 事件树（事件名与父子关系） |
+
+**第 11 章 · 工具**
+
+| 节 | 内容 | API |
+|---|---|---|
+| 11.1 | 三种定义 | `@tool`、`BaseTool` 子类、`StructuredTool`；`args_schema`（pydantic） |
+| 11.2 | 绑定与调用 | `bind_tools`、`tool_choice`、并行 `tool_calls`；与第 6 章手写往返对照 |
+| 11.3 | 注入 | `InjectedState`、`InjectedStore`、`ToolRuntime` |
+| 11.4 | 错误与重试 | `ToolRetryMiddleware`、`ToolErrorMiddleware` |
+| 11.5 | 工具收窄 | `LLMToolSelectorMiddleware`、`ToolCallLimitMiddleware`；与第 28 章护栏对照 |
+| 11.6 | 工具模拟 | `LLMToolEmulator`（无副作用地跑评测） |
+
+**第 12 章 · Agent**
+
+| 节 | 内容 | API |
+|---|---|---|
+| 12.1 | 全参数 | `create_agent` 的 15 个参数：`model`/`tools`/`system_prompt`/`middleware`/`response_format`/`state_schema`/`context_schema`/`checkpointer`/`store`/`interrupt_before`/`interrupt_after`/`debug`/`name`/`cache` |
+| 12.2 | 中间件协议 | `AgentMiddleware`；钩子 `before_agent`/`after_agent`/`before_model`/`after_model`/`wrap_model_call`/`wrap_tool_call`/`dynamic_prompt`/`hook_config`；洋葱顺序与短路 |
+| 12.3 | 内置中间件（四组） | 预算与重试：`ModelCallLimitMiddleware`/`ModelRetryMiddleware`/`ModelFallbackMiddleware`/`ToolCallLimitMiddleware`；上下文：`SummarizationMiddleware`/`ContextEditingMiddleware`/`TodoListMiddleware`；安全与人工：`PIIMiddleware`/`HumanInTheLoopMiddleware`；执行环境：`ShellToolMiddleware`/`FilesystemFileSearchMiddleware`/`DockerExecutionPolicy`/`CodexSandboxExecutionPolicy`/`HostExecutionPolicy` |
+| 12.4 | 状态与持久化 | `state_schema`/`context_schema`/`checkpointer`/`store`；与第 22、24 章对照 |
+| 12.5 | 中断 | `interrupt_before`/`interrupt_after` 与 `HumanInTheLoopMiddleware` 的分工 |
+| 12.6 | 与手写循环逐项对照 | 终止、状态、预算、审批、工具执行各落在哪（对照第 7 章） |
+| 12.7 | 过渡到 RAG | 演示"agent 答不出自家文档"，预告第 13 章 |
+
+**覆盖原则**：只讲 agent 侧（检索/切块/向量库不进）；每个 API 都要真跑，不写"详见文档"；与主线逐条对照（11↔6、12↔7、9.7↔4、9.5↔3、10.5↔4.6）。
 
 ---
 
