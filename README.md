@@ -97,7 +97,7 @@ python code/knowledge/ch00_start/three_shapes.py
 
 有多种做法的内容，每种做法都给一个可运行例子和它的输出。
 
-篇幅目标是每章 15000 字符以上，但不为凑字数而写。六件事都交代清楚了仍然不够长，说明这个内容本身只有这么大。
+篇幅目标是每章 11000 字符以上，但不为凑字数而写。六件事都交代清楚了仍然不够长，说明这个内容本身只有这么大。
 
 详细规范见 [docs/WRITING-SPEC.md](./docs/WRITING-SPEC.md)。
 
@@ -109,10 +109,32 @@ python code/knowledge/ch00_start/three_shapes.py
 ├── README.md                  本文件
 ├── 00-agent的差别.md           第 0 章
 ├── 01-一次调用的四个字段.md     第 1 章
+├── 02-模型为什么编为什么忘.md   第 2 章
+├── 03-token成本与上下文窗口.md  第 3 章
+├── 04-提示词工程从规则到结构化输出.md  第 4 章
+├── 05-工具调用模型只会说不会做.md      第 5 章
+├── 06-最小循环与三种终止.md            第 6 章
+├── 07-循环的四种失控.md                第 7 章
+├── 08-编排范式什么时候不该用循环.md    第 8 章
+├── 09-反思为什么自己评自己没用.md      第 9 章
+├── 10-状态循环记住什么.md              第 10 章
+├── 11-持久化与幂等.md                  第 11 章
+├── 12-能力供给MCP与Skill.md            第 12 章
 ├── docs/
 │   └── WRITING-SPEC.md        写作规范：骨架、篇幅、判定清单
 └── code/
     └── knowledge/
-        ├── ch00_start/        第 0 章示例（三个）
-        └── ch01_call/         第 1 章示例（六个）
+        ├── ch00_start/        第 0 章示例
+        ├── ch01_call/         第 1 章示例
+        ├── ch02_generation/   第 2 章示例
+        ├── ch03_tokens/       第 3 章示例
+        ├── ch04_prompt/       第 4 章示例
+        ├── ch05_tools/        第 5 章示例
+        ├── ch06_loop/         第 6 章示例
+        ├── ch07_runaway/      第 7 章示例
+        ├── ch08_paradigm/     第 8 章示例
+        ├── ch09_reflect/      第 9 章示例
+        ├── ch10_state/        第 10 章示例
+        ├── ch11_persist/      第 11 章示例
+        └── ch12_capability/   第 12 章示例
 ```
