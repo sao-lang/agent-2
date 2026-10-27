@@ -99,7 +99,7 @@
 | 卷 3 起 | 真实库：`tiktoken`、`sentence-transformers`（bge）、`qdrant`/`faiss`、`rank_bm25`+`jieba`、`mcp`、`a2a-sdk`、`ragas`、`langfuse` | 这些章的主题就是库；用手写近似等于没讲 |
 
 首次运行需要联网装依赖并下载模型（约 95MB），国内设 `HF_ENDPOINT=https://hf-mirror.com`。
-逐章缺口与补写计划见 [docs/AUDIT-CODE-GAPS.md](./docs/AUDIT-CODE-GAPS.md)。
+逐章代码缺口见 [docs/AUDIT-CODE-GAPS.md](./docs/AUDIT-CODE-GAPS.md)，概念缺口（向量化、向量数据库等）见 [docs/AUDIT-CONCEPTS.md](./docs/AUDIT-CONCEPTS.md)。
 
 ```bash
 python code/knowledge/ch00_start/three_shapes.py
