@@ -30,3 +30,7 @@ htmlcov/
 # 系统
 .DS_Store
 Thumbs.db
+
+# 示例的临时工作区（脚本正常结束时会自动清理）
+_*_demo/
+_sql_demo.db

@@ -21,6 +21,10 @@
 - 为什么"让模型检查自己"不成立，外部判据从哪里来
 - RAG 答错了，怎么定位是切块、召回、重排还是拼装的问题
 - 提示词里写"不要删文件"为什么约束不了删除
+- `../` 为什么能绕过字符串前缀检查，而 `resolve()` 之后不能
+- 为什么拦截率必须和误杀率一起报
+- 一份被投毒的文档怎么让一次正常提问改掉文件
+- `docker stop` 时手上的活去哪了，两种 CMD 写法差在哪
 - 用什么数字判断一次改动是变好还是变坏
 
 ## 全书结构
@@ -78,6 +82,7 @@
 ## 代码
 
 - 主线示例在 `code/knowledge/chNN_*/`，每章一个目录，入口文件单独运行即可。
+- 卷 4 第 25 章（对外形态）的示例在 `code/serving/`：那是唯一会起本机端口的目录。
 - 卷 6 的封装在 `code/harness/`。两侧代码互不 import。
 - 示例只用 Python 标准库，离线可跑，不要求先装框架。
 - 示例里的模型调用是脚本化的假后端，用于演示流程，正文会标注。接入真实模型的示例从第 1 章开始。
@@ -85,6 +90,7 @@
 
 ```bash
 python code/knowledge/ch00_start/three_shapes.py
+python code/serving/sse_server.py      # 本机回环，不需要外网
 ```
 
 ## 写法
@@ -127,28 +133,42 @@ python code/knowledge/ch00_start/three_shapes.py
 ├── 17-上下文装配与短期记忆.md           第 17 章
 ├── 18-长期记忆.md                       第 18 章
 ├── 19-知识治理与文档生命周期.md         第 19 章
+├── 20-沙箱给执行权就必须给边界.md       第 20 章
+├── 21-护栏为什么提示词里的不要不算数.md 第 21 章
+├── 22-注入攻击面不在你想的那层.md       第 22 章
+├── 23-审批与断点续跑.md                 第 23 章
+├── 24-多Agent拆分的判据是上下文隔离.md  第 24 章
+├── 25-对外形态同步异步流式.md           第 25 章
+├── 26-交付队列幂等限流鉴权与容器.md     第 26 章
 ├── docs/
 │   └── WRITING-SPEC.md        写作规范：骨架、篇幅、判定清单
 └── code/
-    └── knowledge/
-        ├── ch00_start/        第 0 章示例
-        ├── ch01_call/         第 1 章示例
-        ├── ch02_generation/   第 2 章示例
-        ├── ch03_tokens/       第 3 章示例
-        ├── ch04_prompt/       第 4 章示例
-        ├── ch05_tools/        第 5 章示例
-        ├── ch06_loop/         第 6 章示例
-        ├── ch07_runaway/      第 7 章示例
-        ├── ch08_paradigm/     第 8 章示例
-        ├── ch09_reflect/      第 9 章示例
-        ├── ch10_state/        第 10 章示例
-        ├── ch11_persist/      第 11 章示例
-        ├── ch12_capability/   第 12 章示例
-        ├── ch13_router/       第 13 章示例
-        ├── ch14_rag/          第 14 章示例
-        ├── ch15_chunk/        第 15 章示例
-        ├── ch16_retrieval/    第 16 章示例
-        ├── ch17_context/      第 17 章示例
-        ├── ch18_memory/       第 18 章示例
-        └── ch19_govern/       第 19 章示例
+    ├── knowledge/
+    │   ├── ch00_start/        第 0 章示例
+    │   ├── ch01_call/         第 1 章示例
+    │   ├── ch02_generation/   第 2 章示例
+    │   ├── ch03_tokens/       第 3 章示例
+    │   ├── ch04_prompt/       第 4 章示例
+    │   ├── ch05_tools/        第 5 章示例
+    │   ├── ch06_loop/         第 6 章示例
+    │   ├── ch07_runaway/      第 7 章示例
+    │   ├── ch08_paradigm/     第 8 章示例
+    │   ├── ch09_reflect/      第 9 章示例
+    │   ├── ch10_state/        第 10 章示例
+    │   ├── ch11_persist/      第 11 章示例
+    │   ├── ch12_capability/   第 12 章示例
+    │   ├── ch13_router/       第 13 章示例
+    │   ├── ch14_rag/          第 14 章示例
+    │   ├── ch15_chunk/        第 15 章示例
+    │   ├── ch16_retrieval/    第 16 章示例
+    │   ├── ch17_context/      第 17 章示例
+    │   ├── ch18_memory/       第 18 章示例
+    │   ├── ch19_govern/       第 19 章示例
+    │   ├── ch20_sandbox/      第 20 章：路径/网络/资源/时间四条边界
+    │   ├── ch21_guardrails/   第 21 章：动作护栏、SQL 守卫、PII 顺序、两个率
+    │   ├── ch22_injection/    第 22 章：投毒文档、攻击面、注入检测器
+    │   ├── ch23_approval/     第 23 章：分级、审批卡片、断点续跑
+    │   ├── ch24_multiagent/   第 24 章：拆分判据、成本对照、并发写
+    │   └── ch26_delivery/     第 26 章：四件套、优雅关闭、镜像体积
+    └── serving/               第 25 章：三种形态与可重连的 SSE
 ```
