@@ -120,6 +120,13 @@ python code/knowledge/ch00_start/three_shapes.py
 ├── 10-状态循环记住什么.md              第 10 章
 ├── 11-持久化与幂等.md                  第 11 章
 ├── 12-能力供给MCP与Skill.md            第 12 章
+├── 13-分流不是所有请求都值得走完整循环.md  第 13 章
+├── 14-RAG的四个环节.md                  第 14 章
+├── 15-切块与向量检索.md                 第 15 章
+├── 16-检索质量混合重排改写.md           第 16 章
+├── 17-上下文装配与短期记忆.md           第 17 章
+├── 18-长期记忆.md                       第 18 章
+├── 19-知识治理与文档生命周期.md         第 19 章
 ├── docs/
 │   └── WRITING-SPEC.md        写作规范：骨架、篇幅、判定清单
 └── code/
@@ -136,5 +143,12 @@ python code/knowledge/ch00_start/three_shapes.py
         ├── ch09_reflect/      第 9 章示例
         ├── ch10_state/        第 10 章示例
         ├── ch11_persist/      第 11 章示例
-        └── ch12_capability/   第 12 章示例
+        ├── ch12_capability/   第 12 章示例
+        ├── ch13_router/       第 13 章示例
+        ├── ch14_rag/          第 14 章示例
+        ├── ch15_chunk/        第 15 章示例
+        ├── ch16_retrieval/    第 16 章示例
+        ├── ch17_context/      第 17 章示例
+        ├── ch18_memory/       第 18 章示例
+        └── ch19_govern/       第 19 章示例
 ```

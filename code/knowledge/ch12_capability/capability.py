@@ -27,6 +27,8 @@ def mcp_roundtrip(method: str, params: dict | None = None, msg_id: int = 1) -> d
         capture_output=True,
         text=True,
         encoding="utf-8",
+        # 子进程默认按系统代码页写 stdout，Windows 上是 GBK；不指定会解码失败
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     lines = (proc.stdout or "").strip().splitlines()
     return json.loads(lines[-1]) if lines else {"error": "no output", "stderr": proc.stderr}
@@ -70,17 +72,18 @@ def meta_only(root: str) -> int:
 
 
 def skill_body(root: str) -> int:
-    """L2：frontmatter + 正文。"""
-    return os.path.getsize(os.path.join(root, "SKILL.md"))
+    """L2：frontmatter + 正文。按字符数读，与 meta_only 同口径。"""
+    return len(open(os.path.join(root, "SKILL.md"), encoding="utf-8").read())
 
 
 def all_files(root: str) -> int:
-    """L1+L2+L3：整棵目录。"""
-    return sum(
-        os.path.getsize(os.path.join(dp, fn))
-        for dp, _, fns in os.walk(root)
-        for fn in fns
-    )
+    """L1+L2+L3：整棵目录。按字符数读，与上面两个同口径。"""
+    total = 0
+    for dp, _, fns in os.walk(root):
+        for fn in fns:
+            with open(os.path.join(dp, fn), encoding="utf-8") as f:
+                total += len(f.read())
+    return total
 
 
 def main() -> None:
