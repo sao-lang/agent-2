@@ -1,3 +1,5 @@
+> **本文件已被 [PLAN-v11.md](./PLAN-v11.md) 取代。** v11 明确 RAG 章以 RAG 为主、LangChain 为副线（约 70/30），副线负责全部代码示例并附 API 覆盖清单。
+
 # 改造方案 v10：LangChain 前置（agent 侧）＋ RAG 只讲 RAG 相关
 
 > 取代 v7/v8/v9。本版按最新要求：
