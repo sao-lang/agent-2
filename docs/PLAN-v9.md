@@ -1,3 +1,5 @@
+> **本文件已被 [PLAN-v10.md](./PLAN-v10.md) 取代。** v10 把 LangChain 的 agent 侧内容前置（第 9–12 章），RAG 卷只讲 LangChain 的 RAG 组件（第 13–21 章）。
+
 # 改造方案 v9：LangChain 与 RAG 合并讲授
 
 > 取代 v7/v8。本版按最新要求重排：
