@@ -36,7 +36,6 @@ MISSING_EFFECT = {
 def simulate(p: Prompt) -> list[str]:
     """按缺失项返回预计的失效形态。"""
     have = p.present()
-    all_keys = set(MISSING_EFFECT)
     return [MISSING_EFFECT[k] for k in ("role", "task", "context", "data", "fmt", "constraints")
             if k not in have]
 

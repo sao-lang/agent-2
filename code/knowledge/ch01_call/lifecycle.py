@@ -1,191 +1,73 @@
 """一次调用里，每个字段由谁产生。
 
-不联网。这里用一个本地 HTTP 服务器扮演"模型服务端"，用 http.client 发真实请求，
-所以 requests 和 responses 都是真实在网络上传的 JSON，不是本地函数调用。
+这里用的是真实的 `openai` 客户端：请求由 SDK 编码，响应由 SDK 解析，
+输出里的 `response` 就是 `openai.types.chat.ChatCompletion` 对象。
 
-服务端的行为脚本化：请求里带什么标记，就返回哪种响应。它返回的是按厂商接口
-（OpenAI 兼容格式）手工构造的响应体，用来演示字段结构；不是真实模型的输出。
+后端起在本地（`fake_server.scripted_server`），按脚本回放 OpenAI 兼容响应。
+它保证"请求 → HTTP → 响应 → 对象"这条链是真的，但不产生模型输出。
+换真实服务只改 `client_for(...)` 那一处：`OpenAI(base_url=..., api_key=...)`。
 """
 
 from __future__ import annotations
 
-import http.client
 import json
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# ---------------------------------------------------------------- 假服务端
+from fake_server import chat_completion, client_for, scripted_server
 
-RESPONSES = {
-    # 正常结束
-    "normal": {
-        "id": "chatcmpl-01",
-        "object": "chat.completion",
-        "created": 1730000000,
-        "model": "demo-model-2024",
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": "签收后 7 天内可退。"},
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 24,
-            "completion_tokens": 9,
-            "total_tokens": 33,
-        },
-    },
-    # 输出被截断
-    "truncated": {
-        "id": "chatcmpl-02",
-        "object": "chat.completion",
-        "created": 1730000000,
-        "model": "demo-model-2024",
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": "签收后 7 天内可退，条件是商品"},
-                "finish_reason": "length",
-            }
-        ],
-        "usage": {"prompt_tokens": 24, "completion_tokens": 16, "total_tokens": 40},
-    },
-    # 模型要求调用工具
-    "tool": {
-        "id": "chatcmpl-03",
-        "object": "chat.completion",
-        "created": 1730000000,
-        "model": "demo-model-2024",
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": "call_abc",
-                            "type": "function",
-                            "function": {
-                                "name": "get_order",
-                                "arguments": '{"order_id": "A1001"}',
-                            },
-                        }
-                    ],
-                },
-                "finish_reason": "tool_calls",
-            }
-        ],
-        "usage": {"prompt_tokens": 58, "completion_tokens": 19, "total_tokens": 77},
-    },
-    # 被内容过滤
-    "filtered": {
-        "id": "chatcmpl-04",
-        "object": "chat.completion",
-        "created": 1730000000,
-        "model": "demo-model-2024",
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": ""},
-                "finish_reason": "content_filter",
-            }
-        ],
-        "usage": {"prompt_tokens": 24, "completion_tokens": 0, "total_tokens": 24},
-    },
-}
+QUESTION = "能退吗？"
 
 
-class Handler(BaseHTTPRequestHandler):
-    def do_POST(self) -> None:  # noqa: N802
-        length = int(self.headers["Content-Length"])
-        raw = self.rfile.read(length)
-        request = json.loads(raw)
+def field_owner(body: dict, response) -> list[tuple[str, str, str]]:
+    """把一次调用里真正出现的字段列出来，标注它由谁产生。"""
+    choice = response.choices[0]
+    usage = response.usage
+    return [
+        ("messages", f"{len(body['messages'])} 条", "调用方"),
+        ("temperature", repr(body.get("temperature")), "调用方"),
+        ("max_tokens", repr(body.get("max_tokens")), "调用方"),
+        ("finish_reason", choice.finish_reason, "服务端"),
+        ("usage", f"{usage.prompt_tokens}+{usage.completion_tokens}={usage.total_tokens}", "服务端"),
+    ]
 
-        # 服务端按请求里的标记决定返回哪种响应
-        marker = request.get("metadata", {}).get("case", "normal")
-        body = json.dumps(RESPONSES[marker], ensure_ascii=False).encode()
-
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, *args) -> None:
-        pass
-
-
-def serve() -> tuple[HTTPServer, int]:
-    server = HTTPServer(("127.0.0.1", 0), Handler)
-    port = server.server_address[1]
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server, port
-
-
-# ---------------------------------------------------------------- 客户端
-
-def build_request(question: str, case: str, max_tokens: int = 64) -> dict:
-    """客户端发出的请求体。四个部分是分开的。"""
-    return {
-        # 1. 消息：调用方决定放什么进去
-        "messages": [
-            {"role": "system", "content": "你是退货政策助手，只回答与退货相关的政策。"},
-            {"role": "user", "content": question},
-        ],
-        # 2. 采样参数：调用方决定怎么从分布里取
-        "temperature": 0.0,
-        "top_p": 1.0,
-        # 3. 输出上限：调用方决定最多生成多少
-        "max_tokens": max_tokens,
-        # 4. （本例用）告诉服务端返回哪种响应
-        "metadata": {"case": case},
-    }
-
-
-def call(port: int, request: dict) -> dict:
-    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-    payload = json.dumps(request, ensure_ascii=False).encode()
-    conn.request("POST", "/v1/chat/completions", payload,
-                 {"Content-Type": "application/json"})
-    response = conn.getresponse()
-    data = json.loads(response.read())
-    conn.close()
-    return data
-
-
-# ---------------------------------------------------------------- 演示
 
 def main() -> None:
-    server, port = serve()
-    try:
-        question = "能退吗？"
+    sent: list[dict] = []
 
-        print("=" * 66)
-        print("请求体（调用方构造）")
-        print("=" * 66)
-        print(json.dumps(build_request(question, "normal"), ensure_ascii=False, indent=2))
+    def respond(index: int, body: dict) -> dict:
+        sent.append(body)
+        return chat_completion("签收后 7 天内可退。", usage=(24, 9))
 
-        for case in ("normal", "truncated", "tool", "filtered"):
-            request = build_request(question, case)
-            response = call(port, request)
+    with scripted_server(respond) as base_url:
+        client = client_for(base_url)
+        response = client.chat.completions.create(
+            model="demo-model",
+            messages=[
+                {"role": "system", "content": "你是退货政策助手，只回答与退货相关的政策。"},
+                {"role": "user", "content": QUESTION},
+            ],
+            temperature=0.0,
+            max_tokens=64,
+            extra_body={"case": "normal"},
+        )
 
-            print()
-            print("=" * 66)
-            print(f"响应体（case={case}）")
-            print("=" * 66)
-            print(json.dumps(response, ensure_ascii=False, indent=2))
-
-            choice = response["choices"][0]
-            message = choice["message"]
-            print()
-            print(f"  finish_reason : {choice['finish_reason']}")
-            print(f"  content       : {message.get('content')!r}")
-            print(f"  tool_calls    : {message.get('tool_calls')}")
-            print(f"  usage         : {response['usage']}")
-    finally:
-        server.shutdown()
+    print("请求体（SDK 发出去的原文）")
+    print(json.dumps(sent[0], ensure_ascii=False, indent=2))
+    print()
+    print("响应对象（response.model_dump()）")
+    print(json.dumps(response.model_dump(), ensure_ascii=False, indent=2))
+    print()
+    print("字段归属")
+    print("-" * 46)
+    for name, value, owner in field_owner(sent[0], response):
+        print(f"  {name:<14}{value:<20}{owner}")
+    print()
+    print(f"choices[0].message.content = {response.choices[0].message.content!r}")
+    print(f"choices[0].finish_reason   = {response.choices[0].finish_reason!r}")
+    print(f"usage.prompt_tokens        = {response.usage.prompt_tokens}")
+    print()
+    print("客户端默认值（不在请求体里，只在客户端对象上）")
+    print(f"  max_retries  {client.max_retries}")
+    print(f"  timeout      {client.timeout}")
 
 
 if __name__ == "__main__":

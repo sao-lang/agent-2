@@ -1,17 +1,24 @@
-# 卷 3 起示例用到的真实技术栈（版本为本机实测可用的组合）
+# 示例用到的真实技术栈（版本为本机实测可用的组合）
 # 安装：python -m pip install -r requirements.txt
-# 模型下载（首个嵌入模型约 95MB）需要设置镜像：
+# 卷 1–3 不装这些也能读；要跑示例再装。
+# 卷 4 起的嵌入模型下载（首个约 95MB）需要设置镜像：
 #   Windows: $env:HF_ENDPOINT="https://hf-mirror.com"
 #   Linux/macOS: export HF_ENDPOINT=https://hf-mirror.com
 
-# 卷 1–2：仍可用标准库 + 脚本化后端；以下为可选
+# 卷 1–2：真实 SDK + token 计数 + 结构声明
+# 没有 API key 也能跑：示例默认走 code/knowledge/_common 里的脚本化后端
 openai==1.109.1
+tiktoken==0.13.0
+pydantic==2.13.4
+pydantic-settings==2.14.2
 
-# 卷 3：RAG 全链路
+# 卷 3：LangChain（agent 侧）与 RAG 全链路
 langchain==1.4.7
 langchain-core==1.7.0
+langchain-classic==1.0.8
 langchain-community==0.4.2
 langchain-text-splitters==1.1.3
+langchain-openai==1.1.9
 sentence-transformers==5.6.1
 torch==2.13.0
 transformers==5.14.1
@@ -19,23 +26,21 @@ qdrant-client==1.20.0
 faiss-cpu==1.15.1
 rank-bm25==0.2.2
 jieba==0.42.1
-tiktoken==0.13.0
 numpy==2.5.0
 scikit-learn==1.9.0
 
-# 卷 4：MCP 协议
+# 卷 6：MCP 协议
 mcp==2.3.0
 a2a-sdk==1.3.0
 
-# 卷 5：计量与评测
+# 卷 10：计量与评测
 opentelemetry-sdk==1.45.1
 langfuse==2.60.10
 # ragas 0.4.3 当前与 langchain-community 0.4 冲突（导入报 vertexai 缺失），
 # 修复方案二选一：装 langchain-community<0.4，或降到 ragas==0.2.*
 ragas==0.4.3
 
-# 卷 6：框架与平台
+# 卷 8–9：LangGraph 与其他框架
 langgraph==1.2.18
-langchain-openai==1.1.9
 pydantic-ai==2.62.0
 llama-index==0.14.23

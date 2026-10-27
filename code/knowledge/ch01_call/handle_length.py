@@ -1,108 +1,111 @@
-"""length 的三种处理，逐一实现并对比。
+"""length 的三种补法，全部走真实 SDK 往返。
 
-不联网。用本地函数模拟"按 max_tokens 生成"，输出与真实调用结构一致。
-三个方案的差别在调用次数和补充的字数上，这两项直接对应成本。
+三次请求都由 `openai` 客户端发出，`max_tokens`、`messages` 的差异体现在
+请求体里；响应对象上的 `finish_reason` 与 `usage` 决定下一步做什么。
+
+回放的是固定响应（截断的一份、完整的一份、续写的一份），不是模型输出。
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import Counter
 
-# 完整回答，切成片段
-FULL = ["签收后", "7", "天内", "可退", "，", "条件", "是", "商品", "未", "拆封", "。"]
+from fake_server import chat_completion, client_for, scripted_server
+
+QUESTION = "能退吗？"
 END_MARKS = ("。", "！", "？")
 
-
-@dataclass
-class Result:
-    content: str
-    finish_reason: str
-    calls: int = 1
-    added: int = 0
+SCRIPTS = {
+    "first": chat_completion("签收后7天内可退，条件", finish_reason="length", usage=(24, 6)),
+    "retry": chat_completion("签收后7天内可退，条件是商品未拆封。", finish_reason="stop", usage=(24, 11)),
+    "continue": chat_completion("是商品未拆封。", finish_reason="stop", usage=(30, 4)),
+}
 
 
-def generate(prefix_len: int = 0, max_tokens: int = 6) -> Result:
-    """从 prefix_len 处开始生成，最多 max_tokens 片。"""
-    rest = FULL[prefix_len:]
-    if len(rest) <= max_tokens:
-        return Result("".join(rest), "stop")
-    return Result("".join(rest[:max_tokens]), "length")
+def respond(index: int, body: dict) -> dict:
+    return SCRIPTS[body["case"]]
 
 
-# ---------------------------------------------------------------- 方案一
-
-def cut_at_sentence(text: str) -> Result:
-    """本地找一个句号，丢掉之后的部分。不产生新调用。"""
+def cut_at_sentence(text: str) -> str:
+    """本地找最后一个句号，丢掉之后的部分。不产生新调用。"""
     for i in range(len(text) - 1, -1, -1):
         if text[i] in END_MARKS:
-            return Result(text[: i + 1], "stop", calls=1, added=0)
-    return Result("", "length", calls=1, added=0)
+            return text[: i + 1]
+    return ""
 
 
-# ---------------------------------------------------------------- 方案二
-
-def retry_with_more(max_tokens: int) -> Result:
-    """放宽上限，从头重来。前面生成的作废。"""
-    r1 = generate(0, 6)
-    if r1.finish_reason == "stop":
-        return Result(r1.content, "stop", calls=1)
-
-    r2 = generate(0, max_tokens)
-    return Result(r2.content, r2.finish_reason, calls=2, added=len(r2.content) - len(r1.content))
-
-
-# ---------------------------------------------------------------- 方案三
-
-def continue_from(prefix: str, max_tokens: int = 6) -> Result:
-    """把已生成的部分作为前缀，请求接着写。"""
-    r1 = generate(0, 6)
-    if r1.finish_reason == "stop":
-        return Result(r1.content, "stop", calls=1)
-
-    consumed = len(r1.content)
-    # 从已生成内容的末尾继续
-    consumed_pieces = 0
-    acc = ""
-    for piece in FULL:
-        acc += piece
-        consumed_pieces += 1
-        if len(acc) >= consumed:
-            break
-
-    r2 = generate(consumed_pieces, max_tokens)
-    return Result(r1.content + r2.content, r2.finish_reason, calls=2, added=len(r2.content))
+def seam_overlap(prefix: str, tail: str, window: int = 6) -> int:
+    """续写的接缝检查：尾巴开头有多少字与正文结尾重复。"""
+    for k in range(min(window, len(tail), len(prefix)), 0, -1):
+        if prefix.endswith(tail[:k]):
+            return k
+    return 0
 
 
 def main() -> None:
-    first = generate(0, 6)
-    print(f"原始：{first.content!r} ({first.finish_reason}, 上限=6)")
-    print()
+    calls: Counter = Counter()
+    prompt_tokens: Counter = Counter()
 
-    a = cut_at_sentence(first.content)
-    print(f"方案一 直接截到最后一个完整句：")
-    print(f"  {a.content!r}  丢弃 {len(first.content) - len(a.content)} 个字")
-    print()
+    def ask(client, case: str, messages: list[dict], max_tokens: int):
+        calls[case] += 1
+        response = client.chat.completions.create(
+            model="demo-model",
+            messages=messages,
+            temperature=0.0,
+            max_tokens=max_tokens,
+            extra_body={"case": case},
+        )
+        prompt_tokens[case] += response.usage.prompt_tokens
+        return response
 
-    b = retry_with_more(64)
-    print(f"方案二 放宽上限重来：")
-    print(f"  {b.content!r}  ({b.finish_reason})  花费 {b.calls} 次调用")
-    print(f"  新增内容 {b.added} 字，但重算了前面 {len(first.content)} 字的生成")
-    print()
+    with scripted_server(respond) as base_url:
+        client = client_for(base_url)
+        base = [{"role": "user", "content": QUESTION}]
 
-    c = continue_from(first.content)
-    print(f"方案三 续写：")
-    print(f"  {c.content!r}  ({c.finish_reason})  花费 {c.calls} 次调用")
-    print(f"  只补了 {c.added} 字")
-    print()
+        # 第一次：上限 6，被截断
+        first = ask(client, "first", base, 6)
+        truncated = first.choices[0].message.content or ""
+        print(f"原始：{truncated!r} ({first.choices[0].finish_reason}, 上限=6)")
+        print(f"  completion_tokens={first.usage.completion_tokens}  prompt_tokens={first.usage.prompt_tokens}")
+        print()
 
-    print("对照：")
-    print(f"  {'方案':<12}{'调用次数':<10}{'产出字符':<10}{'备注'}")
-    for name, r, note in (
-        ("一 截断", a, "丢失后半句"),
-        ("二 重来", b, "整段重算"),
-        ("三 续写", c, "需处理接缝"),
-    ):
-        print(f"  {name:<12}{r.calls:<10}{len(r.content):<10}{note}")
+        # 方案一：本地截到最后一个完整句
+        cut = cut_at_sentence(truncated)
+        print("方案一 直接截到最后一个完整句：")
+        print(f"  {cut!r}  丢弃 {len(truncated) - len(cut)} 个字  调用次数 {calls['first']}")
+        print()
+
+        # 方案二：放宽上限，从头重来
+        retried = ask(client, "retry", base, 64)
+        full = retried.choices[0].message.content or ""
+        print("方案二 放宽上限重来：")
+        print(f"  {full!r}  ({retried.choices[0].finish_reason})  调用次数 {calls['first'] + calls['retry']}")
+        print(f"  新增 {len(full) - len(truncated)} 字，但重算了前面 {len(truncated)} 字的生成")
+        print(f"  两次 prompt_tokens 合计 {prompt_tokens['first'] + prompt_tokens['retry']}，输入全文各计一次")
+        print()
+
+        # 方案三：把已生成内容作为助手消息，请求接着写
+        messages = base + [
+            {"role": "assistant", "content": truncated},
+            {"role": "user", "content": "接着上面写完，不要重复已经写过的内容。"},
+        ]
+        cont = ask(client, "continue", messages, 32)
+        tail = cont.choices[0].message.content or ""
+        joined = truncated + tail
+        print("方案三 续写：")
+        print(f"  {joined!r}  ({cont.choices[0].finish_reason})  调用次数 {calls['first'] + calls['continue']}")
+        print(f"  只补了 {len(tail)} 字，接缝重叠 {seam_overlap(truncated, tail)} 字")
+        print(f"  两次 prompt_tokens 合计 {prompt_tokens['first'] + prompt_tokens['continue']}，第二次只多带了已生成的部分")
+        print()
+
+        print("对照：")
+        print(f"  {'方案':<10}{'调用次数':<10}{'产出字符':<10}{'输入 token 合计':<14}备注")
+        for name, count, produced, tokens, note in (
+            ("一 截断", 1, len(cut), prompt_tokens["first"], "丢失后半句"),
+            ("二 重来", 2, len(full), prompt_tokens["first"] + prompt_tokens["retry"], "整段重算"),
+            ("三 续写", 2, len(joined), prompt_tokens["first"] + prompt_tokens["continue"], "需处理接缝"),
+        ):
+            print(f"  {name:<10}{count:<10}{produced:<10}{tokens:<14}{note}")
 
 
 if __name__ == "__main__":
