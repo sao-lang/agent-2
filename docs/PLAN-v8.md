@@ -1,3 +1,5 @@
+> **本文件已被 [PLAN-v9.md](./PLAN-v9.md) 取代。** v9 按「LangChain 与 RAG 合并、RAG 卷代码全用 LangChain」重排为 50 章。
+
 # 改造方案 v8：基础先行、框架成组、内容列到节
 
 > 取代 `docs/PLAN-v7.md`。本版按六条修正：
