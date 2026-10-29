@@ -60,9 +60,9 @@
 
 ## 当前进度
 
-**第 0–21 章已按 v11 结构完成重写，卷 1–4 全部完成**：卷 1（1–5，新增 pydantic 一章）、卷 2（6–8）、卷 3（9–12，LangChain agent 侧）、卷 4（13–21，RAG 全链路：分流、四环节、向量化、切块、向量数据库、检索质量、上下文装配、长期记忆、知识治理）。
+**第 0–22 章已按 v11 结构完成重写，卷 1–4 全部完成，卷 5 进行中**：卷 1（1–5，新增 pydantic 一章）、卷 2（6–8）、卷 3（9–12，LangChain agent 侧）、卷 4（13–21，RAG 全链路：分流、四环节、向量化、切块、向量数据库、检索质量、上下文装配、长期记忆、知识治理）。
 
-卷 5 起待重写。旧稿分两处：[`chapters-pending/`](./chapters-pending/) 放第 22–26、33 章的稿子（章首已对到新号），其余 v5 旧稿在 [`drafts-v5/`](./drafts-v5/) 作归档。完整章节表见 [`outline/30-卷章总览.md`](./outline/30-卷章总览.md)，知识点见 [`outline/`](./outline/) 的分册；从哪读起见 [`OUTLINE.md`](./OUTLINE.md) 的加载规则。
+卷 5 的 22 章已写完，23–26 待写（旧稿在 `chapters-pending/`）；33 也在那里。其余 v5 旧稿在 [`drafts-v5/`](./drafts-v5/) 作归档。完整章节表见 [`outline/30-卷章总览.md`](./outline/30-卷章总览.md)，知识点见 [`outline/`](./outline/) 的分册；从哪读起见 [`OUTLINE.md`](./OUTLINE.md) 的加载规则。
 
 各章示例依赖真实技术栈（LangChain 1.4.7、bge 嵌入、Qdrant 等），跑之前见章首的示例目录说明；嵌入模型首次运行需下载。
 
@@ -139,6 +139,7 @@ python code/knowledge/ch09_lc_basic/messages.py
 ├── 19-上下文装配.md             第 19 章
 ├── 20-长期记忆.md               第 20 章
 ├── 21-知识治理.md               第 21 章
+├── 22-编排的三层.md             第 22 章
 ├── drafts-v5/                 第 22 章以后的旧稿（v5 章号，待重排）
 ├── chapters-pending/          旧稿的第 8–12 章，等 v11 归位（卷 5）
 ├── docs/
