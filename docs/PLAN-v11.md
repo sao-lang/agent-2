@@ -37,7 +37,7 @@
 
 ---
 
-## 二、全书结构（52 章，0–51）
+## 二、全书结构（53 章，0–52）
 
 | 卷 | 名称 | 章 | 说明 |
 |---|---|---|---|
@@ -52,9 +52,9 @@
 | 8 | LangGraph | 36–38 | 图与状态 / 持久化与流式 / 多智能体编排 |
 | 9 | 其他框架 | 39–41 | LlamaIndex 两章 / 其他技术栈与平台 |
 | 10 | 度量与复盘 | 42–46 | 计量（OTel+LangFuse）/ RAG 评测（RAGAS）/ Agent 评测 / 门禁 / 成本延迟 |
-| 11 | 组件封装（副线） | 47–51 | 契约与替换实验 |
+| 11 | 组件封装（副线） | 47–52 | 契约与替换实验 + 组合（拓扑） |
 
-知识点：A9 + B21 + C14 + D16 + E14 + F18 + H14 + G5 = 111 条。
+知识点：A9 + B21 + C12 + D15 + E14 + F18 + H13 + G5 = 108 条（含 G6 LLM Wiki）。早期草案的 C13/C14/D16/H14 不单列——嵌入原理并入 C7、向量库运维并入 C6，其余并入既有章。
 
 ---
 
@@ -172,7 +172,7 @@
 | 节 | 内容 | API |
 |---|---|---|
 | 10.1 | Runnable 协议 | `invoke`/`batch`/`stream`/`astream_events` 与输入输出契约 |
-| 10.2 | 七个组合子 | `|`、`RunnableParallel`、`RunnablePassthrough`、`RunnableLambda`、`RunnableBranch`、`with_fallbacks`、`with_retry` |
+| 10.2 | 七个组合子 | `\|`、`RunnableParallel`、`RunnablePassthrough`、`RunnableLambda`、`RunnableBranch`、`with_fallbacks`、`with_retry` |
 | 10.3 | 模板 | `ChatPromptTemplate`、`MessagesPlaceholder`、`FewShotChatMessagePromptTemplate` |
 | 10.4 | 解析器 | `StrOutputParser`/`JsonOutputParser`/`PydanticOutputParser`/`CommaSeparatedListOutputParser` |
 | 10.5 | 自愈 | `OutputFixingParser`/`RetryOutputParser`，对上第 4 章"校验失败回灌" |
@@ -215,7 +215,7 @@
 | 8 LangGraph | 36–38 | 图与状态 / 持久化与流式 / 多智能体编排 |
 | 9 其他 | 39–41 | LlamaIndex 两章 / Deep Agents、pydantic-ai、Agents SDK、AutoGen、CrewAI、平台 |
 | 10 度量 | 42–46 | 计量（OTel+LangFuse）/ RAG 评测（评测集+RAGAS）/ Agent 评测 / 门禁 / 成本延迟 |
-| 11 封装 | 47–51 | 契约与替换实验（副线） |
+| 11 封装 | 47–52 | 契约与替换实验 + 组合（副线） |
 
 ---
 
@@ -250,7 +250,7 @@ RAG 卷代码全部在副线节里，用 LangChain；其余卷的代码清单与
 
 | 批 | 章 | 验收 |
 |---|---|---|
-| 0 | 全库重排为 52 章 | 引用扫描 0 错、脚本跑通 |
+| 0 | 全库重排为 53 章 | 引用扫描 0 错、脚本跑通 |
 | 1 | 9–12 | LangChain agent 侧四章 + 过渡节可跑 |
 | 2 | 13–15 | 分流、端到端、向量化（含副线实现） |
 | 3 | 16–18 | 切块、向量库、检索质量（副线 API 覆盖清单逐项打勾） |
@@ -260,7 +260,7 @@ RAG 卷代码全部在副线节里，用 LangChain；其余卷的代码清单与
 | 7 | 36–38 | LangGraph 三章 |
 | 8 | 39–41 | LlamaIndex 与其他栈 |
 | 9 | 1–6、22–32 补齐 | 每章至少一处真库 |
-| 10 | 47–51 | 副线封装 |
+| 10 | 47–52 | 副线封装与组合 |
 
 **验收判据（RAG 卷）**：① 去掉副线节，本章论证仍完整；② 副线 API 清单逐项出现；③ 每章至少一个可跑示例；④ 示例最多试 3 次。
 
