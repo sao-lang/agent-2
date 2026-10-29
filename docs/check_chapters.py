@@ -8,7 +8,7 @@
   1. 章首四行元信息齐全（知识点 / 本章回答 / 示例目录 / 读完应当能回答）
   2. 有「这一章建立的 N 件事」，且 N 与条目数一致
   3. 有「下一章」
-  4. 中文字符数（不含代码块与表格）在 9000–13000
+  4. 中文字符数（不含代码块与表格）不低于 9000
   5. Markdown 表格列数一致（转义竖线不计）
   6. 二级标题中文不超过 12 字
   7. 「第 N 章」引用不超出 0–52
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MIN_CHARS, MAX_CHARS = 9000, 13000
+MIN_CHARS = 9000          # 目标 10000+，不设上限（见 WRITING-SPEC 第二节）
 
 
 def chinese_chars(text: str) -> int:
@@ -80,8 +80,8 @@ def check_file(path: Path) -> list[str]:
         issues.append("  缺少「## 下一章」")
 
     n = chinese_chars(text)
-    if not MIN_CHARS <= n <= MAX_CHARS:
-        issues.append(f"  中文字符 {n}，不在 {MIN_CHARS}–{MAX_CHARS}")
+    if n < MIN_CHARS:
+        issues.append(f"  中文字符 {n}，低于 {MIN_CHARS}")
 
     issues.extend(check_table_pipes(lines))
 

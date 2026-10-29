@@ -1,0 +1,16 @@
+# shell 形态：Docker 会把它变成 /bin/sh -c "python -u app.py"。
+# PID 1 是 sh，python 是子进程；sh 不转发 SIGTERM。
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app /app
+
+ENV PYTHONUNBUFFERED=1
+RUN useradd -m app && chown -R app /app
+USER app
+EXPOSE 8000
+
+# 没有方括号：交给 shell 解析
+CMD python -u app.py
