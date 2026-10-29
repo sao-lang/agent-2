@@ -60,9 +60,11 @@
 
 ## 当前进度
 
-**第 0–12 章已按 v11 结构完成重写**：卷 1（1–5，新增 pydantic 一章）、卷 2（6–8）、卷 3（9–12，LangChain agent 侧）。
+**第 0–21 章已按 v11 结构完成重写，卷 1–4 全部完成**：卷 1（1–5，新增 pydantic 一章）、卷 2（6–8）、卷 3（9–12，LangChain agent 侧）、卷 4（13–21，RAG 全链路：分流、四环节、向量化、切块、向量数据库、检索质量、上下文装配、长期记忆、知识治理）。
 
-第 13 章以后仍是上一版（v5）的旧稿，章号与该表不一致；旧的第 8–12 章（编排范式、反思、状态、持久化、能力供给）暂时放在 [`chapters-pending/`](./chapters-pending/)，等第 13 章以后重排时归位，映射见该目录的 README。v11 的完整章节表与知识点归属见 [`docs/PLAN-v11.md`](./docs/PLAN-v11.md) 与 [`OUTLINE.md`](./OUTLINE.md)。
+卷 5 起待重写。旧稿分两处：[`chapters-pending/`](./chapters-pending/) 放第 22–26、33 章的稿子（章首已对到新号），其余 v5 旧稿在 [`drafts-v5/`](./drafts-v5/) 作归档。完整章节表见 [`outline/30-卷章总览.md`](./outline/30-卷章总览.md)，知识点见 [`outline/`](./outline/) 的分册；从哪读起见 [`OUTLINE.md`](./OUTLINE.md) 的加载规则。
+
+各章示例依赖真实技术栈（LangChain 1.4.7、bge 嵌入、Qdrant 等），跑之前见章首的示例目录说明；嵌入模型首次运行需下载。
 
 ## 阅读路径
 
@@ -112,7 +114,8 @@ python code/knowledge/ch09_lc_basic/messages.py
 
 ```
 .
-├── OUTLINE.md                 知识点、章节划分、代码落点、设计决定
+├── OUTLINE.md                 大纲索引：加载规则、卷→分册映射、全局不变量
+├── outline/                   大纲分册（30 个）：知识点、卷表、副线推导、设计决定
 ├── README.md                  本文件
 ├── 00-agent的差别.md           第 0 章
 ├── 01-一次调用的四个字段.md     第 1 章
@@ -127,8 +130,17 @@ python code/knowledge/ch09_lc_basic/messages.py
 ├── 10-LangChain组合与解析器.md         第 10 章
 ├── 11-LangChain工具定义与绑定.md       第 11 章
 ├── 12-LangChain的Agent与中间件.md      第 12 章
-├── 13-…31-…                  旧稿（v5 章号，待重排）
-├── chapters-pending/          旧稿的第 8–12 章，等 v11 归位
+├── 13-分流.md                  第 13 章
+├── 14-RAG的四个环节.md          第 14 章
+├── 15-向量化.md                第 15 章
+├── 16-切块.md                  第 16 章
+├── 17-向量数据库.md             第 17 章
+├── 18-检索质量.md               第 18 章
+├── 19-上下文装配.md             第 19 章
+├── 20-长期记忆.md               第 20 章
+├── 21-知识治理.md               第 21 章
+├── drafts-v5/                 第 22 章以后的旧稿（v5 章号，待重排）
+├── chapters-pending/          旧稿的第 8–12 章，等 v11 归位（卷 5）
 ├── docs/
 │   ├── WRITING-SPEC.md        写作规范
 │   ├── PLAN-v11.md            章节方案
@@ -138,7 +150,7 @@ python code/knowledge/ch09_lc_basic/messages.py
     ├── knowledge/
     │   ├── _common/           脚本化后端（fake_server / scripted_chat）
     │   ├── ch00_start/ … ch12_lc_agent/   前 12 章示例
-    │   └── ch13_router/ …    旧稿示例
+    │   └── ch13_router/ … ch21_governance/ 卷 4 全九章示例
     ├── serving/
     └── eval/
 ```

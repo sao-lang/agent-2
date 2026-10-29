@@ -34,3 +34,9 @@ Thumbs.db
 # 示例的临时工作区（脚本正常结束时会自动清理）
 _*_demo/
 _sql_demo.db
+
+# 本地实验环境（不进仓库）
+.libs/
+.hf/
+.tmp/
+.tools/

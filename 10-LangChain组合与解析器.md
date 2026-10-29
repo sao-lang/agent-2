@@ -344,7 +344,7 @@ def event_part() -> None:
 
 ## 四、七个组合子
 
-先把名字核对一遍。`OUTLINE.md` 里列的七个组合子，1.4.7 里**全部存在**，没有需要写替代写法的：`|`、`RunnableParallel`、`RunnablePassthrough`、`RunnableLambda`、`RunnableBranch`、`with_fallbacks`、`with_retry`。其中 `RunnableBranch` 没有被移走，签名是 `*branches`：前面若干个 `(条件, 分支)` 元组，最后一项若是单独的 Runnable 就作默认分支。
+先把名字核对一遍。大纲 F3 里列的七个组合子，1.4.7 里**全部存在**，没有需要写替代写法的：`|`、`RunnableParallel`、`RunnablePassthrough`、`RunnableLambda`、`RunnableBranch`、`with_fallbacks`、`with_retry`。其中 `RunnableBranch` 没有被移走，签名是 `*branches`：前面若干个 `(条件, 分支)` 元组，最后一项若是单独的 Runnable 就作默认分支。
 
 本章唯一一次"搬家"发生在解析器上，不在组合子上：`OutputFixingParser` 与 `RetryOutputParser` 已经不在 `langchain.output_parsers`，改到 `langchain_classic.output_parsers`（第 7 节细说）。
 
