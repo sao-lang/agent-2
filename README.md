@@ -66,7 +66,7 @@
 
 **大纲已扩到 58 章（0–57）**：卷 11 在 47–50 之后新增**第 51 章「架构选型：从一个项目到一套架构」**（待写，节级计划见 [`outline/45-架构选型章节计划.md`](./outline/45-架构选型章节计划.md)），副线因此后移到卷 12（52–57）；知识点仍 108 条。
 
-卷 7 起待写：第 33 章的旧稿在 `chapters-pending/`，卷 10 的旧稿（计量、评测、门禁、复盘）在 [`drafts-v5/`](./drafts-v5/) 作归档。完整章节表见 [`outline/30-卷章总览.md`](./outline/30-卷章总览.md)，全书目录见 [`INDEX.md`](./INDEX.md)，知识点见 [`outline/`](./outline/) 的分册；从哪读起见 [`OUTLINE.md`](./OUTLINE.md) 的加载规则。
+卷 7 起待写：第 33 章的旧稿在 `chapters-pending/`，卷 10 的旧稿（计量、评测、门禁、复盘）在 [`drafts-v5/`](./drafts-v5/) 作归档。完整章节表见 [`outline/30-卷章总览.md`](./outline/30-卷章总览.md)，全书目录见 [`docs/INDEX.md`](./docs/INDEX.md)，知识点见 [`outline/`](./outline/) 的分册；从哪读起见 [`docs/OUTLINE.md`](./docs/OUTLINE.md) 的加载规则。
 
 各章示例依赖真实技术栈（LangChain 1.4.7、bge 嵌入、Qdrant 等），跑之前见章首的示例目录说明；嵌入模型首次运行需下载。
 
@@ -118,11 +118,11 @@ python code/knowledge/ch09_lc_basic/messages.py
 
 ## 结构维护
 
-章节结构只有一个事实源：`book.json`（卷、章、标题、知识点、状态）。章首六行、章末导航与 `INDEX.md` 都由它生成，不要手改章节的导航部分。
+章节结构只有一个事实源：`docs/book.json`（卷、章、标题、知识点、状态）。章首元信息、章内目录、章末导航与 `docs/INDEX.md` 都由它生成，不要手改章节的导航部分。
 
 ```bash
-python docs/gen_book.py build      # 改完 book.json 后重建 INDEX.md 与各章章首/章末
-python docs/check_nav.py           # 校验章号、标题与文件名、章首、章末链接、INDEX 同步
+python docs/gen_book.py build      # 改完 docs/book.json 后重建 docs/INDEX.md 与各章章首/目录/章末
+python docs/check_nav.py           # 校验章号、标题与文件名、章首、目录、章末链接、INDEX 同步
 python docs/check_chapters.py --all   # 校验篇幅、结构、表格、章号引用
 ```
 
@@ -132,9 +132,6 @@ python docs/check_chapters.py --all   # 校验篇幅、结构、表格、章号�
 
 ```
 .
-├── OUTLINE.md                  大纲索引：加载规则、卷→分册映射、全局不变量
-├── INDEX.md                    全书目录（由 book.json 生成）：按卷分组、知识点索引、文件名对照
-├── book.json                   结构唯一事实源：13 卷、58 章、108 条知识点
 ├── outline/                    大纲分册（31 个）：知识点、卷表、副线推导、章节计划、设计决定
 ├── README.md                   本文件
 ├── 00-agent的差别.md           第 0 章
@@ -173,11 +170,14 @@ python docs/check_chapters.py --all   # 校验篇幅、结构、表格、章号�
 ├── drafts-v5/                 卷 10 的旧稿（计量/评测/门禁/复盘，待重排到 42–46）
 ├── chapters-pending/          第 33 章的旧稿，等 v11 归位（卷 7）
 ├── docs/
+│   ├── OUTLINE.md             大纲索引：加载规则、卷→分册映射、全局不变量
+│   ├── INDEX.md               全书目录（由 book.json 生成）：按卷分组、知识点索引、文件名对照
+│   ├── book.json              结构唯一事实源：13 卷、58 章、108 条知识点
 │   ├── WRITING-SPEC.md        写作规范
 │   ├── PLAN-v11.md            章节方案
 │   ├── REFACTOR-v11.md        本轮前 12 章的施工说明
 │   ├── PLAN-ARCH.md           编排架构章节计划
-│   ├── gen_book.py            从 book.json 生成 INDEX.md 与章首/章末
+│   ├── gen_book.py            从 book.json 生成 INDEX.md 与章首/目录/章末
 │   ├── check_nav.py           导航与结构自检
 │   ├── check_ch01_12.py       前 12 章的机械检查
 │   └── check_chapters.py      章节结构/篇幅/章号自检（任意章）

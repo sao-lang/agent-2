@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "docs"))
 from gen_book import fname  # noqa: E402
 
-_DATA = json.loads((ROOT / "book.json").read_text(encoding="utf-8"))
+_DATA = json.loads((ROOT / "docs" / "book.json").read_text(encoding="utf-8"))
 CHAPTERS = [fname(c) for c in _DATA["chapters"] if c["status"] == "done" and c["no"] <= 12]
 
 BANNED_MAIN = ["harness", "插点", "契约", "组件封装"]
@@ -36,7 +36,7 @@ def check(path):
     if not re.match(r"# 第 \d+ 章", text):
         problems.append("缺章标题")
     for key in ("知识点", "本章回答", "示例目录", "读完应当能回答"):
-        if f"> **{key}" not in text:
+        if not re.search(rf"^> (?:- )?\*\*{re.escape(key)}", text, flags=re.M):
             problems.append(f"缺元信息：{key}")
     if not re.search(r"## 这一章建立的 \d+ 件事", text):
         problems.append("缺『这一章建立的 N 件事』")

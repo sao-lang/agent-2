@@ -1,7 +1,7 @@
 # 可选深水区与 LLM Wiki 附录
 
 > 分册：《Agent 工程》大纲 · G1–G6 与 LLM Wiki 附录长文
-> 全局约定、章号与「写哪章读哪册」见 [../OUTLINE.md](../OUTLINE.md)。
+> 全局约定、章号与「写哪章读哪册」见 [docs/OUTLINE.md](../docs/OUTLINE.md)。
 
 ## 本册包含
 

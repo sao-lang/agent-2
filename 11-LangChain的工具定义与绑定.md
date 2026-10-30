@@ -1,6 +1,6 @@
 # 第 11 章 · LangChain 的工具定义与绑定
 
-> **卷 3 · LangChain（agent 侧）（第 9–12 章）**｜[全书目录](./INDEX.md#vol3)｜[本卷导读](./outline/vol03-LangChain.md)
+> **卷 3 · LangChain（agent 侧）（第 9–12 章）**｜[全书目录](./docs/INDEX.md#vol3)｜[本卷导读](./outline/vol03-LangChain.md)
 >
 > - **知识点**：F6 工具定义与注入 —— @tool、BaseTool、bind_tools 与三种注入（编号定义见 [知识点-F-框架层](./outline/16-知识点-F-框架层.md)）
 > - **本章回答**：第 6 章手写的那份 `tools` 字典与往返，换成框架以后哪几段被接走、哪几段仍在调用方手里；函数是怎么变成请求里那段 `parameters` 的；一次响应给出多个调用时按什么顺序执行；注入的参数为什么不进 schema；异常、收窄、模拟各自落在哪个中间件上
@@ -8,6 +8,20 @@
 > - **读完应当能回答**：给一个工具函数和一次 `bind_tools`，你能说出请求体里 `tools` 与 `tool_choice` 长什么样、工具抛异常时消息怎么回到模型、四个中间件各自的参数与边界，以及哪一件事框架仍然没替你做
 
 ---
+
+## 目录
+
+[一、手写往返里的四段](#一手写往返里的四段)\
+[二、从函数长出一份定义](#二从函数长出一份定义)\
+[三、绑定的请求体](#三绑定的请求体)\
+[四、一次响应里的多个调用](#四一次响应里的多个调用)\
+[五、注入参数](#五注入参数)\
+[六、失败与重试](#六失败与重试)\
+[七、工具收窄](#七工具收窄)\
+[八、工具模拟](#八工具模拟)\
+[九、会怎么坏](#九会怎么坏)\
+[十、边界](#十边界)\
+[这一章建立的 7 件事](#这一章建立的-7-件事)
 
 本章所有 API 以本机安装的 **LangChain 1.4.7**（`langchain-core` 1.7.0）为准。例子没有 API key，`ChatOpenAI` 换了一个 `httpx.MockTransport`，请求照常编码，响应来自一份写死的脚本。**原理演示，不是模型实测**；脚本里写死的文本不是模型输出。换成真实服务时，把 `scripted_chat(respond)` 换成 `ChatOpenAI(model=..., api_key=..., base_url=...)`，其余代码不动。
 
@@ -765,4 +779,4 @@ Return ONLY the tool's output, no explanation or preamble. Introduce variation i
 
 ---
 
-[← 第 10 章 · LangChain 组合与解析器](./10-LangChain组合与解析器.md)　｜　[卷 3 目录](./INDEX.md#vol3)　｜　[第 12 章 · LangChain 的 Agent 与中间件 →](./12-LangChain的Agent与中间件.md)
+[← 第 10 章 · LangChain 组合与解析器](./10-LangChain组合与解析器.md)　｜　[卷 3 目录](./docs/INDEX.md#vol3)　｜　[第 12 章 · LangChain 的 Agent 与中间件 →](./12-LangChain的Agent与中间件.md)

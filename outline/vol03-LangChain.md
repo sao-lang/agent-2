@@ -1,7 +1,7 @@
 # 卷 3 · LangChain（agent 侧）（第 9–12 章）→ F1–F10
 
 > 分册：《Agent 工程》大纲 · 第 3 卷章表
-> 全局约定、章号与「写哪章读哪册」见 [../OUTLINE.md](../OUTLINE.md)。
+> 全局约定、章号与「写哪章读哪册」见 [docs/OUTLINE.md](../docs/OUTLINE.md)。
 
 **本卷回答**：手写过的那些步骤，框架里对应哪个类、哪个参数，边界在哪。
 

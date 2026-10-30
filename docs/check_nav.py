@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""全书导航自检：book.json、章首六行、章末导航、文件名、INDEX.md、相对链接、章号引用。
+"""全书导航自检：book.json、章首元信息、章内目录、章末导航、文件名、INDEX.md、相对链接、章号引用。
 
 用法：
     python docs/check_nav.py
@@ -24,6 +24,7 @@ from gen_book import (  # noqa: E402
     norm_title,
     point_line,
     render_index,
+    toc_block,
     vol_line,
 )
 
@@ -78,6 +79,25 @@ def check_chapter(ch: dict, data: dict) -> list[str]:
     for key in ("**本章回答**", "**示例目录**", "**读完应当能回答**"):
         if f"> - {key}" not in "\n".join(lines[:12]):
             bad.append(f"{path.name}：章首缺少列表项 {key}")
+    expected_toc = toc_block(lines)
+    if expected_toc:
+        try:
+            start = lines.index("## 目录")
+        except ValueError:
+            bad.append(f"{path.name}：缺少「## 目录」（跑 gen_book.py build）")
+        else:
+            # 目录正文是每行一个链接（行尾反斜杠做硬换行）；兼容旧版列表/单行目录。
+            toc_end = start + 1
+            while toc_end < len(lines) and not lines[toc_end].strip():
+                toc_end += 1
+            while toc_end < len(lines) and (
+                lines[toc_end].startswith("- [") or lines[toc_end].startswith("[")
+            ):
+                toc_end += 1
+            actual = [line for line in lines[start:toc_end] if line.strip()]
+            wanted = [line for line in expected_toc if line.strip()]
+            if actual != wanted:
+                bad.append(f"{path.name}：目录与正文标题不同步（跑 gen_book.py build）")
     if "## 下一章" not in text:
         bad.append(f"{path.name}：缺少「## 下一章」")
     return bad
@@ -95,11 +115,11 @@ def check_files(data: dict) -> list[str]:
 
 
 def check_index(data: dict) -> list[str]:
-    path = ROOT / "INDEX.md"
+    path = ROOT / "docs" / "INDEX.md"
     if not path.exists():
-        return ["INDEX.md 不存在（跑 python docs/gen_book.py index）"]
+        return ["docs/INDEX.md 不存在（跑 python docs/gen_book.py index）"]
     if path.read_text(encoding="utf-8") != render_index(data):
-        return ["INDEX.md 与 book.json 不同步（跑 python docs/gen_book.py index）"]
+        return ["docs/INDEX.md 与 book.json 不同步（跑 python docs/gen_book.py index）"]
     return []
 
 
@@ -109,12 +129,12 @@ def check_links(paths: list[Path]) -> list[str]:
         text = p.read_text(encoding="utf-8")
         text = re.sub(r"```.*?```", "", text, flags=re.S)   # 代码块里的示例链接不算
         text = re.sub(r"`[^`\n]*`", "", text)               # 行内代码里的示例链接不算
-        for target in re.findall(r"\]\((\./[^)\s]+)\)", text):
+        for target in re.findall(r"\]\(((?:\.\.?/)[^)\s]+)\)", text):
             if "#" in target:
                 target = target.split("#", 1)[0]
             if not target:
                 continue
-            if not (p.parent / target[2:]).exists():
+            if not (p.parent / target).exists():
                 bad.append(f"{p.relative_to(ROOT)}：相对链接指向不存在的文件 {target}")
     return bad
 
@@ -141,7 +161,12 @@ def main(argv: list[str]) -> int:
     problems += check_index(data)
 
     scope = [p for p in ROOT.glob("[0-9][0-9]-*.md")]
-    scope += [ROOT / "INDEX.md", ROOT / "README.md", ROOT / "OUTLINE.md", ROOT / "book.json"]
+    scope += [
+        ROOT / "README.md",
+        ROOT / "docs" / "INDEX.md",
+        ROOT / "docs" / "OUTLINE.md",
+        ROOT / "docs" / "book.json",
+    ]
     scope += list((ROOT / "outline").glob("*.md")) + list((ROOT / "docs").glob("*.md"))
     scope = [p for p in scope if p.exists()]
     problems += check_links([p for p in scope if p.suffix == ".md"])

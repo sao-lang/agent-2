@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""从 book.json 生成 INDEX.md，并维护各章的章首元信息与章末导航。
+"""从 book.json 生成 INDEX.md，并维护各章的章首元信息、章内目录与章末导航。
 
 用法：
     python docs/gen_book.py index          # 只重新生成 INDEX.md
-    python docs/gen_book.py build          # 生成 INDEX.md，并改写已写章节的章首/章末
+    python docs/gen_book.py build          # 生成 INDEX.md，并改写已写章节的章首/目录/章末
     python docs/gen_book.py build --dry    # 只打印将要发生的改动
+    python docs/gen_book.py new 33         # 按当前标准创建第 33 章骨架（不覆盖已存在文件）
 
 约定（改动前先读 docs/WRITING-SPEC.md 第 1.4 节）：
   * book.json 是唯一事实源：卷、章、知识点、状态、落点计划都在这里。
@@ -17,10 +18,11 @@ from __future__ import annotations
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BOOK = ROOT / "book.json"
+BOOK = ROOT / "docs" / "book.json"
 
 POINT_FILE = {
     "A": "outline/11-知识点-A-模型层.md",
@@ -77,6 +79,11 @@ def body_url(path: str) -> str:
     return "./" + path
 
 
+def index_url(path: str) -> str:
+    """docs/INDEX.md 指向仓库根目录文件的相对路径。"""
+    return "../" + path
+
+
 # ---------------------------------------------------------------- 章首/章末
 
 def point_line(ch: dict, data: dict) -> str:
@@ -102,7 +109,7 @@ def point_line(ch: dict, data: dict) -> str:
 def vol_line(ch: dict, data: dict) -> str:
     vol = data["_vol"][ch["no"]]
     return (f"**卷 {vol['no']} · {vol['name']}（{vrange(vol)}）**"
-            f"｜[全书目录](./INDEX.md#vol{vol['no']})"
+            f"｜[全书目录](./docs/INDEX.md#vol{vol['no']})"
             f"｜[本卷导读]({body_url(vol['file'])})")
 
 
@@ -121,11 +128,11 @@ def nav_line(ch: dict, data: dict) -> str:
     if prev:
         parts.append(f"[← 第 {prev['no']} 章 · {prev['title']}](./{fname(prev)})")
     else:
-        parts.append("[全书目录](./INDEX.md)")
-    parts.append(f"[卷 {vol['no']} 目录](./INDEX.md#vol{vol['no']})")
+        parts.append("[全书目录](./docs/INDEX.md)")
+    parts.append(f"[卷 {vol['no']} 目录](./docs/INDEX.md#vol{vol['no']})")
     nxt = data["_by_no"].get(ch["no"] + 1)
     if nxt is None:
-        parts.append("[全书目录](./INDEX.md)")
+        parts.append("[全书目录](./docs/INDEX.md)")
     elif nxt["status"] == "done":
         parts.append(f"[第 {nxt['no']} 章 · {nxt['title']} →](./{fname(nxt)})")
     else:
@@ -133,6 +140,88 @@ def nav_line(ch: dict, data: dict) -> str:
         parts.append(f"第 {nxt['no']} 章 · {nxt['title']}（卷 {v2['no']}，待写）"
                      f"→ [章节计划]({body_url(nxt['plan'])})")
     return "　｜　".join(parts)
+
+
+def iter_h2(lines: list[str]):
+    """按顺序产出正文里的 H2（跳过围栏代码块里的示例标题）。"""
+    fence = None
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            marker = stripped[:3]
+            if fence is None:
+                fence = marker
+            elif stripped.startswith(fence):
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        if line.startswith("## ") and not line.startswith("### "):
+            yield line[3:].strip()
+
+
+def heading_slug(title: str) -> str:
+    """GitHub / VS Code 预览使用的标题 id：小写、去标点、空格变连字符。"""
+    title = re.sub(r"`([^`]*)`", r"\1", title)
+    title = re.sub(r"<[^>]+>", "", title)
+    title = title.strip().lower()
+    kept = [
+        c for c in title
+        if c.isalnum() or c in " -_" or unicodedata.category(c).startswith("M")
+    ]
+    return "".join(kept).strip().replace(" ", "-") or "section"
+
+
+def toc_block(lines: list[str]) -> list[str]:
+    entries = []
+    seen: dict[str, int] = {}
+    for title in iter_h2(lines):
+        if title in ("目录", "下一章"):
+            continue
+        base = heading_slug(title)
+        n = seen.get(base, 0)
+        seen[base] = n + 1
+        slug = base if n == 0 else f"{base}-{n}"
+        entries.append(f"[{title}](#{slug})")
+    if not entries:
+        return []
+    # 行尾反斜杠是 CommonMark 的硬换行：每项独占一行，且不需要项目符号。
+    body = [entry + "\\" for entry in entries[:-1]] + [entries[-1]]
+    return ["## 目录", "", *body]
+
+
+def apply_toc(lines: list[str]) -> list[str]:
+    """在章首分隔线之后维护 `## 目录`；重复运行只替换旧块。"""
+    h1 = next(k for k, line in enumerate(lines) if line.startswith("# "))
+    sep = next((k for k in range(h1 + 1, len(lines)) if lines[k].strip() == "---"), None)
+    if sep is None:
+        return lines
+    toc = toc_block(lines)
+    if not toc:
+        return lines
+
+    start = next(
+        (k for k in range(sep + 1, len(lines)) if lines[k].strip() == "## 目录"),
+        None,
+    )
+    if start is not None:
+        # 只替换「## 目录 + 空行 + 目录正文」，保留目录之后的导语/正文。
+        # 兼容旧版列表目录：整段列表一起删掉。
+        end = start + 1
+        while end < len(lines) and not lines[end].strip():
+            end += 1
+        while end < len(lines) and (
+            lines[end].startswith("- [") or lines[end].startswith("[")
+        ):
+            end += 1
+        while end < len(lines) and not lines[end].strip():
+            end += 1
+        return lines[:start] + toc + [""] + lines[end:]
+
+    at = sep + 1
+    while at < len(lines) and not lines[at].strip():
+        at += 1
+    return lines[:at] + toc + [""] + lines[at:]
 
 
 def patch_chapter(text: str, ch: dict, data: dict) -> str:
@@ -178,6 +267,7 @@ def patch_chapter(text: str, ch: dict, data: dict) -> str:
                 tail.pop()
     tail += ["", "---", "", nav_line(ch, data), ""]
     lines = lines[:k + 1] + tail
+    lines = apply_toc(lines)
     return "\n".join(lines)
 
 
@@ -194,12 +284,12 @@ def render_index(data: dict) -> str:
       f"第 {done[-1]['no'] + 1} 章起待写。")
     a(">")
     a("> 本文件由 `python docs/gen_book.py index` 从 [`book.json`](./book.json) 生成，不要手改。")
-    a("> 章节结构见 [OUTLINE.md](./OUTLINE.md)，知识点定义见 [outline/](./outline/)，"
-      "写法见 [docs/WRITING-SPEC.md](./docs/WRITING-SPEC.md)。")
+    a("> 章节结构见 [OUTLINE.md](./OUTLINE.md)，知识点定义见 [outline/](../outline/)，"
+      "写法见 [WRITING-SPEC.md](./WRITING-SPEC.md)。")
     a("")
     a("## 怎么用这份目录")
     a("")
-    a("- 顺序读：从[第 0 章](./00-agent的差别.md)开始；每章末尾都有「上一章 ｜ 卷目录 ｜ 下一章」。")
+    a("- 顺序读：从[第 0 章](../00-agent的差别.md)开始；每章末尾都有「上一章 ｜ 卷目录 ｜ 下一章」。")
     a("- 查一个知识点在哪讲：看[知识点索引](#points)。")
     a("- 查文件与章号的对应：看[文件名对照](#files)。")
     a("- 查某一卷讲什么：看下面每一卷的「本卷回答」与卷表。")
@@ -223,7 +313,7 @@ def render_index(data: dict) -> str:
         a(f"## 卷 {vol['no']} · {vol['name']}（{vrange(vol)}）｜{vol['line']}")
         a("")
         a(f"> **本卷回答**：{vol['question']}")
-        a(f"> **卷表**：[{Path(vol['file']).name}]({body_url(vol['file'])})")
+        a(f"> **卷表**：[{Path(vol['file']).name}]({index_url(vol['file'])})")
         a("")
         a("| 章 | 标题 | 知识点 | 状态 |")
         a("|---|---|---|---|")
@@ -231,11 +321,11 @@ def render_index(data: dict) -> str:
             ch = data["_by_no"][no]
             pts = " ".join(ch["points"]) if ch["points"] else "—"
             if ch["status"] == "done":
-                title = f"[{ch['title']}](./{fname(ch)})"
+                title = f"[{ch['title']}](../{fname(ch)})"
                 status = "已写"
             else:
                 title = ch["title"]
-                status = f"待写 · [计划]({body_url(ch['plan'])})"
+                status = f"待写 · [计划]({index_url(ch['plan'])})"
             a(f"| {no} | {title} | {pts} | {status} |")
         a("")
 
@@ -256,12 +346,12 @@ def render_index(data: dict) -> str:
         ids = owners.get(p["id"], [])
         if ids:
             first = ids[0]
-            dest = f"[第 {first} 章](./{fname(data['_by_no'][first])})" if data["_by_no"][first]["status"] == "done" \
+            dest = f"[第 {first} 章](../{fname(data['_by_no'][first])})" if data["_by_no"][first]["status"] == "done" \
                 else f"第 {first} 章（待写）"
             if len(ids) > 1:
                 dest += "（另见 " + "、".join(str(x) for x in ids[1:]) + "）"
         else:
-            dest = "[附录（深水区）](./outline/41-深水区与LLM-Wiki.md)"
+            dest = "[附录（深水区）](../outline/41-深水区与LLM-Wiki.md)"
         a(f"| {p['id']} | {p['name']} | {p['gloss']} | {dest} |")
     a("")
 
@@ -276,7 +366,7 @@ def render_index(data: dict) -> str:
     a("| 文件 | 章 | 标题 |")
     a("|---|---|---|")
     for ch in done:
-        a(f"| [{fname(ch)}](./{fname(ch)}) | {ch['no']} | {ch['title']} |")
+        a(f"| [{fname(ch)}](../{fname(ch)}) | {ch['no']} | {ch['title']} |")
     a("")
     return "\n".join(out)
 
@@ -284,7 +374,7 @@ def render_index(data: dict) -> str:
 # ---------------------------------------------------------------- 命令
 
 def write_index(data: dict, dry: bool) -> bool:
-    path = ROOT / "INDEX.md"
+    path = ROOT / "docs" / "INDEX.md"
     text = render_index(data)
     old = path.read_text(encoding="utf-8") if path.exists() else ""
     if old == text:
@@ -318,6 +408,42 @@ def build(dry: bool) -> int:
     return 0
 
 
+def new_chapter(no: int, data: dict) -> int:
+    """按当前章首/目录/章末标准创建一个空章骨架，不覆盖已存在文件。"""
+    ch = data["_by_no"].get(no)
+    if ch is None:
+        print(f"book.json 里没有第 {no} 章")
+        return 1
+    path = ROOT / fname(ch)
+    if path.exists():
+        print(f"已存在：{path.name}；不覆盖")
+        return 1
+    skeleton = "\n".join([
+        f"# 第 {no} 章 · {ch['title']}",
+        "",
+        f"> {vol_line(ch, data)}",
+        ">",
+        f"> - {point_line(ch, data)}",
+        "> - **本章回答**：TODO",
+        f"> - **示例目录**：`code/knowledge/ch{no:02}_TODO/`",
+        "> - **读完应当能回答**：TODO",
+        "",
+        "---",
+        "",
+        "## 一、第一节标题",
+        "",
+        "正文。",
+        "",
+        "## 这一章建立的 N 件事",
+        "",
+        "## 下一章",
+        "",
+    ])
+    path.write_text(patch_chapter(skeleton, ch, data), encoding="utf-8", newline="\n")
+    print(f"已创建 {path.name}；替换 TODO 与占位标题后再跑 build")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     cmd = argv[1] if len(argv) > 1 else "build"
     dry = "--dry" in argv
@@ -326,6 +452,16 @@ def main(argv: list[str]) -> int:
         return 0
     if cmd == "build":
         return build(dry)
+    if cmd == "new":
+        if len(argv) < 3:
+            print("用法：python docs/gen_book.py new <章号>")
+            return 2
+        try:
+            no = int(argv[2])
+        except ValueError:
+            print(f"章号必须是整数：{argv[2]}")
+            return 2
+        return new_chapter(no, load())
     print(__doc__)
     return 2
 
