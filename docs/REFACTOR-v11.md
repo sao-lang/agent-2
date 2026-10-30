@@ -14,16 +14,16 @@
 |---|---|---|---|---|
 | 0 | `00-agent的差别.md` | 起点 | — | `code/knowledge/ch00_start/` |
 | 1 | `01-一次调用的四个字段.md` | 1 一次调用 | A1 A2 | `code/knowledge/ch01_call/` |
-| 2 | `02-模型为什么编为什么忘.md` | 1 | A3 A7 | `code/knowledge/ch02_generation/` |
-| 3 | `03-token成本与上下文窗口.md` | 1 | A4 A5 A6 | `code/knowledge/ch03_tokens/` |
-| 4 | `04-提示词工程从规则到结构化输出.md` | 1 | A8 A9 | `code/knowledge/ch04_prompt/` |
+| 2 | `02-模型为什么编-为什么忘.md` | 1 | A3 A7 | `code/knowledge/ch02_generation/` |
+| 3 | `03-token-成本与上下文窗口.md` | 1 | A4 A5 A6 | `code/knowledge/ch03_tokens/` |
+| 4 | `04-提示词工程-从规则到结构化输出.md` | 1 | A8 A9 | `code/knowledge/ch04_prompt/` |
 | 5 | `05-用pydantic定义输出结构.md` | 1 | A8 的契约层（新） | `code/knowledge/ch05_pydantic/` |
-| 6 | `06-工具调用模型只会说不会做.md` | 2 最小 agent | B1 | `code/knowledge/ch06_tools/` |
+| 6 | `06-工具调用-模型只会说-不会做.md` | 2 最小 agent | B1 | `code/knowledge/ch06_tools/` |
 | 7 | `07-最小循环与三种终止.md` | 2 | B2 | `code/knowledge/ch07_loop/` |
 | 8 | `08-循环的四种失控.md` | 2 | B3 B4 B5 | `code/knowledge/ch08_runaway/` |
 | 9 | `09-LangChain包结构与消息.md` | 3 LangChain（agent 侧） | F1 F2 | `code/knowledge/ch09_lc_basic/` |
 | 10 | `10-LangChain组合与解析器.md` | 3 | F3 F4 F5 | `code/knowledge/ch10_lc_compose/` |
-| 11 | `11-LangChain工具定义与绑定.md` | 3 | F6 | `code/knowledge/ch11_lc_tools/` |
+| 11 | `11-LangChain的工具定义与绑定.md` | 3 | F6 | `code/knowledge/ch11_lc_tools/` |
 | 12 | `12-LangChain的Agent与中间件.md` | 3 | F8 F9 F10 | `code/knowledge/ch12_lc_agent/` |
 
 第 13 章以后**本轮不动**。旧第 8–12 章已挪到 `chapters-pending/`，等 v11 全量重排时再归位。

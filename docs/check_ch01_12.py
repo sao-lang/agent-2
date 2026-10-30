@@ -7,24 +7,17 @@
 它只做机械判定；内容对不对仍然要人读。
 """
 
+import json
 import re
 import sys
+from pathlib import Path
 
-CHAPTERS = [
-    "00-agent的差别.md",
-    "01-一次调用的四个字段.md",
-    "02-模型为什么编为什么忘.md",
-    "03-token成本与上下文窗口.md",
-    "04-提示词工程从规则到结构化输出.md",
-    "05-用pydantic定义输出结构.md",
-    "06-工具调用模型只会说不会做.md",
-    "07-最小循环与三种终止.md",
-    "08-循环的四种失控.md",
-    "09-LangChain包结构与消息.md",
-    "10-LangChain组合与解析器.md",
-    "11-LangChain工具定义与绑定.md",
-    "12-LangChain的Agent与中间件.md",
-]
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "docs"))
+from gen_book import fname  # noqa: E402
+
+_DATA = json.loads((ROOT / "book.json").read_text(encoding="utf-8"))
+CHAPTERS = [fname(c) for c in _DATA["chapters"] if c["status"] == "done" and c["no"] <= 12]
 
 BANNED_MAIN = ["harness", "插点", "契约", "组件封装"]
 BANNED_LC = ["harness", "插点", "契约"]
@@ -36,7 +29,7 @@ def prose_of(text):
 
 
 def check(path):
-    text = open(path, encoding="utf-8").read()
+    text = (ROOT / path).read_text(encoding="utf-8")
     prose = prose_of(text)
     problems = []
 

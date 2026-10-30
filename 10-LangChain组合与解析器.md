@@ -1,9 +1,12 @@
 # 第 10 章 · LangChain 组合与解析器
 
-> **知识点**：F3 Runnable 协议与组合子；F4 输出解析与自愈；F5 提示词模板
+> **卷 3 · LangChain（agent 侧）（第 9–12 章）**｜[全书目录](./INDEX.md#vol3)｜[本卷导读](./outline/vol03-LangChain.md)
+> **知识点**：F3 Runnable 协议与组合子 —— invoke/batch/stream 与管道、Parallel、Branch；F4 输出解析与自愈 —— 四个解析器加两个自愈解析器；F5 提示词模板 —— ChatPromptTemplate 与 FewShot 模板（编号定义见 [知识点-F-框架层](./outline/16-知识点-F-框架层.md)）
 > **本章回答**：几段 Runnable 为什么要拼成一条链、拼的是什么；七个组合子各接哪一种接缝；三种模板装出来的 messages 长什么样；四个解析器分别校验到哪一层；解析失败之后有哪两条自愈路径；一次调用的内部步骤怎么摊成一张事件树
 > **示例目录**：`code/knowledge/ch10_lc_compose/`
 > **读完应当能回答**：给一条链，你能说出它要什么输入键、给什么输出类型、哪一步会抛异常、抛了之后哪个组合子接得住
+
+---
 
 本章对照 **LangChain 1.4.7**（同环境里 `langchain-core` 1.7.0、`langchain-openai` 1.1.9、`langchain-classic` 1.0.8），每个 API 都在这个版本上跑过，输出逐字粘贴。
 
@@ -1487,3 +1490,7 @@ def fallback_keeps_bad_output() -> None:
 ## 下一章
 
 本章的链只做一件事：把一段提示词发给模型，再把回答解析成结构。模型在这一步里没有可选动作——它只能说话，不能请求做事。下一步是把动作交出去：用 `@tool` 定义工具、用 `bind_tools` 绑到模型上、把模型返回的 `tool_calls` 接到真实的函数调用。第 11 章与第 6 章手写的那次往返逐项对照：同一次往返，框架里多了什么、少了什么、哪一段仍然要自己写。
+
+---
+
+[← 第 9 章 · LangChain 包结构与消息](./09-LangChain包结构与消息.md)　｜　[卷 3 目录](./INDEX.md#vol3)　｜　[第 11 章 · LangChain 的工具定义与绑定 →](./11-LangChain的工具定义与绑定.md)

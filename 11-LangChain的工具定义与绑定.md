@@ -1,9 +1,12 @@
 # 第 11 章 · LangChain 的工具定义与绑定
 
-> **知识点**：F6 工具定义与注入——`@tool`/`BaseTool`/`StructuredTool` 三种定义、`args_schema` 用 pydantic、`bind_tools` 与 `tool_choice`、`InjectedState`/`InjectedStore`/`ToolRuntime`、`ToolRetryMiddleware`/`ToolErrorMiddleware`/`LLMToolSelectorMiddleware`/`ToolCallLimitMiddleware`/`LLMToolEmulator`
+> **卷 3 · LangChain（agent 侧）（第 9–12 章）**｜[全书目录](./INDEX.md#vol3)｜[本卷导读](./outline/vol03-LangChain.md)
+> **知识点**：F6 工具定义与注入 —— @tool、BaseTool、bind_tools 与三种注入（编号定义见 [知识点-F-框架层](./outline/16-知识点-F-框架层.md)）
 > **本章回答**：第 6 章手写的那份 `tools` 字典与往返，换成框架以后哪几段被接走、哪几段仍在调用方手里；函数是怎么变成请求里那段 `parameters` 的；一次响应给出多个调用时按什么顺序执行；注入的参数为什么不进 schema；异常、收窄、模拟各自落在哪个中间件上
 > **示例目录**：`code/knowledge/ch11_lc_tools/`
 > **读完应当能回答**：给一个工具函数和一次 `bind_tools`，你能说出请求体里 `tools` 与 `tool_choice` 长什么样、工具抛异常时消息怎么回到模型、四个中间件各自的参数与边界，以及哪一件事框架仍然没替你做
+
+---
 
 本章所有 API 以本机安装的 **LangChain 1.4.7**（`langchain-core` 1.7.0）为准。例子没有 API key，`ChatOpenAI` 换了一个 `httpx.MockTransport`，请求照常编码，响应来自一份写死的脚本。**原理演示，不是模型实测**；脚本里写死的文本不是模型输出。换成真实服务时，把 `scripted_chat(respond)` 换成 `ChatOpenAI(model=..., api_key=..., base_url=...)`，其余代码不动。
 
@@ -758,3 +761,7 @@ Return ONLY the tool's output, no explanation or preamble. Introduce variation i
 工具这一侧到这里就完整了：怎么定义、怎么绑定、怎么注入、出错怎么办、怎么收窄、怎么模拟。剩下的问题全在"谁来决定下一步"——本章所有例子都只跑了一轮到两轮，第二轮之所以发生，是我在脚本里写好了它发生。
 
 第 12 章把这段循环交给 `create_agent`：它的十几个参数各管什么，八个钩子在一次运行里的顺序，`ModelCallLimitMiddleware` 怎么补上本章第七节留下的那个洞（轮数没有被限），中断与检查点怎么让一次运行可以停在半路再继续。本章用到的六个中间件在那一章会回到它们所属的四组里，`bind_tools` 与 `ToolMessage` 也会作为 `create_agent` 内部的默认动作再出现一次。
+
+---
+
+[← 第 10 章 · LangChain 组合与解析器](./10-LangChain组合与解析器.md)　｜　[卷 3 目录](./INDEX.md#vol3)　｜　[第 12 章 · LangChain 的 Agent 与中间件 →](./12-LangChain的Agent与中间件.md)
