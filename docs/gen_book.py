@@ -81,7 +81,7 @@ def body_url(path: str) -> str:
 
 def point_line(ch: dict, data: dict) -> str:
     if not ch["points"]:
-        return "> **知识点**：无（本章只建立全书的地图，不承载 A–G 中的任何一条）"
+        return "**知识点**：无（本章只建立全书的地图，不承载 A–G 中的任何一条）"
     notes = ch.get("notes", {})
     glosses = ch.get("glosses", {})
     parts = []
@@ -96,14 +96,22 @@ def point_line(ch: dict, data: dict) -> str:
         if f not in files:
             files.append(f)
     refs = "、".join(f"[{Path(f).stem.split('-', 1)[1]}]({body_url(f)})" for f in files)
-    return f"> **知识点**：{'；'.join(parts)}（编号定义见 {refs}）"
+    return f"**知识点**：{'；'.join(parts)}（编号定义见 {refs}）"
 
 
 def vol_line(ch: dict, data: dict) -> str:
     vol = data["_vol"][ch["no"]]
-    return (f"> **卷 {vol['no']} · {vol['name']}（{vrange(vol)}）**"
+    return (f"**卷 {vol['no']} · {vol['name']}（{vrange(vol)}）**"
             f"｜[全书目录](./INDEX.md#vol{vol['no']})"
             f"｜[本卷导读]({body_url(vol['file'])})")
+
+
+def quote_item(line: str) -> str:
+    """把旧格式 `> **本章回答**：…` 或新格式 `> - …` 还原成纯文本。"""
+    text = line[1:].lstrip() if line.startswith(">") else line
+    if text.startswith("- "):
+        text = text[2:].lstrip()
+    return text
 
 
 def nav_line(ch: dict, data: dict) -> str:
@@ -130,17 +138,26 @@ def nav_line(ch: dict, data: dict) -> str:
 def patch_chapter(text: str, ch: dict, data: dict) -> str:
     lines = text.replace("\r\n", "\n").split("\n")
 
-    # 章首：H1 之后连续的引用块整块重建，保留原有的“本章回答/示例/读完”行
+    # 章首：H1 之后连续的引用块整块重建，保留原有的“本章回答/示例/读完”行。
+    # 元信息放进引用块里的列表：CommonMark 只有在列表项之间才保证换行，
+    # 连续 `> **标签**：…` 会被软换行合并成一段（预览里五行挤成一行）。
     i = next(k for k, l in enumerate(lines) if l.startswith("# "))
     j = i + 1
     while j < len(lines) and (not lines[j].strip() or lines[j].startswith(">")):
         j += 1
-    keep = [l for l in lines[i + 1:j]
-            if l.startswith(">") and "**知识点**" not in l
-            and not l.startswith("> **卷 ") and "**本章不负责**" not in l]
-    block = ["", vol_line(ch, data), point_line(ch, data), *keep]
+    keep = []
+    for line in lines[i + 1:j]:
+        if not line.startswith(">") or "**知识点**" in line:
+            continue
+        if not line.strip() or line.startswith("> **卷 ") or "**本章不负责**" in line:
+            continue
+        item = quote_item(line)
+        if item:
+            keep.append(item)
+    block = ["", f"> {vol_line(ch, data)}", ">", f"> - {point_line(ch, data)}"]
+    block += [f"> - {item}" for item in keep]
     if ch.get("boundary"):
-        block.append(f"> **本章不负责**：{ch['boundary']}")
+        block.append(f"> - **本章不负责**：{ch['boundary']}")
     block.append("")
     if j >= len(lines) or lines[j].strip() != "---":
         block += ["---", ""]

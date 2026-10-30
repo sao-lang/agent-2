@@ -69,15 +69,15 @@ def check_chapter(ch: dict, data: dict) -> list[str]:
     expect_h1 = f"# 第 {ch['no']} 章 · {ch['title']}"
     if norm_title(head) != norm_title(expect_h1):
         bad.append(f"{path.name}：H1 与 book.json 不一致\n    实际 {head}\n    应为 {expect_h1}")
-    if vol_line(ch, data) not in text:
+    if f"> {vol_line(ch, data)}" not in text:
         bad.append(f"{path.name}：章首卷行缺失或已过期（跑 gen_book.py build）")
-    if point_line(ch, data) not in text:
+    if f"> - {point_line(ch, data)}" not in text:
         bad.append(f"{path.name}：章首知识点行缺失或与 book.json 不一致")
     if nav_line(ch, data) not in text:
         bad.append(f"{path.name}：章末导航行缺失或与 book.json 不一致")
     for key in ("**本章回答**", "**示例目录**", "**读完应当能回答**"):
-        if key not in "\n".join(lines[:12]):
-            bad.append(f"{path.name}：章首缺少 {key}")
+        if f"> - {key}" not in "\n".join(lines[:12]):
+            bad.append(f"{path.name}：章首缺少列表项 {key}")
     if "## 下一章" not in text:
         bad.append(f"{path.name}：缺少「## 下一章」")
     return bad
