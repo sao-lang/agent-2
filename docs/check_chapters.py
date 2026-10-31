@@ -11,7 +11,7 @@
   4. 中文字符数（不含代码块与表格）不低于 9000
   5. Markdown 表格列数一致（转义竖线不计）
   6. 二级标题中文不超过 12 字
-  7. 「第 N 章」引用不超出 0–56
+  7. 「第 N 章」引用不超出 0–59
   8. 代码块成对
 """
 
@@ -90,7 +90,7 @@ def check_file(path: Path) -> list[str]:
             issues.append(f"  标题超过 12 字：{title}")
 
     for num in re.findall(r"第 (\d{1,2}) 章", text):
-        if not 0 <= int(num) <= 56:
+        if not 0 <= int(num) <= 59:
             issues.append(f"  章号越界：第 {num} 章")
 
     if text.count("```") % 2:

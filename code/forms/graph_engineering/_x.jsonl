@@ -1,0 +1,5 @@
+{"node": "plan", "visit": 1, "reads": [], "writes": ["items", "notes"], "ms": 0.03, "state": "3175254c0707", "tokens": 1}
+{"node": "act", "visit": 1, "reads": ["items", "cursor", "findings"], "writes": ["cursor", "findings"], "ms": 0.015, "state": "41c218b741ae", "tokens": 41}
+{"node": "act", "visit": 2, "reads": ["items", "cursor", "findings"], "writes": ["cursor"], "ms": 0.01, "state": "73f88fb80ae3", "tokens": 91}
+{"node": "act", "visit": 3, "reads": ["items", "cursor", "findings"], "writes": ["cursor", "findings"], "ms": 0.019, "state": "7c07721e928c", "tokens": 141}
+{"node": "verify", "visit": 1, "reads": ["items", "findings"], "writes": ["verdict"], "ms": 0.011, "state": "0329860d0585", "tokens": 195}

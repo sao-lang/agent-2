@@ -28,7 +28,7 @@ from gen_book import (  # noqa: E402
     vol_line,
 )
 
-MAX_CHAPTER = 57
+MAX_CHAPTER = 59
 
 
 def check_book(data: dict) -> list[str]:

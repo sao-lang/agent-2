@@ -40,4 +40,5 @@ _sql_demo.db
 .hf/
 .tmp/
 .tools/
+.dl-tmp/
 .dsh_progress

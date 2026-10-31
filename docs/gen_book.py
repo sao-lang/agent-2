@@ -125,8 +125,11 @@ def nav_line(ch: dict, data: dict) -> str:
     vol = data["_vol"][ch["no"]]
     parts = []
     prev = data["_by_no"].get(ch["no"] - 1)
-    if prev:
+    if prev and prev["status"] == "done":
         parts.append(f"[← 第 {prev['no']} 章 · {prev['title']}](./{fname(prev)})")
+    elif prev:
+        v0 = data["_vol"][prev["no"]]
+        parts.append(f"第 {prev['no']} 章 · {prev['title']}（卷 {v0['no']}，待写）")
     else:
         parts.append("[全书目录](./docs/INDEX.md)")
     parts.append(f"[卷 {vol['no']} 目录](./docs/INDEX.md#vol{vol['no']})")
@@ -257,7 +260,11 @@ def patch_chapter(text: str, ch: dict, data: dict) -> str:
     tail = lines[k + 1:]
     while tail and not tail[-1].strip():
         tail.pop()
-    if tail and tail[-1].startswith("["):
+
+    def is_nav(line: str) -> bool:
+        return "｜" in line and ("目录" in line or "章" in line)
+
+    while tail and is_nav(tail[-1]):
         tail.pop()
         while tail and not tail[-1].strip():
             tail.pop()
@@ -273,15 +280,35 @@ def patch_chapter(text: str, ch: dict, data: dict) -> str:
 
 # ---------------------------------------------------------------- INDEX.md
 
+def num_ranges(nums: list[int]) -> str:
+    """连续段压缩：0,1,2,5 -> "0–2、5"。"""
+    if not nums:
+        return "—"
+    nums = sorted(nums)
+    parts: list[str] = []
+    start = prev = nums[0]
+    for n in nums[1:]:
+        if n == prev + 1:
+            prev = n
+            continue
+        parts.append(str(start) if start == prev else f"{start}–{prev}")
+        start = prev = n
+    parts.append(str(start) if start == prev else f"{start}–{prev}")
+    return "、".join(parts)
+
+
 def render_index(data: dict) -> str:
     done = [c for c in data["chapters"] if c["status"] == "done"]
+    pending = [c["no"] for c in data["chapters"] if c["status"] != "done"]
     out: list[str] = []
     a = out.append
 
     a(f"# 《{data['title']}》全书目录")
     a("")
-    a(f"> 13 卷、58 章（第 0–57 章）、108 条知识点。**已写第 0–{done[-1]['no']} 章**，"
-      f"第 {done[-1]['no'] + 1} 章起待写。")
+    a(f"> {len(data['volumes'])} 卷、{data['chapters_total']} 章"
+      f"（第 0–{data['chapters_total'] - 1} 章）、{data['points_total']} 条知识点。"
+      f"**已写 {len(done)} 章（{num_ranges([c['no'] for c in done])}）**，"
+      f"待写 {num_ranges(pending)}。")
     a(">")
     a("> 本文件由 `python docs/gen_book.py index` 从 [`book.json`](./book.json) 生成，不要手改。")
     a("> 章节结构见 [OUTLINE.md](./OUTLINE.md)，知识点定义见 [outline/](../outline/)，"
@@ -332,7 +359,7 @@ def render_index(data: dict) -> str:
     # 知识点索引
     a('<a id="points"></a>')
     a("")
-    a("## 知识点索引（108 条）")
+    a(f"## 知识点索引（{data['points_total']} 条）")
     a("")
     a("每条知识点只有一个落点章；「另见」是引用它的收口章或应用章。")
     a("")

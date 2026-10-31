@@ -1,0 +1,7 @@
+{"node": "plan", "visit": 1, "reads": [], "writes": ["items", "notes"], "ms": 0.02, "state": "95397978fbb3", "tokens": 1}
+{"node": "act", "visit": 1, "reads": ["items", "cursor", "findings", "attempts"], "writes": ["attempts", "cursor", "findings"], "ms": 0.016, "state": "b908e7d97c5e", "tokens": 50}
+{"node": "act", "visit": 2, "reads": ["items", "cursor", "findings", "attempts"], "writes": ["attempts", "cursor", "findings"], "ms": 0.015, "state": "52ad611fcda3", "tokens": 110}
+{"node": "act", "visit": 3, "reads": ["items", "cursor", "findings", "attempts"], "writes": ["attempts", "cursor"], "ms": 0.037, "state": "841abf28835d", "tokens": 185}
+{"node": "verify", "visit": 1, "reads": ["items", "findings"], "writes": ["verdict"], "ms": 0.022, "state": "eadcbc0d457e", "tokens": 240}
+{"node": "act", "visit": 4, "reads": ["items", "cursor", "findings", "attempts"], "writes": ["attempts", "cursor", "findings"], "ms": 0.017, "state": "e8419cf50f3e", "tokens": 317}
+{"node": "verify", "visit": 2, "reads": ["items", "findings"], "writes": ["verdict"], "ms": 0.009, "state": "ff871357f58c", "tokens": 384}

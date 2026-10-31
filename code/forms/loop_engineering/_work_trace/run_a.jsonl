@@ -1,0 +1,4 @@
+{"run_id": "trace-mtime", "step": 1, "phase": "act", "observation_hash": "8eb1dbe9e4cb", "action": "search:logs", "action_hash": "b3751ee09564", "verdict": "ok", "state_digest": "cde136b39618", "tokens": 71}
+{"run_id": "trace-mtime", "step": 2, "phase": "act", "observation_hash": "b9a3b46e4478", "action": "read:log_a", "action_hash": "cfb3558dbab6", "verdict": "ok", "state_digest": "dec5e037dc2b", "tokens": 147}
+{"run_id": "trace-mtime", "step": 3, "phase": "act", "observation_hash": "6575028e136f", "action": "write:conclusion", "action_hash": "42749fd14877", "verdict": "ok", "state_digest": "dec5e037dc2b", "tokens": 173}
+{"run_id": "trace-mtime", "step": 4, "phase": "act", "observation_hash": "7e588dbf2130", "action": "write:conclusion", "action_hash": "42749fd14877", "verdict": "ok", "state_digest": "dec5e037dc2b", "tokens": 193}
