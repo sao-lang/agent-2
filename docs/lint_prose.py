@@ -90,7 +90,9 @@ def paragraphs(body: str) -> list[str]:
 def measure(text: str) -> dict:
     body = prose_only(text)
     paras = paragraphs(body)
-    lens = [n for n in (zh(p) for p in paras) if n]
+    body_lens = [(zh(p), p.rstrip().endswith("：")) for p in paras]
+    lens = [n for n, _ in body_lens if n]
+    para_lens = [n for n, lead in body_lens if n and not lead]
     total = sum(lens) or 1
     bold_zh = sum(zh(m) for m in re.findall(r"\*\*(.+?)\*\*", body, flags=re.S))
     run = best = 0
@@ -101,7 +103,7 @@ def measure(text: str) -> dict:
         "chapter_zh": chapter_zh(text),
         "prose_zh": total,
         "paras": len(lens),
-        "avg_para": round(total / len(lens), 1) if lens else 0,
+        "avg_para": round(sum(para_lens) / len(para_lens), 1) if para_lens else 0,
         "short_run": best,
         "bold_ratio": round(bold_zh / total, 3),
         "dash": body.count("——"),
