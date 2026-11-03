@@ -72,7 +72,7 @@ def refs(text: str) -> dict[str, int]:
     }
 
 
-def point_names(stem: str, base_text: str) -> list[str]:
+def point_names(stem: str, base_text: str, with_headings: bool = True) -> list[str]:
     """知识点词表：book.json 的中文名 + 原文章节里的 H3 标题名词。"""
     names: list[str] = []
     try:
@@ -84,9 +84,10 @@ def point_names(stem: str, base_text: str) -> list[str]:
             names.append(p.get("name") or p.get("title") or "")
     except Exception:
         pass
-    for h in headings(base_text):
-        if h.startswith("###"):
-            names.append(re.sub(r"^#+\s*\d+(\.\d+)*\s*", "", h).strip())
+    if with_headings:                     # 严格模式才拿小节标题当知识点代理
+        for h in headings(base_text):
+            if h.startswith("###"):
+                names.append(re.sub(r"^#+\s*\d+(\.\d+)*\s*", "", h).strip())
     return [n for n in (x.strip() for x in names) if n]
 
 
@@ -95,6 +96,8 @@ def main() -> int:
     ap.add_argument("stem")
     ap.add_argument("--base", default="HEAD")
     ap.add_argument("--new", default=None)
+    ap.add_argument("--restructure", action="store_true",
+                    help="允许改小节标题（合并 / 重编号），其余不变")
     args = ap.parse_args()
 
     if args.new:
@@ -123,9 +126,13 @@ def main() -> int:
         n0, n1 = len(fences(base_text)), len(fences(new_text))
         bad.append(f"代码/输出块不一致（{n0} → {n1} 块）")
 
-    if headings(base_text) != headings(new_text):
-        b, n = set(headings(base_text)), set(headings(new_text))
-        bad.append(f"标题不一致：缺失 {sorted(b - n)} 新增 {sorted(n - b)}")
+    hb, hn = headings(base_text), headings(new_text)
+    if hb != hn:
+        if args.restructure:
+            print(f"  标题由 {len(hb)} 条变为 {len(hn)} 条（--restructure 允许）")
+        else:
+            b, n = set(hb), set(hn)
+            bad.append(f"标题不一致：缺失 {sorted(b - n)} 新增 {sorted(n - b)}")
 
     if [sha(t) for t in tables(base_text)] != [sha(t) for t in tables(new_text)]:
         bad.append("表格块不一致")
@@ -141,7 +148,7 @@ def main() -> int:
         if rn[k] < rb[k]:
             bad.append(f"{k} 减少：{rb[k]} → {rn[k]}")
 
-    for name in point_names(args.stem, base_text):
+    for name in point_names(args.stem, base_text, not args.restructure):
         if name and name not in new_text:
             bad.append(f"知识点名词消失：{name}")
 
