@@ -39,11 +39,13 @@ def run(cmd: list[str]) -> tuple[int, str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("stems", nargs="*")
+    ap.add_argument("--vol1to3", action="store_true", help="只跑第 1–12 章")
     args = ap.parse_args()
 
     ok = bad = 0
     print(f"{'章':<4}{'lint':<6}{'chapters':<10}{'verify':<8}{'散文':<8}{'章汉字'}")
-    for stem in chapters(args.stems):
+    sel = ["--vol1to3"] if args.vol1to3 else args.stems
+    for stem in chapters(sel):
         f = next(ROOT.glob(f"{stem}-*.md")).name
         c1, o1 = run([sys.executable, "docs/lint_prose.py", f])
         c2, o2 = run([sys.executable, "docs/check_chapters.py", f])
