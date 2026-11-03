@@ -517,6 +517,7 @@ python docs/lint_prose.py 01-xxx.md            # 六项指标
 python docs/trim_verify.py 01 --base HEAD      # 代码/输出/表格哈希、章首、章末、引用、知识点词表
 python docs/check_chapters.py 01-xxx.md && python docs/check_nav.py
 python docs/gen_book.py build                  # 改过小节标题就要重跑，重建目录与导航
+python docs/trim_all.py --vol1to3              # 一次跑完一卷的 lint / 章节 / verify 三项
 ```
 
 - **每章一个 commit**，message 写清 `9515→6704（−30%）`，任何一章可单独 revert。
