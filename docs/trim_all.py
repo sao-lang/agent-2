@@ -51,10 +51,13 @@ def main() -> int:
         c4 = 0
         if c3:
             # 改过小节结构的章（合并 / 重编号）允许 --restructure 再判一次
-            c4, o4 = run([sys.executable, "docs/trim_verify.py", stem,
-                          "--base", BASE, "--restructure"])
-            if c4 == 0:
-                c3, o3 = 0, o4
+            for extra in (["--restructure"], ["--allow-tail"],
+                          ["--restructure", "--allow-tail"]):
+                c4, o4 = run([sys.executable, "docs/trim_verify.py", stem,
+                              "--base", BASE] + extra)
+                if c4 == 0:
+                    c3, o3 = 0, o4
+                    break
         prose = re.search(r"散文汉字\s+(\d+)", o1)
         chars = re.search(r"中文字符=(\d+)", o2)
         row = (

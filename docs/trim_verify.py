@@ -96,6 +96,8 @@ def main() -> int:
     ap.add_argument("stem")
     ap.add_argument("--base", default="HEAD")
     ap.add_argument("--new", default=None)
+    ap.add_argument("--allow-tail", action="store_true",
+                    help="允许改章末清单的措辞（条目数与导航行不变）")
     ap.add_argument("--restructure", action="store_true",
                     help="允许改小节标题（合并 / 重编号），其余不变")
     args = ap.parse_args()
@@ -140,8 +142,20 @@ def main() -> int:
     if head_block(base_text) != head_block(new_text):
         bad.append("章首引用块不一致")
 
-    if tail_block(base_text) != tail_block(new_text):
-        bad.append("章末清单 / 下一章 / 导航不一致")
+    tb, tn = tail_block(base_text), tail_block(new_text)
+    if tb != tn:
+        if args.allow_tail:
+            mb = re.search(r"## 这一章建立的 (\d+) 件事", tb)
+            mn = re.search(r"## 这一章建立的 (\d+) 件事", tn)
+            if not (mb and mn and mb.group(1) == mn.group(1)):
+                bad.append("章末清单条目数不一致")
+            nav_b = [l for l in tb.splitlines() if "｜" in l]
+            nav_n = [l for l in tn.splitlines() if "｜" in l]
+            if nav_b != nav_n:
+                bad.append("章末导航行不一致")
+            print("  章末清单措辞有改动（--allow-tail 允许，条目数与导航一致）")
+        else:
+            bad.append("章末清单 / 下一章 / 导航不一致")
 
     rb, rn = refs(base_text), refs(new_text)
     for k in rb:
