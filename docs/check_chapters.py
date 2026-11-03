@@ -8,7 +8,7 @@
   1. 章首四行元信息齐全（知识点 / 本章回答 / 示例目录 / 读完应当能回答）
   2. 有「这一章建立的 N 件事」，且 N 与条目数一致
   3. 有「下一章」
-  4. 中文字符数（不含代码块与表格）不低于 9000
+  4. 中文字符数（不含代码块与表格）不低于 5500
   5. Markdown 表格列数一致（转义竖线不计）
   6. 二级标题中文不超过 12 字
   7. 「第 N 章」引用不超出 0–59
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MIN_CHARS = 9000          # 目标 10000+，不设上限（见 WRITING-SPEC 第二节）
+MIN_CHARS = 5500          # 目标 6000–6800（见 WRITING-SPEC 第二节与 REFACTOR-v12-精简.md）
 
 
 def chinese_chars(text: str) -> int:

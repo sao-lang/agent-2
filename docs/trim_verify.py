@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""核对改写前后的不可触碰清单（见 docs/REFACTOR-v12-精简.md 第三节）。
+
+用法：
+    python docs/trim_verify.py 01 --base HEAD          # 对比 git 里的旧版
+    python docs/trim_verify.py 01 --base path/old.md   # 对比指定文件
+
+检查项：
+    1. 代码块 / 输出块逐字一致（哈希）
+    2. 标题集合与顺序一致
+    3. 表格块逐字一致
+    4. 章首引用块、章末清单、导航行一致
+    5. 第 N 章引用、code/ 路径、相对链接只增不减
+    6. 知识点词表（章内 H3 标题里的名词 + book.json 的 points 中文名）仍然出现
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+BOOK = ROOT / "docs" / "book.json"
+
+
+def sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def fences(text: str) -> list[str]:
+    return [b.strip() for b in re.findall(r"```.*?```", text, flags=re.S)]
+
+
+def tables(text: str) -> list[str]:
+    out, cur = [], []
+    for line in text.splitlines():
+        if line.strip().startswith("|"):
+            cur.append(line)
+        elif cur:
+            out.append("\n".join(cur))
+            cur = []
+    if cur:
+        out.append("\n".join(cur))
+    return out
+
+
+def headings(text: str) -> list[str]:
+    body = re.sub(r"```.*?```", "", text, flags=re.S)
+    return [m.group(0).strip() for m in re.finditer(r"^#{1,6} .*$", body, flags=re.M)]
+
+
+def head_block(text: str) -> str:
+    lines = text.replace("\r\n", "\n").split("\n")
+    return "\n".join(l for l in lines[:12] if l.startswith(">"))
+
+
+def tail_block(text: str) -> str:
+    i = text.find("## 这一章建立的")
+    return text[i:] if i >= 0 else ""
+
+
+def refs(text: str) -> dict[str, int]:
+    return {
+        "第N章": len(re.findall(r"第 ?\d{1,2} ?章", text)),
+        "code路径": len(re.findall(r"code/[\w\-./]+", text)),
+        "相对链接": len(re.findall(r"\]\(\./", text)),
+    }
+
+
+def point_names(stem: str, base_text: str) -> list[str]:
+    """知识点词表：book.json 的中文名 + 原文章节里的 H3 标题名词。"""
+    names: list[str] = []
+    try:
+        data = json.loads(BOOK.read_text(encoding="utf-8"))
+        no = int(stem)
+        ch = next(c for c in data["chapters"] if c["no"] == no)
+        for pid in ch["points"]:
+            p = data["_point"][pid]
+            names.append(p.get("name") or p.get("title") or "")
+    except Exception:
+        pass
+    for h in headings(base_text):
+        if h.startswith("###"):
+            names.append(re.sub(r"^#+\s*\d+(\.\d+)*\s*", "", h).strip())
+    return [n for n in (x.strip() for x in names) if n]
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("stem")
+    ap.add_argument("--base", default="HEAD")
+    ap.add_argument("--new", default=None)
+    args = ap.parse_args()
+
+    if args.new:
+        new_path = Path(args.new)
+    else:
+        new_path = next(p for p in ROOT.glob(f"{args.stem}-*.md"))
+    new_text = new_path.read_text(encoding="utf-8")
+
+    # 基线一律取仓库里的那一章（不是 .trim/ 下的中间产物）
+    chapter = next(p for p in ROOT.glob(f"{args.stem}-*.md"))
+    if Path(args.base).exists():
+        base_text = Path(args.base).read_text(encoding="utf-8")
+    else:
+        # 其余情况都当 git 修订处理：HEAD、HEAD~1、提交号
+        base_text = subprocess.run(
+            ["git", "show", f"{args.base}:{chapter.name}"], cwd=ROOT,
+            capture_output=True, text=True, encoding="utf-8").stdout
+
+    if not base_text.strip():
+        print("取不到基线文本", file=sys.stderr)
+        return 2
+
+    bad: list[str] = []
+
+    if [sha(x) for x in fences(base_text)] != [sha(x) for x in fences(new_text)]:
+        n0, n1 = len(fences(base_text)), len(fences(new_text))
+        bad.append(f"代码/输出块不一致（{n0} → {n1} 块）")
+
+    if headings(base_text) != headings(new_text):
+        b, n = set(headings(base_text)), set(headings(new_text))
+        bad.append(f"标题不一致：缺失 {sorted(b - n)} 新增 {sorted(n - b)}")
+
+    if [sha(t) for t in tables(base_text)] != [sha(t) for t in tables(new_text)]:
+        bad.append("表格块不一致")
+
+    if head_block(base_text) != head_block(new_text):
+        bad.append("章首引用块不一致")
+
+    if tail_block(base_text) != tail_block(new_text):
+        bad.append("章末清单 / 下一章 / 导航不一致")
+
+    rb, rn = refs(base_text), refs(new_text)
+    for k in rb:
+        if rn[k] < rb[k]:
+            bad.append(f"{k} 减少：{rb[k]} → {rn[k]}")
+
+    for name in point_names(args.stem, base_text):
+        if name and name not in new_text:
+            bad.append(f"知识点名词消失：{name}")
+
+    zh0 = len(re.findall(r"[\u4e00-\u9fff]", base_text))
+    zh1 = len(re.findall(r"[\u4e00-\u9fff]", new_text))
+    print(f"{new_path.name}: 汉字 {zh0} → {zh1}（{(zh1 - zh0) / zh0:+.0%}）")
+    if bad:
+        print(f"FAIL  不通过 {len(bad)} 项")
+        for b in bad:
+            print(f"  - {b}")
+        return 1
+    print("PASS  不可触碰清单全部一致")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
