@@ -1,7 +1,7 @@
 {
   "title": "Agent 工程",
   "chapters_total": 60,
-  "points_total": 108,
+  "points_total": 109,
   "volumes": [
     {
       "no": 0,
@@ -235,6 +235,11 @@
       "id": "A9",
       "name": "提示词回归测试",
       "gloss": "逐用例比较，总数上升也可能藏着回归"
+    },
+    {
+      "id": "A10",
+      "name": "输出结构声明",
+      "gloss": "一份声明四个出口：本地校验、错误回灌、JSON Schema、配置读取"
     },
     {
       "id": "B1",
@@ -735,7 +740,7 @@
   "chapters": [
     {
       "no": 0,
-      "title": "agent 的差别",
+      "title": "Agent 与一次调用的差别",
       "status": "done",
       "points": []
     },
@@ -781,11 +786,8 @@
       "title": "用 pydantic 定义输出结构",
       "status": "done",
       "points": [
-        "A8"
-      ],
-      "notes": {
-        "A8": "的结构层——字段声明、类型校验、错误回灌、JSON Schema 生成"
-      }
+        "A10"
+      ]
     },
     {
       "no": 6,
