@@ -43,11 +43,12 @@ def main() -> int:
     args = ap.parse_args()
 
     ok = bad = 0
-    print(f"{'章':<4}{'lint':<6}{'chapters':<10}{'verify':<8}{'散文':<8}{'章汉字'}")
+    print(f"{'章':<4}{'lint':<6}{'chapters':<10}{'verify':<8}{'reader':<8}{'散文':<8}{'章汉字'}")
     sel = ["--vol1to3"] if args.vol1to3 else args.stems
     for stem in chapters(sel):
         f = next(ROOT.glob(f"{stem}-*.md")).name
         c1, o1 = run([sys.executable, "docs/lint_prose.py", f])
+        c0, o0 = run([sys.executable, "docs/check_reader.py", stem, "--quiet"])
         c2, o2 = run([sys.executable, "docs/check_chapters.py", f])
         c3, o3 = run([sys.executable, "docs/trim_verify.py", stem, "--base", BASE])
         c4 = 0
@@ -67,13 +68,15 @@ def main() -> int:
             f"{'OK' if c1 == 0 else 'FAIL':<6}"
             f"{'OK' if c2 == 0 else 'FAIL':<10}"
             f"{'OK' if c3 == 0 else 'FAIL':<8}"
+            f"{'OK' if c0 == 0 else 'FAIL':<8}"
             f"{(prose.group(1) if prose else '?'):<8}"
             f"{chars.group(1) if chars else '?'}"
         )
         print(row)
-        if c1 or c2 or c3:
+        if c1 or c2 or c3 or c0:
             bad += 1
-            for tag, code, out in (("lint", c1, o1), ("chapters", c2, o2), ("verify", c3, o3)):
+            for tag, code, out in (("lint", c1, o1), ("chapters", c2, o2),
+                                   ("verify", c3, o3), ("reader", c0, o0)):
                 if code:
                     tail = [l for l in out.splitlines() if l.strip()][-4:]
                     print(f"     {tag}: " + " | ".join(tail))
