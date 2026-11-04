@@ -17,7 +17,8 @@
 [消息裁剪](#消息裁剪)\
 [流式三接口](#流式三接口)\
 [结构化输出的策略](#结构化输出的策略)\
-[这一章建立的 7 件事](#这一章建立的-7-件事)
+[批量与缓存](#批量与缓存)\
+[这一章建立的 8 件事](#这一章建立的-8-件事)
 
 版本以本机安装为准：`langchain` 1.4.7、`langchain-core` 1.7.0、`langchain-openai` 1.1.9、`langchain-community` 0.4.2。框架的符号在小版本之间会挪位置，下面的报错都是本机跑出来的。 示例目录里的 `scripted_chat.py` 是脚本化后端：给 `ChatOpenAI` 换掉 httpx 的传输层，请求照常编码成真实的 chat completion 请求，响应来自脚本。所有输出都由它跑出，是原理演示，不是模型实测。换真实服务时只改构造模型那一处：
 
@@ -887,7 +888,50 @@ raw.content: {"orderId": "A1001", "days": 7, "reason": "签收不想要"}
 `include_raw=True` 时返回三个键：`parsed`、`raw`、`parsing_error`，做法五那套回灌的原料就在这里，灌什么、灌几次仍然要自己定。会怎么坏：三种策略都依赖服务端能力，框架不做能力探测，不支持时照样把请求发出去，失败落在 4xx 或解析处。选择顺序：确认支持就选 `json_schema`，不确定时先用 `function_calling` 试一次，都不行退回 `json_mode` 加本地校验。
 边界：这一层只做到结构对。`days` 是否在 1 到 90 之间、`order_id` 在不在库里，不在这一层；重试策略也不在，第 10 章的自愈解析器把它封装成一个对象。
 
-## 这一章建立的 7 件事
+## 批量与缓存
+
+前面每节都是一次一个输入。给一批输入时，`batch` 一次提交、内部并发执行，返回值按输入顺序排，完成顺序不保证；`max_concurrency` 控制同时在跑的个数。逐个 `invoke` 是串行，结果一样，耗时按步累加。运行 `code/knowledge/ch09_lc_basic/batch_cache.py`：
+
+```python
+def slow(text: str) -> str:
+    time.sleep(SLEEP[text])
+    DONE.append(text)
+    return text.upper()
+
+step = RunnableLambda(slow)
+
+got = step.batch(["a", "b", "c"], config={"max_concurrency": 3})
+print("batch 结果（按输入顺序）：", got, "完成顺序：", DONE.copy())
+
+serial = [step.invoke(x) for x in ["a", "b", "c"]]
+print("逐个 invoke 结果：", serial, "完成顺序：", DONE.copy())
+```
+
+```
+batch 结果（按输入顺序）： ['A', 'B', 'C'] 完成顺序： ['b', 'c', 'a']
+逐个 invoke 结果： ['A', 'B', 'C'] 完成顺序： ['a', 'b', 'c']
+```
+
+三行的差别在最后一列：`batch` 的完成顺序是 `b, c, a`（谁先跑完谁先记），但返回值仍然按 `a, b, c` 排好；逐个 `invoke` 的完成顺序与输入顺序一致，因为一次只有一个在跑。对一批独立的请求，`batch` 的总耗时接近最慢那一个；`abatch` 是它的异步版本，返回 awaitable。
+
+缓存接着解决第二件事：同一份请求第二次不该再算一遍。`set_llm_cache(InMemoryCache())` 打开进程内缓存后，模型调用按完整请求取键，命中就直接返回上次的结果：
+
+```python
+set_llm_cache(InMemoryCache())
+print("同一问题第 1 次：", MODEL.invoke("能退吗？").content)
+print("同一问题第 2 次：", MODEL.invoke("能退吗？").content)
+print("换一个问题    ：", MODEL.invoke("多久到？").content)
+```
+
+```
+同一问题第 1 次： 第一次
+同一问题第 2 次： 第一次
+换一个问题    ： 第二次
+```
+
+脚本里模型只有两条固定回复，第二次之所以还是"第一次"，是因为它根本没走到模型：键一样，直接取缓存。第三行换了问题，键变了，模型被调用一次，拿到第二条回复。由此有两条实践约束：缓存键是整份请求（消息数组加参数），改一个字就失效，这与第 3 章讲的"缓存只命中从头开始的连续前缀"是同一件事；进程内缓存跨用户共享，含私有内容的请求不能共用一个缓存键，多租户要按租户分键或直接关掉。
+
+## 这一章建立的 8 件事
 
 1. 四个包的职责、版本区间，以及两个真实报错的成因（`ModuleNotFoundError` 与 `ImportError` 要分开处理）
 2. `init_chat_model` 五个参数各管什么，`model` 与 `model_provider` 两种写法等价
@@ -896,6 +940,7 @@ raw.content: {"orderId": "A1001", "days": 7, "reason": "签收不想要"}
 5. 三类元信息与第 1、3 章字段的对应，`usage_metadata` 可能为 `None`、私有字段会被丢掉
 6. `trim_messages` 的默认值，`include_system` 必须配 `start_on`，`max_tokens` 的口径由 `token_counter` 决定
 7. 三种流式接口的产物与事件树，三种结构化策略的请求形态，以及它们各自与第 1、4、5 章的对应
+8. `batch` / `abatch` 一次提交一批输入、内部并发，返回值按输入顺序、完成顺序不保证；`set_llm_cache` 打开进程内缓存后，同一份请求第二次不再走到模型。
 
 ## 下一章
 

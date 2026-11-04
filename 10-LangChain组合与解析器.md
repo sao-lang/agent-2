@@ -17,8 +17,8 @@
 [提示词模板](#提示词模板)\
 [输出解析器](#输出解析器)\
 [自愈解析器](#自愈解析器)\
-[事件树的父子关系](#事件树的父子关系)\
-[这一章建立的 6 件事](#这一章建立的-6-件事)
+[事件流与配置传递](#事件流与配置传递)\
+[这一章建立的 7 件事](#这一章建立的-7-件事)
 
 本章对照 **LangChain 1.4.7**（同环境 `langchain-core` 1.7.0、`langchain-openai` 1.1.9、`langchain-classic` 1.0.8），每个 API 都在这个版本上跑过，输出逐字粘贴。
 示例目录里的 `scripted_chat.py` 是脚本化后端：把 `ChatOpenAI` 的 httpx 传输层换成本地回放，响应来自写死的字典。它是原理演示，不是模型实测：能验证形状、异常、事件、调用次数，验证不了模型会不会真按格式输出。接真实服务时把 `scripted_chat(respond)` 换成 `ChatOpenAI(...)`，其余代码不用改。
@@ -1144,7 +1144,7 @@ def part_retry(parser) -> None:
 
 重试只能是最后一道：能用严格 schema 把错误挡在生成时就别留给解析器，这两个解析器适合输出格式由不得我们选的场合。三条不该用的判据：错误来自内容而不是格式；链上有副作用且重试会重复执行；同一段坏输出修过两次还不过。
 
-## 事件树的父子关系
+## 事件流与配置传递
 
 事件流每条都带 `event`、`name`、`run_id`、`parent_ids` 与 `data`，按 `parent_ids` 的长度缩进就是一棵树，见 `code/knowledge/ch10_lc_compose/event_tree.py` 的 `pad()`：
 
@@ -1262,7 +1262,52 @@ def payload(events: list[dict]) -> None:
 这三格对应三种改法：瓶颈要换模型或减输入，解析失败要改提示词或换解析器，分支没跑要改条件。最常见的错是拿着解析失败的报错去改提示词，而问题在上游的模板变量。
 链适合形状固定的流程：段数、段序、分支条件都在写代码时定死，一旦下一步要由上一步的输出决定，链就表达不了，那需要图。两段以内不值得引入框架，链的价值从同一套接缝被复用到第三处开始显现。脚本化后端能验证形状、异常、调用次数与事件树结构，不能验证模型是否真按 `format_instructions` 输出。
 
-## 这一章建立的 6 件事
+### config 的透传
+
+`invoke` 的第二个参数是 `config`，它不进业务函数的签名，却能把标签、回调、租户信息一路带下去。业务函数只多一个 `config: RunnableConfig` 形参就能读到它：
+
+```python
+def whoami(text: str, config: RunnableConfig) -> str:
+    metadata = config.get("metadata", {})
+    return f"{text}（租户={metadata.get('tenant')}，请求={metadata.get('request_id')}）"
+
+step = RunnableLambda(whoami).with_config({"tags": ["stage:triage"]})
+out = step.invoke("订单 A1001", config={
+    "callbacks": [TagPrinter()],
+    "tags": ["run:demo"],
+    "metadata": {"tenant": "t-07", "request_id": "r-9"},
+})
+```
+
+```
+=== config 的注入 ===
+  链开始 lambda                   tags=['run:demo', 'stage:triage']
+  返回值： 订单 A1001（租户=t-07，请求=r-9）
+```
+
+`with_config` 挂的标签与调用时传的标签合并，回调里看到的顺序是"调用时在前、链上在后"。这就是 LCEL 第三条约定的用处：审计、限流、租户隔离都靠 `config` 注入，链本身的代码一行不改。反过来，把租户写进函数参数再一层层往下传，链一长就会在某一层漏掉。
+
+### 会话历史
+
+多轮对话要"记住上一句"，做法是给模型套一层历史包装：`RunnableWithMessageHistory` 按 `session_id` 读写消息，调用前把历史拼进输入，调用后把这一问一答存回去。
+
+```python
+chat = RunnableWithMessageHistory(MODEL, history_of)
+for text in ["我叫小林", "我叫什么？"]:
+    reply = chat.invoke(text, config={"configurable": {"session_id": "u1"}})
+```
+
+```
+=== 会话历史 ===
+  我叫小林 -> 已记录
+  我叫什么？ -> 你叫小林
+  会话 u1 的历史条数： 4
+  另一会话 u2 的历史条数： 0
+```
+
+四轮增长的是四条消息：两条 human、两条 ai，模型本身仍然没有记忆，是包装层把历史拼进了这次的输入。两个会话互不可见，靠的只是 `session_id` 不同。这一层在 LangChain 1.x 里已标记为废弃，官方建议改用 LangGraph 的持久化（第 12 章的 `checkpointer`），写法不同，语义一样：按会话存消息、调用时读回来。仓库里保留这段是为了说明"记忆是一条可以被替换的层"，不是模型的能力。
+
+## 这一章建立的 7 件事
 
 1. Runnable 的四个入口形状一致：`invoke` 一条进一条出，`batch` 一串进一串出（N 条请求，不是 1 条），`stream` 一条进逐段出，`astream_events` 给过程不给结果。异步版加 `a` 前缀，且走独立客户端。
 2. 输出类型是 `TextAccessor`（`str` 的子类），不是裸 `str`；流式下有两段空增量，判断结束不能靠"最后一段非空"。
@@ -1270,6 +1315,7 @@ def payload(events: list[dict]) -> None:
 4. 三种模板的差别在条数由谁定：`from_messages` 写死、`MessagesPlaceholder` 调用时定、`FewShot` 由示例个数定。模板的变量并集就是链的 `required`。
 5. 四个解析器层层加严：`Str` 不校验、`Json` 只校语法、`Pydantic` 校到字段类型与必填、`List` 只按逗号切。`get_format_instructions()` 是现成的提示词，`Pydantic` 的校验错误原文可以直接回灌。
 6. 自愈两条路：`OutputFixingParser` 只改格式，`RetryOutputParser` 带原 prompt 重发；两者都在 `langchain_classic.output_parsers`。事件树靠 `parent_ids` 认父子，层数就是它的长度。
+7. `config` 不进业务签名：`tags`、`metadata`、`callbacks` 从外层注入，业务函数只多一个 `config: RunnableConfig` 形参；会话历史由 `RunnableWithMessageHistory` 按 `session_id` 拼进输入，模型本身仍无记忆。
 
 ## 下一章
 
