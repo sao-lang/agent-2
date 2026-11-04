@@ -41,7 +41,7 @@ python code/knowledge/ch10_lc_compose/protocol.py
 
 第 4 章的做法五是手写的三段：拼 messages、发一次请求、把回来的文本解析成对象；第 7 章的循环把这三段放进 while，每轮跑一遍。三段各自都不难，难的是接缝：段与段之间传的是 dict、str 还是 `AIMessage`，只有人记着。
 
-接缝上没有检查，错到运行时才报。把 `StrOutputParser` 直接接在模板后面，拼链时一声不响，调用时抛出：
+接缝上没有检查，错到运行时才报。把 `StrOutputParser` 直接接在模板后面，拼链时一声不响，调用时抛出，见 `code/knowledge/ch10_lc_compose/combinators.py`：
 
 ```python
 from langchain_core.output_parsers import StrOutputParser
@@ -147,7 +147,7 @@ def show_shape(chain) -> None:
 
 ### 3.1 单条与多条
 
-`invoke` 与 `batch` 的差别只有输入是单条还是多条，其余完全一样，三件事要看准：
+`invoke` 与 `batch` 的差别只有输入是单条还是多条，其余完全一样，三件事要看准，见 `code/knowledge/ch10_lc_compose/protocol.py` 的 `invoke_part()`：
 
 ```python
 CASE = {"order_id": "A1001", "days": 3, "state": "未拆封"}
@@ -212,6 +212,8 @@ KeyError: Input to ChatPromptTemplate is missing variables {'days', 'state'}.  E
 
 ### 3.2 逐段输出
 
+`stream` 交出的是一串增量，拼起来才是完整回答，脚本在 `code/knowledge/ch10_lc_compose/protocol.py` 里：
+
 ```python
 def stream_part(chain) -> None:
     REQUESTS["n"] = 0
@@ -236,7 +238,7 @@ HTTP 请求数：1
 
 ### 3.3 异步版
 
-四个入口各有一个 `a` 前缀的版本，形状一样：
+四个入口各有一个 `a` 前缀的版本，参数与返回形状和同步版一一对应，差别只在 `await` 落在哪一步，见 `code/knowledge/ch10_lc_compose/protocol.py` 的 `async_part()`：
 
 ```python
 async def async_part(chain) -> None:
@@ -267,7 +269,7 @@ TextAccessor：'符合退货条件。'
 5 段：['符合', '退货', '条件。', '', '']
 ```
 
-形状一样，代价却有一处必须知道：同步与异步走的是两个独立的 HTTP 客户端。示例目录给 `ChatOpenAI` 传了 `http_client` 与 `http_async_client`，各自挂一份回放传输层；删掉后者，`ainvoke` 会去连真实端点：
+形状一样，代价却有一处必须知道：同步与异步走的是两个独立的 HTTP 客户端。示例目录给 `ChatOpenAI` 传了 `http_client` 这个参数与 `http_async_client` 那个参数，各自挂一份回放传输层；删掉后者，`ainvoke` 会去连真实端点：
 
 ```
 openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-test. ...
@@ -277,7 +279,7 @@ openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect A
 
 ### 3.4 事件流
 
-第四个入口不给结果，给过程。
+第四个入口不给结果，给过程：模型吐一段就发一条事件，父子关系靠 `parent_ids` 串起来，见 `code/knowledge/ch10_lc_compose/protocol.py` 的 `event_part()`。
 
 ```python
 def event_part() -> None:
@@ -329,7 +331,7 @@ def event_part() -> None:
 
 ## 四、七个组合子
 
-先把名字核对一遍。大纲 F3 里列的七个组合子，1.4.7 里全部存在：`|`、`RunnableParallel`、`RunnablePassthrough`、`RunnableLambda`、`RunnableBranch`、`with_fallbacks`、`with_retry`。`RunnableBranch` 的签名是 `*branches`：前面若干个 `(条件, 分支)` 元组，最后一项若是单独的 Runnable 就作默认分支。唯一一次搬家在解析器上：`OutputFixingParser` 与 `RetryOutputParser` 改到 `langchain_classic.output_parsers`。公共件先摆出来，见 `combinators.py`：
+先把名字核对一遍。大纲 F3 里列的七个组合子，1.4.7 里全部存在：`|`、`RunnableParallel`、`RunnablePassthrough`、`RunnableLambda`、`RunnableBranch`、`with_fallbacks`、`with_retry`。`RunnableBranch` 的签名是 `*branches`：前面若干个 `(条件, 分支)` 元组，最后一项若是单独的 Runnable 就作默认分支。唯一一次搬家在解析器上：`OutputFixingParser` 与 `RetryOutputParser` 改到 `langchain_classic.output_parsers`。公共件先摆出来，见 `code/knowledge/ch10_lc_compose/combinators.py`：
 
 ```python
 import httpx
@@ -362,6 +364,8 @@ def model_500():
 
 ### 4.1 管道
 
+七个组合子共用同一套协议，先看最基础的一个，见 `code/knowledge/ch10_lc_compose/combinators.py` 的 `pipe_demo()`：
+
 ```python
 def pipe_demo() -> None:
     chain = PROMPT | fixed_model("符合退货条件。") | StrOutputParser()
@@ -381,7 +385,7 @@ def pipe_demo() -> None:
 
 ### 4.2 并行分发
 
-同一份输入要同时喂给两段链时，用 `RunnableParallel`：
+同一份输入要同时喂给两段链、两段结果还要合回一个 dict 时，用 `RunnableParallel`，键名决定各段结果落在 dict 的哪一格，见 `code/knowledge/ch10_lc_compose/combinators.py` 的 `parallel_demo()`：
 
 ```python
 def parallel_demo() -> None:
@@ -406,7 +410,7 @@ def parallel_demo() -> None:
 
 ### 4.3 直通与追加
 
-`RunnablePassthrough` 做的是直通，`assign` 版本在同一份输入上追加新键：
+`RunnablePassthrough` 做的是直通，`assign` 版本在同一份输入上追加新键，见 `code/knowledge/ch10_lc_compose/combinators.py` 的 `passthrough_demo()`：
 
 ```python
 def passthrough_demo() -> None:
@@ -430,7 +434,7 @@ def passthrough_demo() -> None:
 
 ### 4.4 函数包装
 
-链上总有一小段逻辑不值得写成类，`RunnableLambda` 把普通函数包成 Runnable：
+链上总有一小段逻辑不值得写成类，`RunnableLambda` 把普通函数包成 Runnable，见 `code/knowledge/ch10_lc_compose/combinators.py` 的 `lambda_demo()`：
 
 ```python
 def lambda_demo() -> None:
@@ -456,7 +460,7 @@ def lambda_demo() -> None:
 
 ### 4.5 条件分支
 
-按条件选一条路，用 `RunnableBranch`：
+按条件选一条路、其余分支连跑都不跑时，用 `RunnableBranch`，入参是一串条件与对应链，外加一条默认链，见 `code/knowledge/ch10_lc_compose/combinators.py` 的 `branch_demo()`：
 
 ```python
 def branch_demo() -> None:
@@ -506,7 +510,7 @@ KeyError: 'days'
 
 ### 4.6 备用路径
 
-主路抛异常时换一条路，用 `with_fallbacks`：
+主路抛异常时换一条路，用 `with_fallbacks`，备用链拿到的是同一份原始输入，见 `code/knowledge/ch10_lc_compose/combinators.py` 的 `fallback_demo()`：
 
 ```python
 def fallback_demo() -> None:
@@ -542,7 +546,7 @@ exception_key 的效果： {'a': 1, 'err': ValueError('boom')}
 
 ### 4.7 重试
 
-同一份输入重发，用 `with_retry`：
+同一份输入重发，用 `with_retry`，重试次数与退避策略都写在装饰参数里，见 `code/knowledge/ch10_lc_compose/combinators.py` 的 `retry_demo()`：
 
 ```python
 def retry_demo() -> None:
@@ -575,7 +579,7 @@ def retry_demo() -> None:
 一直失败时：ConnectError: always down
 ```
 
-前两次抛 `ConnectError`，第三次成功，调用方看不到前面两次；一直失败时抛出的仍是最后一次的原始异常。四个参数是 `stop_after_attempt`（总尝试次数）、`retry_if_exception_type`、`wait_exponential_jitter`、`exponential_jitter_params`。`retry_if_exception_type` 默认也是 `Exception`，把不该重试的错误也重试，等于把一次失败变成三次，延迟与成本一起乘三，第 4 章算过这笔账。七个组合子按它接哪一处接缝排一下：
+前两次抛 `ConnectError`，第三次成功，调用方看不到前面两次；一直失败时抛出的仍是最后一次的原始异常。四个参数是 `stop_after_attempt`（总尝试次数）、`retry_if_exception_type`、`wait_exponential_jitter`、`exponential_jitter_params`，后者用来设抖动的幅度与上限。`retry_if_exception_type` 默认也是 `Exception`，把不该重试的错误也重试，等于把一次失败变成三次，延迟与成本一起乘三，第 4 章算过这笔账。七个组合子按它接哪一处接缝排一下：
 
 | 组合子 | 接的接缝 | 主线里对应哪一段 |
 |---|---|---|
@@ -591,7 +595,7 @@ def retry_demo() -> None:
 
 ## 五、三种提示词模板
 
-模板这一层要回答的只有一个问题：变量在哪里。第 4 章六要素里输入数据与输出格式是可变的，模板把可变的部分挖成占位符，其余固化。看装好的结果比看 API 说明有用，先摆打印函数，见 `templates.py`：
+模板这一层要回答的只有一个问题：变量在哪里。第 4 章六要素里输入数据与输出格式是可变的，模板把可变的部分挖成占位符，其余固化。看装好的结果比看 API 说明有用，先摆打印函数，见 `code/knowledge/ch10_lc_compose/templates.py`：
 
 ```python
 from langchain_core.messages import AIMessage, HumanMessage
@@ -612,7 +616,7 @@ def dump(label: str, messages: list) -> None:
 
 ### 5.1 固定条数
 
-条数固定的模板：一串 `(角色, 内容)` 元组。
+条数固定的模板：一串 `(角色, 内容)` 元组。见 `code/knowledge/ch10_lc_compose/templates.py` 的 `part_fixed()`。
 
 ```python
 def part_fixed() -> None:
@@ -640,7 +644,7 @@ def part_fixed() -> None:
 
 ### 5.2 条数不定的历史
 
-对话历史、检索结果这类条数由运行期决定的部分，用 `MessagesPlaceholder`：
+对话历史、检索结果这类条数由运行期决定的部分，用 `MessagesPlaceholder`，见 `code/knowledge/ch10_lc_compose/templates.py` 的 `part_history()`：
 
 ```python
 def part_history() -> None:
@@ -701,7 +705,7 @@ def history_as_string() -> None:
 
 ### 5.3 示例即消息
 
-示例即消息：Few-shot 的示例本身也是消息序列。
+示例即消息：Few-shot 的示例本身也是消息序列。见 `code/knowledge/ch10_lc_compose/templates.py` 的 `part_fewshot()`。
 
 ```python
 def part_fewshot() -> None:
@@ -742,6 +746,8 @@ def part_fewshot() -> None:
 两条示例展开成四条消息，加 system 与真正的提问共 6 条。`example_prompt` 决定一条示例长什么样，`examples` 决定有几条。示例里的键名来自 `example_prompt` 的占位符，把示例模板改成三段，`examples` 里就得多一个键，否则报错。
 
 ### 5.4 少给一个变量
+
+模板少给一个变量会怎样，报错落在装 messages 那一步，见 `code/knowledge/ch10_lc_compose/templates.py` 的 `part_missing()`：
 
 ```python
 def part_missing() -> None:
@@ -799,6 +805,8 @@ class RefundVerdict(BaseModel):
 
 ### 6.1 不校验的解析器
 
+四个解析器按校验强度排列，第一个几乎不校验，见 `code/knowledge/ch10_lc_compose/parsers.py` 的 `str_parser()`：
+
 ```python
 def str_parser() -> None:
     chain = PROMPT | model_saying("符合退货条件。") | StrOutputParser()
@@ -818,6 +826,8 @@ def str_parser() -> None:
 `StrOutputParser` 的 `parse` 就是把输入原样返回，只做从消息里取文本这一步。它对应第 1 章只取 `content` 那一节：能用，但下游拿到的是没法校验的字符串。它的输出是给人看的；一旦下游要读字段，就该换成 `PydanticOutputParser`。
 
 ### 6.2 JSON 与字段类型
+
+换成会校验 schema 的解析器，返回的对象就从字符串变成模型实例，见 `code/knowledge/ch10_lc_compose/parsers.py` 的 `json_parser()`：
 
 ```python
 def json_parser() -> None:
@@ -913,7 +923,7 @@ Here is the output schema:
 
 ### 6.3 列表格式
 
-列表格式由 `CommaSeparatedListOutputParser` 处理：
+列表格式由 `CommaSeparatedListOutputParser` 处理，见 `code/knowledge/ch10_lc_compose/parsers.py` 的 `list_parser()`：
 
 ```python
 def list_parser() -> None:
@@ -939,7 +949,7 @@ Your response should be a list of comma separated values, eg: `foo, bar, baz` or
 
 ### 6.4 流式下的部分对象
 
-前三个解析器在流式下的表现不一样，`JsonOutputParser` 给的是累积对象，代码在 `stream_json.py`：
+前三个解析器在流式下的表现不一样，`JsonOutputParser` 给的是累积对象，代码在 `code/knowledge/ch10_lc_compose/stream_json.py`：
 
 ```python
 import json
@@ -984,7 +994,7 @@ async def main() -> None:
 
 ## 七、解析失败之后
 
-第 4 章做法五给了一条原则：校验失败后把具体错误回灌重试。框架里有两个实现，导入路径不在 `langchain_core`：
+第 4 章做法五给了一条原则：校验失败后把具体错误回灌重试。框架里有两个实现，导入路径不在 `langchain_core`，见 `code/knowledge/ch10_lc_compose/self_heal.py`：
 
 ```python
 from langchain_classic.output_parsers import OutputFixingParser, RetryOutputParser
@@ -1061,6 +1071,8 @@ OutputParserException: Invalid json output: 判定结果：{“order_id”: “A
 
 ### 7.1 只改格式
 
+两个自愈解析器里，第一个只把坏文本交给修复模型改写格式，见 `code/knowledge/ch10_lc_compose/self_heal.py` 的 `error_block()`：
+
 ```python
 def error_block(text: str) -> str:
     """从 NAIVE_FIX_PROMPT 装出来的消息里，只截 Error 那一段。"""
@@ -1093,6 +1105,8 @@ def part_fixing(parser) -> None:
 第一次解析失败，第二次修好，链最终返回 `RefundVerdict`。修复模型收到的提示词有固定形状：格式要求、坏文本、解析器抛出的异常原文，这三样正是第 4 章回灌具体错误的三件套。`from_llm` 要传 `parser` 而不是 schema，因为格式要求由 `get_format_instructions()` 生成。`OutputFixingParser` 自己也是 Runnable，能直接接在链尾，代价是异常在内部被消化：调用方看不出第一次失败过。每次失败多一次完整调用，延迟与成本各翻一倍。
 
 ### 7.2 带原问题重发
+
+第二个把原始提示词一起带回去，修复模型因此能看到原问题，见 `code/knowledge/ch10_lc_compose/self_heal.py` 的 `part_retry()`：
 
 ```python
 def part_retry(parser) -> None:
@@ -1134,7 +1148,7 @@ def part_retry(parser) -> None:
 
 ## 八、事件树的父子关系
 
-前面七节都在说链能做什么，这一节说链跑的时候内部长什么样。事件流里每条都带 `event`、`name`、`run_id`、`parent_ids` 与 `data`，按 `parent_ids` 的长度缩进就是一棵树：
+前面七节都在说链能做什么，这一节说链跑的时候内部长什么样。事件流里每条都带 `event`、`name`、`run_id`、`parent_ids` 与 `data`，按 `parent_ids` 的长度缩进就是一棵树，见 `code/knowledge/ch10_lc_compose/event_tree.py` 的 `pad()`：
 
 ```python
 def pad(text: str, width: int) -> str:
@@ -1269,7 +1283,7 @@ def payload(events: list[dict]) -> None:
 
 ## 十、这套装法的失效面
 
-这套装法有九个失效面，前两个由两个组合子的默认值直接造成。第一，`with_fallbacks` 与 `with_retry` 默认接所有异常：
+这套装法有九个失效面，前两个由两个组合子的默认值直接造成。第一，`with_fallbacks` 与 `with_retry` 默认接所有异常，见 `code/knowledge/ch10_lc_compose/traps.py` 的 `fallback_on_code_error()`：
 
 ```python
 def fallback_on_code_error() -> None:
@@ -1340,7 +1354,7 @@ def fallback_keeps_bad_output() -> None:
 
 `model_name` 这里是 `demo-model`，两条路一样，从返回值根本认不出换了路。真实环境里主备通常是不同模型，但这依赖去看它；兜底要么在回调里记一笔，要么在输出里带标记。第三，并行与 batch 遇上副作用就出事。第 6 章说过工具调用是请求执行，一旦执行就产生副作用：两个分支都去写同一条订单状态，谁后写谁生效，而两个都报告成功。并发只在纯读的链上安全。
 
-第四，重试会让副作用重复。把带副作用的一段包进 `with_retry`，就变成可能执行两次。
+重试会让副作用重复，把带副作用的一段包进 `with_retry`，就变成可能执行两次。
 
 第五，自愈会掩盖内容错误。修复模型拿到的只有格式要求与坏文本，它不知道正确答案；坏输出里 `days` 是 3、修出来的 `reason` 是脚本写死的，真实场景里同样的事会发生：结构修对了，值是编的，而链返回成功。自愈只提高格式通过率，不提高正确率。
 
