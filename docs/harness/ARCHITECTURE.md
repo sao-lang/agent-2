@@ -12,11 +12,11 @@
 
 ### 0.1 十一条
 
-1. 现在的包是**库**，不是框架；差别不在接口数量，在**控制反转**。收口方案：内核只保留一条固定骨架，其余全部下沉为可组合部件（中间件 / 后端 / 存储 / 投影）。
-2. **结构模型 = 两条不变量 + 三个视图**：不变量是「历史不可变」「资源单一所有者」；三个视图是控制流（主轴）、依赖（截面 A）、数据（截面 B）。「插点 × 挂载」矩阵降级为**变更归位表**——它是审计工具，不是模型（§2.4 讲它的五个缺陷）。
+1. 现在的包是**库**，不是框架；差别不在接口数量，在**控制反转**。收口方案：内核只保留一条固定骨架，其余全部下沉为可组合部件（中间件 / 后端 / 存储 / 取景编码）。
+2. **结构模型 = 两条不变量 + 三个视图**：不变量是「历史不可变」「资源单一所有者」；三个视图是控制流、依赖、数据。「插点 × 挂载」矩阵是**变更归位表**，不是模型（§2.4 给出它的五条局限）。
 3. 彻底解耦的抓手不是"多写 Protocol"，是**依赖方向单一**（六边形 / Ports & Adapters）：除契约层外，任何模块只能 import 契约层。这条用可执行测试守住，不靠自觉。
-4. 一次 `step` 按 Nest 的四件套切分：**Guard（准入）→ Pipe（校验）→ Interceptor 洋葱（包裹）→ Filter（错误出口）**。四类失败语义不同，禁止合成一条链。
-5. 给模型看的上下文是**表现层**，只是观众不是人：State 经 Projector 投影、经 Renderer 渲染，一份状态多个只读视图。借 MVVM 的**三分**，不借 MVVM 当整体结构（§6.1）。
+4. 一次 `step` 走**四段执行链**：**Gate（准入，返回判定不抛错）→ Check（校验，抛 `ValidationError`）→ Wrap（包裹，可改请求与结果）→ Classify（异常 → `RunStatus` 的唯一映射）**。四段失败语义不同，不可合并、不可重排（§5.2）。
+5. 给模型看的上下文由两段产出：`Framer` 取景（选、排序、裁剪，产出 `Frame`）→ `Encoder` 编码（`Frame` → 载荷）。一份 State 出四种帧：model / human / approval / trace（§6）。
 6. 护栏独立于 Guard：**Guard 管"动作能不能做"（决策边界），Guardrail 管"内容能不能进出"（数据边界）**；入站、入上下文、出模型、工具边界、出口共五道闸。
 7. 内置中间件 12 个，顺序由**声明式依赖 + 拓扑排序**得出，不由人手排。
 8. Store 拆五个（会话 / 检查点 / 消息日志 / 记忆 / 幂等），另有 Artifact 存大对象；记忆的难点在 `MemoryPolicy`，不在 Store 本身。
@@ -24,13 +24,13 @@
 10. 所有资源走**作用域**（run scope → step scope → child scope），`async with` 收口；子 agent 默认独立沙箱、共享预算。
 11. 迁移四期，每期可回滚；期 1 的唯一验收标准是**现有 18 个测试全绿**。
 
-### 0.2 对三条建议的裁决
+### 0.2 三条设计来源的处置
 
-| 建议 | 裁决 | 具体处置 |
+| 来源 | 处置 | 具体 |
 |---|---|---|
-| 护栏分输入、输出 | **全采纳，并扩展** | 两道不够，共五道闸（§8.2）；检测与动作分离（§8.3）；流式输出必须增量护栏（§8.5）；护栏自身崩溃的默认语义要显式定义（§8.6） |
-| 架构要不要有统一的结构模型（MVVM 只是举例） | **采纳问题，否决"单一模式"** | 单模式装不下：可变性有三个正交方向（控制流 / 依赖 / 数据），MVVM 只覆盖数据方向的一半。模型改为**两条不变量 + 三个视图**（§2.4）；MVVM 的三分只落在截面 B（§6.1）。响应式仍拒绝：破坏可序列化与可重放 |
-| 借 Nest / Express 洋葱圈 | **采纳并修正** | 洋葱只能覆盖"包裹一对"这一种语义（Interceptor）。Guard / Pipe / Filter 硬塞进洋葱会让失败语义混乱（谁抛错、谁短路、谁改结果分不清）。真正值得借的是**四件套的分工**，见 §5.2 |
+| 护栏分输入、输出 | **采纳并扩展** | 两道不够，共五道闸（§8.2）；检测与动作分离（§8.3）；流式输出必须增量护栏（§8.4）；护栏自身崩溃的默认语义显式定义（§8.5） |
+| 统一结构模型之问 | **不设总模式** | 可变性有三个正交方向（控制流 / 依赖 / 数据），任何单一模式只能描述其中一个。模型定为**两条不变量 + 三个视图**（§2.4），数据视图用取景-编码表达（§6） |
+| 洋葱式拦截 | **定为四段执行链** | 洋葱只覆盖"包裹一对"，表达不了准入、校验、错误归类。四段各有独立失败语义，洋葱仅存在于 `Wrap` 段（§5.2）；不提供装饰器、DI 容器、请求作用域模型 |
 
 ### 0.3 原始四问的落点
 
@@ -75,13 +75,13 @@
 | 7 | Reflector / Verdict | 部件 | ✅ | 挪进 `validate` 中间件 |
 | 8 | Router / Route / fallback | 部件 | ✅ | 不动 |
 | 9 | 四种拓扑（Pipeline/Handoff/Supervisor/Blackboard） | 部件（topology） | ✅ | 子 agent 改为运行时可派发（§7.3） |
-| 10 | State 信封 + 命名空间 | 契约 | ✅ | 拆 Model/投影三层 |
+| 10 | State 信封 + 命名空间 | 契约 | ✅ | 加取景层（State → Frame） |
 | 11 | Durability 检查点 | 存储 | ✅ 覆盖写 | 加 rev、时间旅行 |
 | 12 | 人工审批 + resume | 内核 + 中间件 | ✅ | 泛化为任意检查点恢复 |
 | 13 | Budget | 契约 + 中间件 | ✅ | 支持父子预算切分 |
 | 14 | Tracer / 事件 | 后端 | ✅ | 加事件流与 span 传播 |
 | 15 | Delivery 出口 | 内核 | ✅ | 拆 Result / Event 双出口 |
-| 16 | RAG：Knowledge / Retrieval / Context | 部件 + 后端 | ✅ 最小 | Context 拆成 Projector + Renderer |
+| 16 | RAG：Knowledge / Retrieval / Context | 部件 + 后端 | ✅ 最小 | Context 拆成 Framer + Encoder |
 | 17 | Memory | 存储 + policy | ✅ 最小 | 拆分存取与写入策略 |
 | 18 | Skills | 中间件 + 供给 | ✅ 但未接线 | 渐进披露 + `allowed_tools` 真正生效 |
 | 19 | Guard | 内核插点 | ✅ | 位置写死，不可被中间件重排 |
@@ -127,28 +127,26 @@
 
 ### 2.3 三个视图 + 一张归位表
 
-Vue 的结构模型是 MVVM。本框架的结构模型是什么？——**没有单一的"某某 V"可用，因为可变性有三个正交方向**。硬凑一个"agent 的 MVVM"，只会得到一张只解释三分之一的图，剩下三分之二靠口口相传，这正是 v1 的病灶。
+框架的可变性有三个正交方向，任何一个单一模式都只能描述其中一个。所以这里**不设"总模式"**：只设三个视图（描述手段）与一张归位表（审计工具），真正的模型是 §2.4 的两条不变量。
 
-先搭三张视图，再加一张归位表；**§2.4 再判定它够不够格当"模型"（结论：不够，要降级）**。
-
-| 轴 | 要回答的问题 | 采用的结构 | 明确不采用 |
+| 视图 | 要回答的问题 | 采用的结构 | 明确不采用 |
 |---|---|---|---|
-| **主轴**（控制流） | 什么时候调用、谁能插手 | 四个拦截点，每点一条洋葱 | 不用图 / DSL 描述流程 |
-| **截面 A**（依赖） | 谁能依赖谁、什么可替换 | 六边形（Ports & Adapters），依赖只向内 | 不用分层图描述调用关系 |
-| **截面 B**（数据） | 看见什么、看见多少 | 单向投影（State → ViewModel → View） | 不做响应式、不做双向 |
+| **控制流视图** | 什么时候调用、谁能插手 | 四个插点，每点四段执行链 | 不用图 / DSL 描述流程 |
+| **依赖视图** | 谁能依赖谁、什么可替换 | 六边形（Ports & Adapters），依赖只向内 | 不用分层图描述调用关系 |
+| **数据视图** | 看见什么、看见多少 | 取景（Framer）→ 编码（Encoder） | 不做响应式、不做双向 |
 
-三轴之间只允许两条连接线，**禁止互相穿透**：
+三个视图之间只允许两条连接线，**禁止互相穿透**：
 
-1. 主轴上的拦截点通过**作用域**取到截面 A 的实现对象（不 import 具体类）。
-2. 截面 B 的产物只能经 `model_call` 的请求 / 响应进出（投影层不许调工具，后端不许读 State 内部结构）。
+1. 插点上的拦截器通过**作用域**取到依赖视图的实现对象（不 import 具体类）。
+2. 数据视图的产物只能经 `model_call` 的请求 / 响应进出（取景层不许调工具，后端不许读 State 内部结构）。
 
-#### 把三轴压成一个可检查的东西：「插点 × 挂载」矩阵
+#### 把三个视图压成一张可检查的表：「插点 × 挂载」归位表
 
 | 位置 ＼ 挂载 | **替换**（实现协议） | **包裹**（中间件） | **观察**（hook） |
 |---|---|---|---|
 | `run` | — | Tenancy / BudgetGuard / Audit / Trace | `on_run_start` `on_run_end` |
 | `step` | `BodyPolicy`（react / workflow / pe） | TaskBoard / Reflector 重试 / Checkpoint | `on_step_end` |
-| `model_call` | `Model` 后端、`Projector` + `Renderer` | ContextManager / 缓存 / InputGuard / OutputGuard | `on_model_call` |
+| `model_call` | `Model` 后端、`Framer` + `Encoder` | ContextManager / 缓存 / InputGuard / OutputGuard | `on_model_call` |
 | `tool_call` | `Tool`、`FileSystem`、`Sandbox`、`Index` | Approval / 沙箱路由 / 幂等 / SubAgent / Capability | `on_tool_call` |
 | 出口 | `Delivery`（Result + Event 双出口） | OutputGuard（最终答案） | `on_run_end` |
 | 构造期 | 24 个协议实现（store / backend / model / …） | 插件（entry points） | — |
@@ -156,64 +154,67 @@ Vue 的结构模型是 MVVM。本框架的结构模型是什么？——**没有
 **用法：任何功能、任何改动，先在表里指一个格子。**
 
 - 指不到 → 协议缺了。补 §4.5 的清单，**不要给内核开洞**。
-- 指到两个 → 职责重叠，迟早出现双重执行或顺序歧义。
+- 指到两个 → 职责重叠，会出现双重执行或顺序歧义。
 - 指到"内核骨架"→ 不允许。内核只有骨架与插点，其余全在表里。
 
-这张矩阵比分层图更有用：分层图只能描述截面 A，而**框架的多数设计错误恰恰是"把变化放错格子"**。v1 有三个真实案例——
+这张矩阵比分层图更有用：分层图只能描述依赖视图，而**框架的多数设计错误恰恰是"把变化放错格子"**。v1 有三个真实案例——
 
 | 错误 | 放错的格子 | 后果 |
 |---|---|---|
 | 把内容护栏做成 `Guard` | "内容"塞进"动作"的格子 | deny 语义混淆：该改写的被停掉，该停的被放过 |
 | 用静态拓扑代替运行时子 agent | "运行时"塞进"构造期"的格子 | 不能在循环中派发，`Supervisor` 只能预排 |
-| 把压缩写进 `assemble` | "策略"塞进"渲染"的格子 | 压缩不可测、不可回放、不可换 |
+| 把压缩写进 `assemble` | "策略"塞进"编码"的格子 | 压缩不可测、不可回放、不可换 |
 
-三条轴的命名在代码里也要可见：`kernel/` 对应主轴，`contracts/` 对应截面 A 的端口，`parts/projection/` 对应截面 B（§3.4）。
+三个视图的命名在代码里要可见：`kernel/` 对应控制流，`contracts/` 对应依赖的端口，`parts/framing/` 对应数据（§3.4）。
 
-### 2.4 这个模型的自我评估：它能用，但不该叫"结构模型"
+### 2.4 模型：两条不变量 + 三个视图
 
-上一节的自评不能只写优点。这个模型有五个实打实的问题：
+**结构模型 = 两条不变量 + 三个视图。** 定义如下，不留解释空间：
 
-| # | 问题 | 后果 |
+| 组成 | 内容 | 作用 |
 |---|---|---|
-| 1 | **它是分类器，不是生成器** | MVVM 能*生成*设计（"这个 UI 变化该落在哪个响应式数据上"）；矩阵只能事后归档。面对新需求，它不给你方向，只给你验收 |
-| 2 | **缺时间维度** | 矩阵的六行全是"调用点"，没有一行描述"历史"。持久化、回放、时间旅行是 agent 与普通服务的最大差别，却在模型里没有位置 |
-| 3 | **缺所有权维度** | 预算归谁、取消怎么传播、span 的父是谁——这些**归属**问题不体现在任何格子里。而框架的真实 bug 几乎都在这里（§7.4 子 agent 共享预算、§12.2 取消收敛） |
-| 4 | **术语成本高** | 轴 / 截面 / 格子是三套词。Vue 只有一套（MVVM）。新人要先学会描述方式才能定位问题 |
-| 5 | **空格子会诱发填充** | 24 格里大半是空的。空格子天然邀请"往这儿塞点东西"，与"插点越少越好"直接冲突 |
+| **不变量 1 · 历史不可变** | 任何状态变更都必须留下带 `rev` 的记录；旧版本永不修改、永不删除 | 可回放、可时间旅行、并发写不覆盖 |
+| **不变量 2 · 资源单一所有者** | 预算、取消信号、trace span 各有一个所有者，只沿作用域**单向继承** | 子 agent 不偷预算、父取消子必停、span 不挂错父 |
+| 视图 1 · 控制流 | run → step → model_call / tool_call | 决定"在哪插手" |
+| 视图 2 · 依赖 | 六边形，只向内 | 决定"什么可替换" |
+| 视图 3 · 数据 | State → Frame → 载荷 | 决定"看见什么" |
 
-**所以修订如下**：
+#### 归位表是工具，不是模型
 
-1. **把矩阵降级为辅助工具**——它是"变更归位表"，用在 code review 和一个测试里（配置声明的中间件必须都落在已知格子上），**不再宣称它是结构模型**。
-2. **结构模型改为「两条不变量 + 三个视图」**：不变量说"什么必须永远成立"，视图只是描述手段。视图可以少一个，不变量不能少一条。
-3. **补两条缺失的不变量**（它们本来被 §5.4 漏掉了）：
+上一节的「插点 × 挂载」矩阵**不是模型**，是**变更归位表**。它只有两个用途：code review 时核对改动落在哪个格子；测试时断言"配置声明的中间件都落在已知格子上"。
 
-| 不变量 | 内容 | 违反的后果 |
+它不能当模型，有五条硬伤——这也是为什么必须另立不变量：
+
+| # | 硬伤 | 后果 |
 |---|---|---|
-| **历史不可变** | 任何状态变更都必须留下带 `rev` 的记录（append-only 事件，或带版本快照） | 不可回放、不可时间旅行、并发写静默覆盖——这正是 v1 `Durability.save` 覆盖写的病根 |
-| **资源单一所有者** | 预算、取消信号、trace span 必须显式声明归属，且只沿作用域**单向继承** | 子 agent 偷预算、父取消后子任务继续烧钱、span 挂错父 |
+| 1 | 只归档，不推导 | 给不出"这个新需求该放哪"，只用于事后核对 |
+| 2 | 没有时间维度 | 六行全是调用点，没有一行描述历史；而持久化正是 agent 与普通服务的分界 |
+| 3 | 没有所有权维度 | 预算 / 取消 / span 的归属不出现在任何格子，而框架的真实 bug 都在这里（§7.4、§12.2） |
+| 4 | 术语成本 | 视图 / 归位表 / 格子三套词，要先学会描述方式才能定位问题 |
+| 5 | 空格子诱发填充 | 24 格大半为空，空格子天然邀请"往这儿塞东西"，与"插点越少越好"冲突 |
 
-4. **给一条判据**：一个新特性若**既不改变任何不变量、也不落在矩阵任何格子**，那它多半是应用代码，不该进框架。这条比矩阵本身有用。
+**判据**：一个特性若既不改变任何不变量、也不落在归位表任何格子，它是应用代码，不进框架。
 
-#### 关于事件溯源（一个更彻底的选项，暂不采用）
+#### 历史不可变的实现：多版本快照（已定，不再讨论）
 
-"历史不可变"最彻底的实现是事件日志 + fold（Temporal / DBOS 的做法）。它能一次性解决恢复、幂等、审计、子流程，但也带来两个真实成本：① 重放必须做效果记忆化（否则重放会真的再调一次工具）；② 事件 schema 演进比状态快照更难。
+每次状态变更写一条新 `rev`；旧 `rev` 永不修改，可 `get(sid, rev)` 取回。`CheckpointStore` 的 `put` / `get` / `history` 三个方法就是它的全部接口。
 
-**判断：暂不采用，但把路留好。** §10 的 `CheckpointStore` 已经是 `rev` + `history()` 的多版本快照，换成事件日志是**同协议换实现**，不改内核、不改部件。等真出现"需要按事件粒度审计"或"跨进程恢复"的需求再切，现在切是过度设计。
+**不采用事件日志 + fold。** 两条否决理由：① 重放必须做效果记忆化，否则重放会真的再调一次工具；② 事件 schema 演进比状态快照难。多版本快照两条都不需要，且时间旅行、并发保护、审计留痕的能力等价。
 
 ---
 
 ## 3. 分层与依赖规则
 
-### 3.1 六层（截面 A 的落地：六边形 / Ports & Adapters）
+### 3.1 六层（依赖视图的落地：六边形 / Ports & Adapters）
 
-这一节只负责**空间轴**：把 §2.3 的"截面 A"落成目录与依赖规则。端口（`contracts`）归内核所有，适配器（`impl` / `adapters`）在外围实现，依赖一律向内。
+这一节只负责**依赖视图**：把 §2.3 的"依赖视图"落成目录与依赖规则。端口（`contracts`）归内核所有，适配器（`impl` / `adapters`）在外围实现，依赖一律向内。
 
 ```text
 L5 适配器    adapters/       openai · qdrant · otel · mcp · sqlite · local-sandbox
                              只 import L0-L4，且只被装配层按需 import（懒加载）
 L4 装配      assembly/       Harness(cfg) · 校验 · 插件注册 · 生命周期
                              依赖 L0-L3，不可被任何下层 import
-L3 部件      parts/          policy · projector · renderer · middleware · topology · guardrail
+L3 部件      parts/          policy · framing · middleware · topology · guardrail
                              middleware 只能 import L0（+ L3 内的协议定义）
 L2 具体实现  impl/           InMemoryStore · SqliteStore · LocalFS · SubprocessSandbox · FakeModel
                              实现 L1 的后端/存储协议，依赖 L0
@@ -275,7 +276,7 @@ src/harness/
 │   │   ├── guards.py      Guard / Guardrail / GuardrailStream
 │   │   ├── stores.py      SessionStore/CheckpointStore/MessageLog/MemoryStore/Idempotency
 │   │   ├── backends.py    FileSystem/Sandbox/Artifact/Secret/Index/EventSink/Queue/Approval/Clock
-│   │   ├── projections.py Projector / Renderer / ViewModel / Pack
+│   │   ├── framing.py      Framer / Encoder / Frame / Pack
 │   │   ├── runtime.py     Middleware / Hook / Runnable / Topology
 │   │   └── governance.py  Budget / Reflector / Router
 │   └── version.py         contracts_version = "2"
@@ -287,7 +288,7 @@ src/harness/
 │   └── filters.py         错误 → RunStatus 映射
 ├── parts/                 L3
 │   ├── policy/            react · workflow · plan_execute · planner
-│   ├── projection/        budgeted_projector · renderer · views
+│   ├── framing/           framers · encoders
 │   ├── guardrail/         input · output · tool · stream
 │   ├── middleware/        12 个内置（§7.3）
 │   └── topology/          pipeline · handoff · supervisor · blackboard
@@ -325,7 +326,7 @@ src/harness/
 | 过程 | `Step` `ToolCall` `ModelReply` `ModelDelta` `Plan` | `Step` 是唯一跨层流动的执行单元 |
 | 判定 | `Verdict` `GuardDecision` `GuardrailVerdict` `Decision` | **四种判定不许合并**（§4.3） |
 | 结果 | `ActionResult` `ToolResult` `ExecResult` `Pack` `RunResult` | |
-| 视图 | `ViewModel` `ViewCard` `Recalled` | 投影层产物（§6） |
+| 帧 | `Frame` `Section` `Payload` `Recalled` | 取景产物与编码载荷（§6） |
 | 治理 | `Budget` `Limits` `Mount` `ApprovalRequest` `RunEvent` | |
 | 状态 | `State` | 唯一可变 + 唯一可序列化的容器 |
 
@@ -342,7 +343,7 @@ src/harness/
 
 合并的后果：护栏 deny 和 Guard deny 都返回 `REFUSED`，但前者应该"改写后继续"，后者应该"停下"。合并后无法区分，只能靠错误字符串猜。
 
-### 4.4 工具元数据（v2 新增）
+### 4.4 工具元数据
 
 工具不再只有 name/description/parameters。元数据是中间件做路由、审批分级、超时、幂等的依据。
 
@@ -373,7 +374,7 @@ class ToolSpec:
 | 校验 | `Reflector` `Validator` | 1 / 1 | `NullReflector` |
 | 准入 | `Guard` | 1 | `AllowAllGuard` |
 | 护栏 | `Guardrail` `GuardrailStream` | 1 / 2 | `NullGuardrail` |
-| 投影 | `Projector` `Renderer` | 1 / 1 | `BudgetedProjector` |
+| 取景 | `Framer` `Encoder` | 1 / 1 | `BudgetedFramer` |
 | 存储 | `SessionStore` `CheckpointStore` `MessageLog` `MemoryStore` `Idempotency` | 4 / 3 / 2 / 4 / 2 | `InMemory*` |
 | 后端 | `FileSystem` `Sandbox` `ArtifactStore` `SecretBroker` `IndexBackend` `EventSink` `Queue` `ApprovalChannel` `Clock` | 6/2/3/2/2/1/3/3/1 | `Local*` / `Memory*` |
 | 运行时 | `Middleware` `Hook` `Runnable` | 1 / 1 / 1 | — |
@@ -397,136 +398,132 @@ Agent._loop()
  └─ 出口：delivery.finish(state, status)
 ```
 
-### 5.2 四件套（借用 Nest，但各管一件事）
+### 5.2 四段执行链（定死，不可改）
+
+一次 `step` 内部固定为四段，**顺序不可调、不可合并、不可省略**。段是位置，协议是实现该段的部件，二者一一对应：
 
 ```text
-                 ┌──────────────── Filter（错误出口）────────────────┐
-Step ──▶ Guard ──▶ Pipe ──▶ ┌── Interceptor beforeEach ──┐            │
-  (判定)  (准入)  (校验)      │                            │           │
-                             │   Sandbox / Tool.invoke    │           │
-                             │                            │           │
-                             └── Interceptor afterEach ───┘           │
-                                                       Result ────────┘
+                ┌──────────────────── Classify ─────────────────────┐
+Step ──▶ Gate ──▶ Check ──▶ ┌── Wrap(before) ──┐                     │
+        (准入)  (校验)       │    Terminal      │  ← 工具 / 沙箱       │
+                             │  （唯一副作用）   │                     │
+                             └── Wrap(after) ───┘                     │
+                                              Result ────────────────┘
 ```
 
-| 件 | 位置 | 职责 | 失败语义 | 能否改结果 |
-|---|---|---|---|---|
-| **Guard** | 最前 | 准不准做（策略：审批、白名单、预算） | 返回 `deny/ask`，**不抛错** | 能短路 |
-| **Pipe** | Guard 后 | 参数校验/补全/类型转换 | 抛 `ValidationError`，映射成 `REFUSED` | 能改参数 |
-| **Interceptor** | 包住执行 | 包裹、记账、超时、幂等、路由、截断 | 异常穿透给 Filter | 能改结果 |
-| **Filter** | 最外 | 异常 → `RunStatus` 的**唯一**映射点 | 不吞错，只归类 | 决定出口状态 |
+| 段 | 协议 | 输入 → 输出 | 失败方式 | 允许做什么 | 禁止做什么 |
+|---|---|---|---|---|---|
+| **Gate** | `Guard` | `Step` → `GuardDecision` | 返回 `deny` / `ask`，**不抛异常** | 短路：拒绝或转人工 | 改参数、改结果、做 IO |
+| **Check** | `Pipe` | `Step` → `Step` | 抛 `ValidationError` | 参数校验、补全、类型转换 | 短路、做 IO |
+| **Wrap** | `Middleware`（tool_call 点） | `ToolRequest` → `ToolResult` | 异常原样穿透给 Classify | 改请求、改结果、重试、记账、超时、幂等 | 跳过 Gate、伪造 `ToolResult` |
+| **Classify** | `Filter` | `Exception` → `RunStatus` | 不吞异常，只归类 | 决定出口状态 | 重试、降级、改数据 |
 
-**关键修正（对"洋葱圈"建议的处理）**：Guard / Pipe / Filter **不是洋葱层**。把它们塞进洋葱会立刻出现三种歧义——Guard deny 后要不要继续走 afterEach？Pipe 抛错算不算运行失败？Filter 在洋葱里是第几层？把四件分开后，每个问题只有一个答案。
+四段必须分开，因为它们的失败语义不同。合并成一条洋葱会立刻产生三个没有答案的问题：Gate 拒绝后还要不要走 `Wrap(after)`？Check 抛错算不算运行失败？Classify 在洋葱里是第几层？
 
-真正是洋葱的只有 Interceptor：
+**洋葱只存在于 `Wrap` 段**，且只有一种实现形式：
 
 ```python
-# kernel/chain.py —— 洋葱执行器
+# kernel/chain.py
 async def run_chain(mws: Sequence[Middleware], req: Request, terminal: Handler) -> Response:
-    async def step(i: int, r: Request) -> Response:
-        if i >= len(mws):
+    async def go(i: int, r: Request) -> Response:
+        if i == len(mws):
             return await terminal(r)
-        return await mws[i](r, lambda r2: step(i + 1, r2))
-    return await step(0, req)
+        return await mws[i](r, lambda r2: go(i + 1, r2))
+    return await go(0, req)
 ```
 
-#### 为什么只借四件套，不借 Nest 的运行时
+`Wrap` 就是函数嵌套：`run_chain` 等价于 `m1 >> m2 >> … >> terminal`（附录 D 的 `>>` 是同一件事的语法糖）。所以"洋葱"与"组合"不是两个方案，是同一个实现的两种写法。
 
-Nest 的洋葱值钱的是**四类失败语义的分工**，不是它的框架机制。以下四件明确不借：
+#### 排除项（本框架不提供）
 
-| 不借 | 原因 |
+| 不提供 | 理由 |
 |---|---|
-| 装饰器 + 元数据 + 反射 | Python 里等于 `inspect` 管道，破坏类型推断，且与"组合式 API"直接冲突（§附录 A 就是函数组合） |
-| DI 容器 + 模块图 | 容器把"依赖从哪来"变成一个运行期问题；我们的答案是作用域（§12），编译期可查、可测 |
-| 请求作用域 + 单次响应 | Nest 的洋葱假设"一次请求一次响应"。agent 是**长事务**：会流式产出、会在审批处挂起数小时、会重试重放 |
-| 洋葱作为唯一执行模型 | 已在上文否决：洋葱只表达"包裹一对"，表达不了"准入判定""参数校验""错误归类" |
+| 装饰器 / 元数据 / 反射 | 等于 `inspect` 管道，破坏类型推断，与组合式 API 冲突 |
+| 依赖注入容器 | 把"依赖从哪来"变成运行期问题；本框架用作用域（§12），构造期可查可测 |
+| 请求作用域 + 单次响应模型 | agent 是长事务：流式产出、审批处挂起、重试重放，都不符合"一次请求一次响应" |
+| 用洋葱作为整条执行模型 | 已由本节的四段表否决 |
 
-一句话：**借语义，不借运行时**。而且要看到——**洋葱就是函数嵌套，也就是 FP 的函数复合**，`guard(x)(next)` 与 `next >> x` 是同一件事的两种写法（§附录 D 给了可运行的对照）。所以"借鉴 Nest 洋葱"与"要 FP 组合体验"并不冲突，它们是同一个方案的两种描述：洋葱负责讲清楚**为什么能层层包裹**，`>>` 负责把它变成顺手的语法。
+### 5.3 四个插点
 
-### 5.3 四个拦截点
-
-| 拦截点 | 请求 / 响应 | 典型中间件 |
+| 插点 | 请求 / 响应 | 典型中间件 |
 |---|---|---|
 | `run` | `RunRequest{goal, namespace}` / `RunResult` | 租户、审计、限流、总预算、记忆写回 |
 | `step` | `StepRequest{state, step\|done}` / `StepResult` | 任务板、反思重试、审批挂起 |
 | `model_call` | `ModelRequest{messages, tools, budget}` / `ModelReply` | 上下文压缩、缓存、脱敏、输入护栏、输出护栏 |
 | `tool_call` | `ToolRequest{step, spec}` / `ToolResult` | 沙箱路由、路径 jail、幂等、截断、子 agent、skill |
 
-四级是**嵌套**关系（run ⊃ step ⊃ {model_call, tool_call}），所以四个点各有一条链，不是一条链走到底。
+四个插点是**嵌套**关系（run ⊃ step ⊃ {model_call, tool_call}），所以四个点各有一条链，不是一条链走到底。
 
 ### 5.4 四条安全不变量（写进代码，不写进文档）
 
-1. **`tool_call` 链的终端永远是 Guard → invoke**。中间件可以改参数、可以在之后审计，但**不能把 Guard 挪走、不能跳过**。
+1. **`tool_call` 链的终端永远是 Gate → Terminal**。中间件可以改参数、可以在之后审计，但**不能把 Gate 挪走、不能跳过**。
 2. **没有工具调用就没有副作用**。禁止中间件直接做 IO 然后伪造 `ToolResult`——需要 IO 就注册工具。
-3. **出口唯一**。所有终止路径都经 `Filter → delivery.finish`，禁止在内核里定向 `return`（v1 的 `WorkflowPolicy` 特判，见 [agent.py:238](../../code/harness/src/harness/agent.py)，就是反例，v2 删除）。
+3. **出口唯一**。所有终止路径都经 `Classify → delivery.finish`，禁止在内核里定向 `return`（v1 的 `WorkflowPolicy` 特判，见 [agent.py:238](../../code/harness/src/harness/agent.py)，就是反例，P1 删除）。
 4. **State 只存可序列化数据**。中间件私有状态放实例，不放 `State`。
 
 ---
 
-## 6. 截面 B：投影（模型看见什么）
+## 6. 数据视图：取景与编码
 
-### 6.1 借 MVVM 的三分，不借 MVVM 本身
+### 6.1 两段式：取景（Frame）→ 编码（Encode）
 
-先划清边界：**MVVM 是 Vue 的整体结构模型，这里借不了。** 框架的可变性有三个方向（§2.3），MVVM 只覆盖"表现层"这一个，而且只覆盖它的一半。
+数据视图只回答一件事：**这一次调用，参与方看见什么。** 它拆成两段，一段只做选择，一段只做格式：
 
-但它覆盖的那一半，恰恰是 agent 独有、而 v1 完全没建模的：**agent 也有表现层，只不过观众不是人，是模型——上下文窗口就是视图。**
+| 段 | 协议 | 输入 | 输出 | 只负责 |
+|---|---|---|---|---|
+| 取景 | `Framer` | `State` + `FrameKind` + `Budget` | `Frame` | 选哪些、怎么排、超预算丢谁 |
+| 编码 | `Encoder` | `Frame` | `Payload`（messages / 卡片 / 事件） | 变成哪种格式 |
 
-| MVVM | 本框架 | 内容 |
-|---|---|---|
-| Model | **State** | 领域事实，唯一可变、唯一可序列化 |
-| ViewModel | **Projector** | 把 State 投影成"给某个消费者看的视图"，负责选、排序、裁剪 |
-| View | **Renderer** | 把 ViewModel 渲染成具体格式（messages / 审批卡片 / UI JSON） |
-
-"观众是模型"这一点决定了很多设计：人看 UI 可以滚动、可以追问、可以忍冗余；模型看上下文不行——超了就是超了，漏了它也不知道。所以"选哪些、怎么排、超预算丢谁、丢了怎么告知"必须是**一等公民**，而不是某个 `assemble` 方法里的几行 `while`。
-
-现在 [BudgetedContext.assemble](../../code/harness/src/harness/context.py) 一个方法同时做了"选哪些""怎么排""放哪个槽""超预算丢谁""渲染成什么格式"五件事。结果是换个 UI 要改内核，换个模型上下文策略要改渲染。三分之后：
+同一份 State 出四种帧，互不影响：
 
 ```text
-同一份 State
-  ├─ Projector(model_view)    → 只留预算内的、按相关性排序    → Renderer(openai)  → Pack
-  ├─ Projector(human_view)    → 全量 + 折叠 + 时间线          → Renderer(ui)      → ViewModel
-  ├─ Projector(approval_view) → 只留待批那一步 + 影响面        → Renderer(card)    → ViewCard
-  └─ Projector(trace_view)    → 步骤 + 用量 + 耗时            → Renderer(jsonl)   → RunEvent[]
+State
+ ├─ Framer(model)     → 预算内、按相关性排序、丢弃项有记录  → Encoder(openai) → Pack
+ ├─ Framer(human)     → 全量 + 折叠 + 时间线               → Encoder(ui)     → Card
+ ├─ Framer(approval)  → 只留待批那一步 + 影响面             → Encoder(card)   → Card
+ └─ Framer(trace)     → 步骤 + 用量 + 耗时                 → Encoder(jsonl)  → RunEvent[]
 ```
 
-**两条拒绝**：
+**为什么必须分两段**：v1 的 [BudgetedContext.assemble](../../code/harness/src/harness/context.py) 一个方法同时做了五件事——选哪些、怎么排、放哪个槽、超预算丢谁、渲染成什么格式。后果是换模型家族要改选择逻辑，换选择策略要改格式。分开后，换模型只换 `Encoder`，换裁剪策略只换 `Framer`。
 
-1. **拒绝把 MVVM 当整体结构模型**。框架其余三分之二的可变性（依赖方向、控制流）不在表现层。用 MVVM 去描述它们，会漏掉 §2.3 矩阵里一半的格子，还会凭空造出一个不存在的 UI 组件树。
-2. **拒绝响应式**（Proxy / 依赖收集 / 双向绑定）。在这里是负资产：
-   - State 必须能 `to_dict()` 后落库、重放；Proxy 会把不可序列化的陷阱对象带进 State。
-   - 模型看见的内容必须**确定性**：同一 State 重放必须得到同一 Pack。响应式让"看见什么"依赖求值时机。
-   - Agent 没有"用户改表单"这个事件源，双向绑定无用武之地。
+**观众决定取舍**：人看 UI 可以滚动、可以追问、可以忍冗余；模型看上下文不行——超了就是超了，漏了它也不知道。所以"选哪些、超预算丢谁、丢了怎么告知"必须是一等公民。
 
-结论：投影是**截面 B 的局部模型**，不是框架的结构模型；结构模型见 §2.4。
+**三条纪律**：
 
-### 6.2 三个协议
+1. `Framer` 不拼字符串、不决定 JSON 结构；`Encoder` 不决定留哪条。
+2. 裁剪必须**可解释**：`Frame.dropped` 非空时，`model` 帧必须编码出一句"已省略 N 条较早历史"。
+3. 一个 `Frame` 可被多个 `Encoder` 消费；一个 `Encoder` 只认一种格式。
+
+**明确不采用响应式**（Proxy / 依赖收集 / 双向绑定），三条理由：
+
+- `State` 必须能 `to_dict()` 落库、重放；Proxy 会把不可序列化的陷阱对象带进 State。
+- 模型看见的内容必须**确定性**：同一 State 重放必须得到同一 `Frame`。响应式让"看见什么"依赖求值时机。
+- agent 没有"用户改表单"这个事件源，双向绑定没有用处。
+
+数据视图的方向固定为**单向、只读、可重放**：`State → Frame → Payload`，没有回写路径。
+
+### 6.2 三个类型
 
 ```python
-class Projector(Protocol):
-    name: str
-    async def project(self, state: State, view: ViewKind, *, budget: Budget) -> ViewModel: ...
+class Framer(Protocol):
+    kind: FrameKind
+    async def frame(self, state: State, *, budget: Budget) -> Frame: ...
 
-class Renderer(Protocol):
+class Encoder(Protocol):
     fmt: str
-    async def render(self, vm: ViewModel) -> Pack | ViewCard | list[RunEvent]: ...
+    async def encode(self, frame: Frame) -> Payload: ...
 
 @dataclass(frozen=True)
-class ViewModel:
-    kind: ViewKind                      # model | human | approval | trace
+class Frame:
+    kind: FrameKind                     # model | human | approval | trace
     sections: tuple[Section, ...]       # 有序、带优先级、带来源引用
     dropped: tuple[str, ...]            # 被裁掉的，必须可解释
     tokens_est: int
 ```
 
-三条纪律：
-
-- **Projector 不渲染**（不拼字符串、不决定 JSON 结构）；**Renderer 不选择**（不决定留哪条）。
-- **裁剪必须可解释**：`dropped` 不为空时，`model_view` 会把它渲染成一句"已省略 N 条较早历史"，否则模型不知道自己瞎了。
-- **同一个 ViewModel 可被多个 Renderer 消费**（OpenAI / Anthropic / 本地 UI），这是"换模型不改内核"的落点。
-
 ### 6.3 与上下文压缩的分工
 
-压缩是**投影策略**，不是独立机制：`summary_projector` 用摘要替换早期 `sections`，产出同样是 `ViewModel`。好处是压缩的结果可见、可测、可回放（v1 里压缩逻辑散在 `assemble` 的循环里，无法单测）。
+压缩是**取景策略**，不是独立机制：`summary_framer` 用摘要替换早期 `sections`，产出的仍是 `Frame`。好处是压缩结果可见、可测、可回放（v1 的压缩散在 `assemble` 的循环里，无法单测）。
 
 ---
 
@@ -541,12 +538,12 @@ class Middleware(Protocol):
     needs: frozenset[str]           # 依赖哪些后端（如 {"fs", "sandbox"}）
     after: frozenset[str]           # 必须排在这些中间件之后
     before: frozenset[str]          # 必须排在这些之前
-    optional: bool                  # 后端缺失时是否可自动降级
+
 
     async def __call__(self, req: Request, nxt: Handler) -> Response: ...
 ```
 
-顺序由**拓扑排序**得出，不由人手排。三个好处：① 换顺序不会崩；② 缺依赖在启动期就报错，不拖到运行期；③ 第三方中间件可以声明"我必须在内置 X 之后"，不用改内置代码。
+`needs` 里声明的后端在构造期解析：缺任何一个 → `ConfigError`，不降级、不静默跳过。\n\n顺序由**拓扑排序**得出，不由人手排。三个好处：① 换顺序不会崩；② 缺依赖在启动期就报错，不拖到运行期；③ 第三方中间件可以声明"我必须在内置 X 之后"，不用改内置代码。
 
 排序冲突（环）→ `ConfigError`。`after`/`before` 只约束同一点内的链。
 
@@ -554,7 +551,7 @@ class Middleware(Protocol):
 
 1. **改输入的在外，改输出的在内**（否则你截断完又被压缩）。
 2. **便宜的在外的**（租户判定、预算检查不必承担后续开销）。
-3. **安全在最内**：Guardrail（内容）在 Interceptor 内侧、紧贴终端；Guard（动作）永远在终端前最后一环。
+3. **安全在最内**：Guardrail（内容）在 `Wrap` 内侧、紧贴终端；Gate（动作）永远在终端前最后一环。
 
 ### 7.3 内置 12 个
 
@@ -568,7 +565,7 @@ class Middleware(Protocol):
 | 6 | `Approval` | tool_call | approval | `ask` 挂起、`resume` 继续（v1 内核逻辑迁入） | 需审批的动作直接拒 |
 | 7 | `InputGuard` | model_call（前） | guardrails | 用户输入、检索资料、记忆的检测与改写 | 不设防（危险） |
 | 8 | `OutputGuard` | model_call（后）, run（出口） | guardrails | 模型回复与最终答案的检测、脱敏、拦截 | 不设防（危险） |
-| 9 | `ContextManager` | model_call | — | 调用 Projector 装配；预算紧张时触发摘要压缩 | 上下文无裁剪 |
+| 9 | `ContextManager` | model_call | — | 调 `Framer` 取景 + `Encoder` 编码；预算紧张时换摘要取景器 | 上下文无裁剪 |
 | 10 | `TaskBoard` | step, model_call | — | 任务清单注入 + `task_*` 工具；把意图提出 messages 抗压缩 | 无任务管理 |
 | 11 | `SubAgent` | tool_call | sandbox, budget | `task` 工具 → 子 agent（独立沙箱、共享预算、深度/并发上限、返回摘要） | 只能静态拓扑 |
 | 12 | `Capability` | tool_call | fs, sandbox, secrets | 挂载文件系统工具、沙箱路由与资源限制、skill 渐进披露与 `allowed_tools` 执行、结果截断转 artifact | 只有纯计算工具 |
@@ -589,7 +586,7 @@ class Middleware(Protocol):
 
 | 段 | 时机 | 注入量 | 手段 |
 |---|---|---|---|
-| ① 目录 | 每次 `model_call` | 每 skill 一行（name + description） | Projector 的 `skills` section |
+| ① 目录 | 每次 `model_call` | 每 skill 一行（name + description） | `Framer` 的 `skills` section |
 | ② 正文 | 模型调 `load_skill(name)` 之后 | 一个 SKILL.md 正文 | `Capability` 中间件改写该轮 messages |
 | ③ 资源 | 模型调 `read_skill_resource` 之后 | 单个 reference 文件 | 同上，按需 |
 
@@ -614,7 +611,7 @@ class Middleware(Protocol):
 ### 8.2 五道闸
 
 ```text
-用户输入 ──▶ ① 入站 ──▶ 投影 ──▶ ② 入上下文 ──▶ 模型 ──▶ ③ 出模型
+用户输入 ──▶ ① 入站 ──▶ 取景 ──▶ ② 入上下文 ──▶ 模型 ──▶ ③ 出模型
                                                               │
                        工具结果 ◀── ④ 工具边界 ◀── 工具调用 ◀──┘
                            │
@@ -842,7 +839,7 @@ async with Harness(config) as app:          # startup：建连接、校验配置
 |---|---|---|
 | 同一 session 两个并发 `run` | **串行**（lease + `expect_rev` 冲突则拒绝） | 否则检查点互相覆盖，状态错乱 |
 | 不同 session | 并行 | 无共享可变状态 |
-| 一个 run 内多个工具 | **串行**（v1 行为保留） | 并行工具要处理"部分失败"语义，v2 不引入 |
+| 一个 run 内多个工具 | **串行**（固定） | 部分失败没有唯一语义（重试哪几个、结果怎么合），串行才有确定性 |
 | 子 agent | 受并发上限约束的并行 | 有独立 State，安全 |
 
 ---
@@ -916,7 +913,7 @@ class HarnessConfig:
     stores: StoreSpec = StoreSpec()
     guard: GuardSpec = GuardSpec(kind="allow_all")
     guardrails: tuple[GuardrailSpec, ...] = ()
-    projections: ProjectionSpec = ProjectionSpec()
+    framing: FramingSpec = FramingSpec()
     hooks: tuple[HookSpec, ...] = ()
     namespace: NamespaceSpec = NamespaceSpec()
 ```
@@ -947,7 +944,7 @@ taskboard = "my_pkg.mw:TaskBoard"
 | 层 | 内容 | 数量级 | 依赖 |
 |---|---|---|---|
 | 契约一致性 | 每个协议一组通用用例，所有实现（内存 + 真实）共用 | 24 组 | 无 |
-| 部件单测 | 中间件、投影、护栏、存储各自 | 数百 | 假实现 |
+| 部件单测 | 中间件、取景、护栏、存储各自 | 数百 | 假实现 |
 | 端到端 | 预设装配出的完整 agent 跑业务剧本 | 十余 | FakeModel |
 
 ### 16.2 一致性测试是"可替换"的证明
@@ -984,7 +981,7 @@ class CheckpointStoreConformance:
 | 期 | 内容 | 验收 | 可回滚点 |
 |---|---|---|---|
 | **P1 骨架** | 目录重排（六层）+ 依赖规则测试 + `RunScope`/`StepScope` + 洋葱执行器 + `Filter` 出口 + **行为不变** | **现有 18 个测试全绿**；新增架构测试 | 整期可 revert，不改对外 API |
-| **P2 契约扩充** | 五 Store、十后端、四判定拆分、`ToolSpec`、`ViewModel`、事件流、`astream` | 24 组一致性测试；RAG/Memory/Skills 例子改造后跑通 | 旧接口保留 `deprecated` 别名 |
+| **P2 契约扩充** | 五 Store、十后端、四判定拆分、`ToolSpec`、`Frame`、事件流、`astream` | 24 组一致性测试；RAG/Memory/Skills 例子改造后跑通 | 旧接口保留 `deprecated` 别名 |
 | **P3 内置件** | 12 个中间件 + 输入/输出护栏 + 子 agent + 任务板 + 沙箱/FS | 编码 agent 剧本端到端；护栏五道闸各有测试 | 每个中间件可单独关 |
 | **P4 生产化** | OpenAI/Qdrant/OTel/MCP 适配器、SQLite/Postgres 存储、CLI 脚手架 | 真实模型跑通；一个示例项目 ≤ 20 行 | 适配器独立发布 |
 
@@ -1014,8 +1011,8 @@ class CheckpointStoreConformance:
 | # | 决策 | 备选 | 理由 |
 |---|---|---|---|
 | 1 | 内核不可替换，只可拦截 | 可替换内核（图运行时） | 保住"一个内核"的确定性与可测性 |
-| 2 | 四件套（Guard/Pipe/Interceptor/Filter）分离 | 统一洋葱 | 失败语义不同，合并产生歧义 |
-| 3 | 投影只用于截面 B，不做响应式 | 把 MVVM 当整体结构模型 | 框架可变性只有三分之一在表现层；响应式破坏可序列化与可重放 |
+| 2 | 四段执行链（Gate/Check/Wrap/Classify）分离 | 单一洋葱 | 四段失败语义不同，合并后 deny 与校验失败无法区分 |
+| 3 | 取景-编码分两段，不做响应式 | 单段装配 + 响应式派生 | 响应式破坏可序列化与可重放；单段装配把选择与格式耦合 |
 | 4 | 护栏五道闸、检测与动作分离 | 只做输入/输出两道 | 间接注入在检索与工具结果 |
 | 5 | Store 拆五个 | 单一 Store | 访问模式不同，混用导致覆盖写 |
 | 6 | 中间件顺序拓扑排序 | 手工顺序 | 组合爆炸，第三方无法插入 |
@@ -1025,10 +1022,15 @@ class CheckpointStoreConformance:
 | 10 | 同 session 串行 | 并发 + 合并 | 检查点一致性优先 |
 | 11 | 剪裁必须可解释（`dropped`） | 静默丢弃 | 否则模型不知道自己瞎了 |
 | 12 | 一致性测试定义可替换性 | 文档声明 | 唯一可信的兼容承诺 |
-| 13 | 结构模型 = 两条不变量 + 三个视图 | 单一模式（如 MVVM）；或"插点 × 挂载"矩阵当模型 | 可变性三向正交，单模式只解释三分之一；矩阵只是分类器、缺时间与所有权维度，降级为归位表（§2.4） |
-| 14 | 只借 Nest 的四件套语义，不借其运行时 | 装饰器 + DI 容器 + 请求作用域洋葱 | agent 是长事务（流式、挂起、重放），与 Nest 的单次请求模型不匹配；装饰器与组合式 API 冲突（§5.2） |
-| 15 | 暂不采用事件溯源，但把路留好 | 事件日志 + fold 为唯一真相 | 成本是效果记忆化与 schema 演进；`CheckpointStore` 的 rev + history 已可同协议换实现（§2.4） |
+| 13 | 结构模型 = 两条不变量 + 三个视图 | 单一总模式；或把归位表当模型 | 可变性三向正交，单模式只解释三分之一；归位表只归档不推导、缺时间与所有权维度（§2.4） |
+| 14 | 执行链固定四段，不提供装饰器 / DI 容器 / 请求作用域 | 洋葱 + 装饰器 + DI 容器 | agent 是长事务（流式、挂起、重放），与单次请求模型不匹配；装饰器与组合式 API 冲突（§5.2） |
+| 15 | 历史不可变用多版本快照实现 | 事件日志 + fold | 事件日志需效果记忆化与 schema 演进；多版本快照能力等价且无这两项成本（§2.4） |
 | 16 | 组合以函数复合为一等形态 | 类式装配（构造参数 / 子类） | 可组合、可替换、可干跑；语法糖 `>>`，代价是需 `describe` 补可见性（附录 D） |
+| 17 | 不支持同一 run 内并行工具调用 | 并行 + 部分失败合并 | 部分失败的语义（重试哪几个、结果怎么合）没有唯一答案，串行才有确定性 |
+| 18 | 检查点默认全留，按 namespace 配保留窗口 | 全局滚动窗口 / 全留且不可配 | 时间旅行是能力而非成本项；窗口必须可选，否则长任务撑爆存储 |
+| 19 | 护栏规则只允许 Python 代码，不提供 DSL | 仓库级规则 DSL | DSL 要自带解析、版本、测试三件事，收益远低于成本 |
+| 20 | 子 agent 支持 `expected_schema` 结构化返回 | 只返回文本 | 调用方要程序化用结果，解析文本是隐性 bug 来源 |
+| 21 | 提供 `harness new` 脚手架，在 P4 交付 | 只给文档示例 | 20 行体验需要脚手架固化，否则每个项目重新拼装 |
 
 ---
 
@@ -1067,20 +1069,25 @@ asyncio.run(main())
 | 骨架 | 内核里不可变的执行顺序 |
 | 挂载方式 | 替换 / 包裹 / 观察 |
 | 结构模型 | 两条不变量 + 三个视图；「插点 × 挂载」矩阵只是归位表（§2.4） |
-| 截面 | 截面 A = 依赖（六边形）；截面 B = 数据（单向投影） |
+| 视图 | 控制流（插点）/ 依赖（六边形）/ 数据（取景-编码） |
 | 闸 | 护栏的位置（五道） |
-| 件 | 一次 step 内的四类拦截器 |
+| 段 | 一次 step 内的四个阶段：Gate / Check / Wrap / Classify |
+| 插点 | 中间件可包裹的位置：run / step / model_call / tool_call |
 | 作用域 | 资源归属边界（run/step/child） |
-| 投影 | State → ViewModel 的单向变换 |
+| 取景 | State → Frame 的选择与裁剪，不涉及格式 |
 | 一致性测试 | 证明"实现可替换"的通用用例组 |
 
-## 附录 C：未决问题（需要产品决策）
+## 附录 C：已定的产品决策
 
-1. 是否支持"同一 run 内并行工具调用"——语义复杂度高（部分失败怎么办），倾向不支持。
-2. 检查点保留策略：全留（可时间旅行，存储贵）还是滚动窗口（便宜，不能回溯）——倾向按 namespace 配置。
-3. 护栏是否允许仓库级自定义规则 DSL——倾向只允许代码（Python），不做 DSL。
-4. 子 agent 的 `answer` 是否允许结构化（返回 JSON 而非文本）——倾向允许 `expected_schema`。
-5. 是否提供 CLI 脚手架 `harness new`——P4 再定，先把 20 行体验打磨好。
+原本留待决策的五个问题，现已定死（理由见 §20 的 ADR 17–21）：
+
+| 项 | 决定 |
+|---|---|
+| 同一 run 内并行工具调用 | **不支持**，工具调用一律串行 |
+| 检查点保留 | **默认全留**；按 namespace 可配保留窗口，窗口外才删 |
+| 护栏规则 DSL | **不提供**，只允许 Python 代码 |
+| 子 agent 返回 | **支持 `expected_schema`** 结构化返回 |
+| CLI 脚手架 | **提供 `harness new`**，P4 交付 |
 
 ## 附录 D：FP 组合样张（可运行）
 
@@ -1133,4 +1140,4 @@ result = await run(program, tool_chain,
 | ③ `mode=collect` 时 `已执行=[]` 但 `效果=[...]` | **效果可以是数据**。这是"先干跑再执行"、以及一致性测试能离线跑的前提 |
 | ⑤ 交换 audit / checkpoint 结果相同 | **顺序无关性是必须被测试的性质**，不是口头承诺——这是中间件用拓扑排序而非手工排序的直接理由 |
 
-代价也要写下来：`>>` 链条看不见最终顺序（故必须提供 `describe`）、类型提示弱于显式参数、深度嵌套时栈帧变长（故 §5.4 要求不重复包装异常，且每个环节发 span）。**组合不是免费的，它用"可读性成本"换"可组合性收益"**，只有当部件数量超过约 6 个时才开始净赚。
+代价也要写下来：`>>` 链条看不见最终顺序（故必须提供 `describe`）、类型提示弱于显式参数、深度嵌套时栈帧变长（故 §5.4 要求不重复包装异常，且每个环节发 span）。**组合不是免费的，它用"可读性成本"换"可组合性收益"**。判据是定死的：需要组合的部件 ≤ 6 个时用显式构造参数，> 6 个时用组合。
