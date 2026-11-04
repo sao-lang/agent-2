@@ -4,7 +4,7 @@
 >
 > **范围**：卷 12（第 48–53 章）的基座实现与配套正文；不重写主线 0–47、54–59。
 >
-> **v2 方向**：本文件记录的是 v1（库形态）的施工依据。框架化重构（六层解耦、中间件洋葱、五道护栏、Store/后端拆分）以 [`ARCHITECTURE.md`](ARCHITECTURE.md) 为准；两者冲突时以 ARCHITECTURE.md 为设计依据，本文件仅作历史与场景参考。
+> **设计依据**：本文件记录的是 v1（库形态）的施工依据与场景；框架化的**唯一权威规格**是 [`SPEC.md`](SPEC.md)（九插点/十五组件/四层/R1–R7/四段链/五道闸/FP 组合 API）。两者冲突时以 SPEC.md 为准，本文件仅作历史与场景参考。
 >
 > **状态**：Phase 0–1 已落地（契约、Agent 循环、ReAct/Workflow/P&E、工具、Guard/Budget/Tracer/Durability/Delivery、审批恢复），RAG/Memory/Resilience/Router/Skills 为最小实现；卷 12 第 48–53 章已写完，四种拓扑已实现。MCP 与真实适配器按第 9 节继续。本文是施工依据，不是最终 API 文档。
 

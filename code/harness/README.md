@@ -2,7 +2,7 @@
 
 可组合的 agent 基座：`Topology(Agent[])`，`Agent = 分派 + 主体 + 校验`，治理/供给/交付作为横切能力挂在固定插点上。
 
-> **v2 框架架构见 [`docs/harness/ARCHITECTURE.md`](../../docs/harness/ARCHITECTURE.md)**：六层解耦、四件套执行链、单向投影、五道护栏、五个 Store、十个后端、12 个内置中间件、四期迁移路线。当前代码是 v1（库形态），迁移按该文档 P1–P4 推进。
+> **完整框架规格见 [`docs/harness/SPEC.md`](../../docs/harness/SPEC.md)**：九个插点、十五个组件、四层（分派/主体/校验/拓扑）、R1–R7、四段执行链、五道护栏、五个 Store、十个后端、33 协议、FP 组合 API、20 行示例、任务拆分与验收清单。当前代码是 v1（库形态），按该文档 §20 的 P1–P8 推进。
 >
 > 设计背景与完整开发会话记录见 [`docs/harness/DEV-SESSION.md`](../../docs/harness/DEV-SESSION.md)。
 
