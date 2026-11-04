@@ -39,7 +39,7 @@ result  = await harness.run(program, goal)
 
 | 职责 | 谁持有 | 为什么不合并 |
 |---|---|---|
-| 策略（下一步做什么、包几层） | `Program` | 纯值才可序列化、可比较、可在测试里换能力复用 |
+| 策略（下一步做什么、包几层） | `Program` | 纯值才可比较、可干跑、可在测试里换能力复用；由内置层/插件层构成时还可序列化（限定见 M1.9） |
 | 能力（模型、存储、沙箱、密钥） | `Harness` | 资源有生命周期与连接池，不该跟着策略值到处传 |
 
 这条分离让"换后端不改程序"成为**类型上的事实**，而不是约定。
@@ -453,6 +453,118 @@ class State:
 | M13 | `Pipe` | 1 | `Identity` |
 | M14 | `Runnable`（`Agent`） | 1 | — |
 | M14 | `Topology` | 1 | 四内置 |
+
+### M1.7 挂载层的请求/响应类型（`Middleware` 的入参与返回值）
+
+层的签名在 M2/M13 反复出现，这里一次定义清楚。四个插点各一对请求/响应，`Request`/`Response` 是它们的联合：
+
+```python
+@dataclass(frozen=True)
+class RunRequest:    goal: Goal;  ns: Namespace
+@dataclass(frozen=True)
+class StepRequest:   state: State; step: Step | Done
+@dataclass(frozen=True)
+class ModelRequest:  state: State; messages: tuple[Message, ...]
+                     tools: tuple[dict, ...]; budget: Budget; frame: Frame | None
+@dataclass(frozen=True)
+class ToolRequest:   state: State; step: Step; spec: ToolSpec
+
+@dataclass(frozen=True)
+class RunResponse:   result: RunResult
+@dataclass(frozen=True)
+class StepResponse:  step: Step
+@dataclass(frozen=True)
+class ModelResponse: reply: ModelReply; usage: dict[str, int]
+@dataclass(frozen=True)
+class ToolResponse:  result: ToolResult
+
+Request  = RunRequest | StepRequest | ModelRequest | ToolRequest
+Response = RunResponse | StepResponse | ModelResponse | ToolResponse
+Handler  = Callable[[Request], Awaitable[Response]]
+```
+
+| 约束 | 理由 |
+|---|---|
+| 请求/响应全部 `frozen` | 层改结果的方式是**构造新的 Response**，不是原地改；否则无法判断谁改了 |
+| 一个层只处理自己 `points` 声明的请求类型 | 混用会让 `isinstance` 分支失控 |
+| `ToolResponse` 携带完整 `ToolResult`（含 `artifacts`/`meta`） | 截断、脱敏、落 artifact 都在层里完成，结果必须能表达 |
+| `RunResponse` 携带 `RunResult` | 出口层（`OutputGuard`）要在最终答案上动手 |
+
+### M1.8 `RunResult`、`Message`、`Span`
+
+```python
+@dataclass
+class RunResult:
+    status: RunStatus                     # 七态之一；禁止 RUNNING
+    answer: str = ""
+    state: State | None = None
+    usage: dict[str, int] = field(default_factory=lambda: {"tokens": 0, "calls": 0})
+    citations: list[str] = field(default_factory=list)
+    pending: ApprovalRequest | None = None
+    error: str | None = None
+    trace_id: str = ""
+    rev: int = 0                          # 指向最终检查点，供 resume / 时间旅行
+    metadata: dict[str, Any] = field(default_factory=dict)
+    @property
+    def ok(self) -> bool: ...             # COMPLETED | DEGRADED
+
+@dataclass(frozen=True)
+class Message:
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str
+    tool_calls: tuple[dict, ...] = ()     # assistant 发起
+    tool_call_id: str = ""                # tool 回填
+    name: str = ""
+
+@dataclass
+class Span:
+    trace_id: str; span_id: str; parent_id: str | None
+    name: str; start_ms: int; end_ms: int | None = None
+    fields: dict[str, Any] = field(default_factory=dict)
+    def end(self, **fields) -> None: ...
+```
+
+### M1.9 可序列化形态：`LayerSpec` / `ProgramSpec`（解决"组合值可存库"）
+
+`Layer` 持 `build: Callable`（闭包），**不可序列化**。所以每个层都必须同时提供"声明形态"：
+
+```python
+@dataclass(frozen=True)
+class LayerSpec:
+    name: str                              # "budget" / "checkpoint" / "plugin:x"
+    config: dict[str, Any] = field(default_factory=dict)     # 必须是 JSON 可表达
+
+@dataclass(frozen=True)
+class ProgramSpec:
+    body: str = "react"                    # react | workflow | pe | skill_program
+    max_steps: int = 24
+    workflow: tuple[dict, ...] = ()
+    layers: tuple[LayerSpec, ...] = ()
+
+def compile_layer(spec: LayerSpec) -> Layer: ...      # 注册表：name → 工厂(config) → Layer
+def compile_program(spec: ProgramSpec) -> Program: ...
+```
+
+| 规则 | 说明 |
+|---|---|
+| 内置层与已注册插件层**必须**可 `to_spec()` | 保证 `Program` 能存库、能 diff、能由配置文件生成 |
+| 用户自写的闭包层 **不可** `to_spec()`，调用即抛 `NotSerializable` | 诚实边界：闭包里的状态无法序列化，不假装可以 |
+| `config` 只允许 JSON 类型 | 保证规格能被配置文件、数据库、HTTP 原样传输 |
+
+**因此 §0.3 的"可序列化"准确表述是**：`Program` 在**由内置层/插件层构成时**可序列化；否则退化为"可比较、可干跑、可测试"。这条限定必须写进 `to_spec()` 的文档字符串。
+
+### M1.10 效果即数据（`dry_run` 的类型）
+
+```python
+@dataclass(frozen=True)
+class Effect:
+    kind: Literal["model", "tool"]
+    step: Step
+    spec: ToolSpec | None                 # kind=="tool" 时非空
+    est_tokens: int = 0
+```
+
+`harness.dry_run(program, goal) -> list[Effect]` 走完整四段链，但把终端替换成"记录不执行"。用途：① 上线前看这一步会做什么；② 一致性测试离线跑；③ 审批卡片展示"批准后会发生什么"。
 
 ---
 
@@ -2127,6 +2239,44 @@ print(describe(program))
 - [ ] `RunResult.status` 永不为 `RUNNING`
 - [ ] 同一 State 重放两次结果一致
 - [ ] `describe` 能打印任何 `Program` 的解析顺序
+- [ ] 内置层构成的 `Program` 可 `to_spec()` 再 `from_spec()`，往返相等
+- [ ] `dry_run` 返回的 `Effect` 序列与真实执行的实际调用序列一致
+
+---
+
+## 22. 版本与兼容
+
+| 项 | 规则 |
+|---|---|
+| `contracts_version` | 主版本号 = 破坏性变更（协议方法签名、必填字段、状态机） |
+| 协议演进 | **只加不删**：新增方法必须给默认实现（mixin），否则算主版本变更 |
+| 数据演进 | `State.to_dict()` 带 `schema_version`；读取走迁移函数链，**不允许"读旧数据直接崩"** |
+| 弃用流程 | 标记 `@deprecated` → 一个主版本内双轨 → 删除；`CHANGELOG` 必须写迁移片段 |
+| 配置兼容 | 不认识的 spec 名 → `ConfigError`（不静默降级）；spec 名一经发布不改语义 |
+| 存档兼容 | 旧 `rev` 的 `State` 必须能被新版 `from_dict` 读出（可丢 v2 字段，不可抛错） |
+
+**为什么这条必须写死在文档里**：`Durability` 的旧检查点、`Memory` 里的旧条目、用户存的 `ProgramSpec` 都是**跨版本数据**。没有这条，P3 一改协议就没人敢升级。
+
+## 23. 已知缺口（本文尚未设计，实现前必须先补）
+
+诚实地列出边界，避免实施方以为读完了就够了。**这些不是"可选"，而是"还没写"**：
+
+| # | 缺口 | 影响 | 建议补在哪 |
+|---|---|---|---|
+| 1 | `ModelSpec`/`BodySpec`/`StoreSpec` 的**字符串解析规则**（`"openai:gpt-4.1"` → 实例）未定义 | 装配层无法实现 | M15.6 前补一节"spec 解析与注册表" |
+| 2 | `@tool` 的**签名 → JSON Schema** 推导规则（Optional/Union/list[dict]/枚举/docstring） | 工具参数校验不正确 | M3.5 |
+| 3 | `Pipe` 的内置实现清单（schema 校验器、默认值填充、类型转换） | `Check` 段空着 | M2.2 |
+| 4 | `Filter` 的默认映射表（哪个异常 → 哪个 `Failure`） | `Classify` 段空着 | M16.1 后 |
+| 5 | **取消语义**：`harness.cancel(session_id)`？`CancelledError` 在四段链的哪一段被捕获？流式中断后检查点是否落盘？ | 长任务无法优雅停止 | M10.2 |
+| 6 | 子 agent **并发上限的执行位置**（semaphore 放 `RunScope` 还是 `SubAgent` 层） | 可能绕过限制 | M13.5 |
+| 7 | `Framer`/`Encoder`/`Guardrail` 的**一致性测试**基类 | 换取景器/护栏时无验收标准 | M16.3 |
+| 8 | `Document`/`Job`/`Match`/`Stat`/`ArtifactRef` 等**辅助类型的字段** | 后端实现细节不明 | M1.4 |
+| 9 | **CLI 设计**（`harness new` 的目录模板、`harness check` 的校验输出格式） | P8 无法开工 | 新增一章 |
+| 10 | **多租户的隔离级别**：逻辑隔离（同库同表 + `WHERE`）还是物理隔离（分库）？二者对 `Store` 实现要求不同 | P3 实现方向不明 | M11.2 |
+| 11 | **配额与限流的归属**：`Guard.check_identity` 判配额，但配额存哪（`SessionStore` 还是外部）未定 | 接入阶段不完整 | M8.1 |
+| 12 | `astream` 在**流式中途被护栏 block** 时的检查点行为（是落盘中断态还是回滚） | 恢复语义不唯一 | M9.4 |
+
+**补这些的顺序建议**：1 → 4 → 3 → 2 → 5 → 6 → 10 → 11 → 7 → 8 → 12 → 9。前四项是阻塞项，其余可在对应期开工前补。
 
 ---
 
