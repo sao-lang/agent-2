@@ -8,6 +8,14 @@ from harness.contracts.types import Goal, RunStatus, SessionRef
 from harness.contracts.result import RunResult
 
 
+
+async def _call(child: Any, goal: Goal, session: Any = None, scope: Any = None) -> RunResult:
+    """调用子节点：优先用 v2 的 `run(goal, *, scope)`，回落到 v1 的 `run(goal, session)`。"""
+    try:
+        return await child.run(goal, scope=scope)
+    except TypeError:
+        return await child.run(goal, session)
+
 def _merge_usage(results: list[RunResult]) -> dict[str, int]:
     return {
         "tokens": sum(item.usage.get("tokens", 0) for item in results),
@@ -27,11 +35,12 @@ class Pipeline:
     def __init__(self, stages: list[Any]) -> None:
         self.stages = list(stages)
 
-    async def run(self, goal: Goal, session: SessionRef | None = None) -> RunResult:
+    async def run(self, goal: Goal, session: SessionRef | None = None, *,
+                  scope: Any = None) -> RunResult:
         current = goal
         results: list[RunResult] = []
         for stage in self.stages:
-            result = await stage.run(current, session)
+            result = await _call(stage, current, session, scope)
             results.append(result)
             if result.status not in (RunStatus.COMPLETED, RunStatus.DEGRADED):
                 return result
@@ -63,7 +72,8 @@ class Handoff:
         self.agents = dict(agents)
         self.router = router
 
-    async def run(self, goal: Goal, session: SessionRef | None = None) -> RunResult:
+    async def run(self, goal: Goal, session: SessionRef | None = None, *,
+                  scope: Any = None) -> RunResult:
         route = await self.router.route(goal)
         agent = self.agents.get(route.name)
         if agent is None:
@@ -73,7 +83,7 @@ class Handoff:
                     break
         if agent is None:
             return RunResult(status=RunStatus.REFUSED, error=f"没有匹配的 agent：{route.name}")
-        return await agent.run(goal, session)
+        return await _call(agent, goal, session, scope)
 
 
 class Supervisor:
@@ -87,12 +97,13 @@ class Supervisor:
         self.plan = plan
         self.synth = synth
 
-    async def run(self, goal: Goal, session: SessionRef | None = None) -> RunResult:
+    async def run(self, goal: Goal, session: SessionRef | None = None, *,
+                  scope: Any = None) -> RunResult:
         results: dict[str, RunResult] = {}
         for name, subtask in self.plan(goal):
             if name not in self.workers:
                 return RunResult(status=RunStatus.FAILED, error=f"未知 worker：{name}")
-            results[name] = await self.workers[name].run(
+            results[name] = await _call(self.workers[name], 
                 Goal(
                     text=subtask,
                     user_id=goal.user_id,
@@ -100,6 +111,7 @@ class Supervisor:
                     metadata=goal.metadata,
                 ),
                 session,
+                scope,
             )
             if results[name].status not in (RunStatus.COMPLETED, RunStatus.DEGRADED):
                 return results[name]
@@ -131,11 +143,12 @@ class Blackboard:
         self.reducer = reducer
         self.trigger = trigger
 
-    async def run(self, goal: Goal, session: SessionRef | None = None) -> RunResult:
+    async def run(self, goal: Goal, session: SessionRef | None = None, *,
+                  scope: Any = None) -> RunResult:
         board: dict[str, str] = {}
         results: list[RunResult] = []
         for index, agent in enumerate(self.agents):
-            result = await agent.run(goal, session)
+            result = await _call(agent, goal, session, scope)
             results.append(result)
             board[f"{getattr(agent, 'name', 'agent')}-{index}"] = result.answer
             if self.trigger and self.trigger(board):

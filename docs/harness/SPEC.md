@@ -2472,7 +2472,7 @@ print(describe(program))
 | **P5 门面** | `fp`：`Layer`/`Program`/`Harness`/`compose`/`>>`/`describe`/`dry_run` | `fp/*` | §19 前 5 个示例可跑 |
 | **P6 装配** ✅ | spec 解析与注册表、八条构造期校验、Harness 归位、五预设 | `assembly/{registry,config,harness,fpresets}.py` | **已完成（2026-11-05）**：`name[:arg]`/dict 两形态解析；未知名报错并列出可用名；缺适配器给安装提示；8 条校验（护栏/工具重名/层名/预算/深度/租户/挂载/存储可解析）；换存储介质只改配置；**226 测试全绿** |
 | **P7 护栏与流式** ✅ | 五道闸、三段式、流式护栏、`astream` | `parts/guardrail/{detectors,layer,streaming}.py`、`kernel/loop.py`（事件）、`assembly/harness.py`（astream/auto_layers） | **已完成（2026-11-05）**：护栏经 `model_call` 链真正生效（入站注入→REFUSED、输出 PII→脱敏）；`astream` 与 `run` 共用同一条内核（队列 sink）；`StreamGuard` 窗口缓冲 64、命中即中断、flush 收尾；**235 测试全绿** |
-| **P8 验收** | 替换实验矩阵（取 3 点）、`adapters/openai`、CLI 脚手架 | `adapters/*`、`cli` | 替换实验全过；真实模型跑通 |
+| **P8 验收** ✅ | 四拓扑 `scope`、替换实验矩阵、`adapters/openai`、CLI 脚手架 | `parts/topology.py`、`tests/{test_replacement,test_presets,test_adapters}.py`、`adapters/openai.py`、`cli.py` | **已完成（2026-11-05）**：四条替换实验（护栏/检查点/预算/任务板各只变化一件事）、四拓扑各跑一次、五预设各跑一次、openai 映射与缺 SDK 提示、`harness new/check`；**263 测试全绿** |
 
 **拆分原则**：每个任务都以"一个协议 + 一个内存实现 + 一组一致性测试"为最小交付单位；不允许交付"只有实现没有测试"的部件。
 
@@ -2541,8 +2541,8 @@ print(describe(program))
 
 | # | 缺口 | 影响 | 触发时机 |
 |---|---|---|---|
-| 9 | **CLI 设计**（`harness new` 模板、`harness check` 输出格式） | P8 无法开工 | P7 末 |
-| 13 | **`Board.commit` 的并发语义**（多 agent 同时写黑板时的 reducer 幂等性） | Blackboard 在并发下可能丢结论 | P4 做拓扑时 |
+| 9 | ~~CLI 设计~~ **已关闭** | 关闭于 `harness/cli.py`：`new` 生成 main.py/README/skills，`check` 探活 spec | — |
+| 13 | **`Board.commit` 的并发语义**（当前拓扑串行写板，未做并发写） | 并发写黑板会丢结论 | P4 之后 |
 | 14 | **`Judge` 的裁判协议**（判定粒度、跨模型校准、与 `Validator` 的边界） | 外部裁判只能自研 | P4 做校验层时 |
 | 15 | **`ProgramSpec` 的版本兼容**（旧 spec 在新层表下如何降级） | 配置漂移 | P6 做装配时 |
 | 16 | **工件回收策略**（`ArtifactStore` 的 TTL 与 GC 触发点） | 磁盘无限增长 | P3 做工件时 |
