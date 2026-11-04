@@ -211,11 +211,14 @@ def check_a3(rng: dict, text: str) -> list[str]:
     lines = rng["lines"]
     # 只查"出现在行文里"的标识符：表格、章首引用块、代码块里的不算（那些地方不承担解释义务）
     prose = []
+    tail_at = next((i for i, l in enumerate(lines) if l.startswith("## 这一章建立的")), len(lines))
     in_f = False
-    for l in lines:
+    for idx, l in enumerate(lines):
         s = l.strip()
         if s.startswith("```"):
             in_f = not in_f
+            continue
+        if idx >= tail_at:            # 章末清单是受保护块，不承担解释义务
             continue
         if in_f or s.startswith(("|", ">", "#")):
             continue
