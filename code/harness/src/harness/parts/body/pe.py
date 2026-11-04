@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from ..contracts import Done, Plan, Step
+from harness.contracts.types import Done, Plan, Step
 
 
 class PlanExecutePolicy:

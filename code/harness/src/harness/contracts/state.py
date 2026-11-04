@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from .contracts import Goal, RunStatus, SessionRef
+from harness.contracts.types import Goal, RunStatus, SessionRef
 
 
 @dataclass

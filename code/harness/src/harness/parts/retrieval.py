@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .contracts import Goal, Recalled
-from .knowledge import InMemoryKnowledge
+from harness.contracts.types import Goal, Recalled
+from harness.parts.knowledge import InMemoryKnowledge
 
 
 class AutoRetrieval:

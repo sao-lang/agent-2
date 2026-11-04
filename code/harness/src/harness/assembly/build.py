@@ -5,19 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from .actor import Actor
-from .agent import Agent
+from harness.parts.actor import Actor
+from harness.kernel.agent import Agent
 from .body import PlanExecutePolicy, ReactPolicy, WorkflowPolicy
-from .budget import Budget
-from .context import BudgetedContext
-from .contracts import Step
-from .delivery import DefaultDelivery
-from .durability import NullDurability
-from .errors import ConfigError
-from .guard import AllowAllGuard
-from .reflector import NullReflector
-from .tools import FunctionTool, ToolRegistry, as_tool
-from .tracer import NullTracer
+from harness.parts.budget import Budget
+from harness.parts.context import BudgetedContext
+from harness.contracts.types import Step
+from harness.parts.delivery import DefaultDelivery
+from harness.parts.durability import NullDurability
+from harness.contracts.errors import ConfigError
+from harness.parts.guard import AllowAllGuard
+from harness.parts.reflector import NullReflector
+from harness.parts.tools import FunctionTool, ToolRegistry, as_tool
+from harness.parts.tracer import NullTracer
 
 
 @dataclass

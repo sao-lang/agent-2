@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .contracts import ApprovalRequest, RunStatus
-from .state import State
+from harness.contracts.types import ApprovalRequest, RunStatus
+from harness.contracts.state import State
 
 
 @dataclass

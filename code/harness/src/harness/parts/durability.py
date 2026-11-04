@@ -9,7 +9,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .state import State
+from harness.contracts.state import State
 
 
 class NullDurability:

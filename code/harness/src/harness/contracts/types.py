@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .state import State
+    from harness.contracts.state import State
 
 
 # ---------------------------------------------------------------- 状态与结果

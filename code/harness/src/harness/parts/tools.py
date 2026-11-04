@@ -10,8 +10,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from .contracts import ToolCall
-from .errors import ToolError
+from harness.contracts.types import ToolCall
+from harness.contracts.errors import ToolError
 
 _TYPE_MAP = {
     str: "string",

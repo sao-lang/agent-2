@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ..contracts import Done, Step
+from harness.contracts.types import Done, Step
 
 
 class WorkflowPolicy:

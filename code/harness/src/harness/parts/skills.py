@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .body import WorkflowPolicy
-from .contracts import Step
+from harness.contracts.types import Step
 
 
 @dataclass(frozen=True)

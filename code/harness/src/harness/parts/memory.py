@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .contracts import Recalled
-from .knowledge import _score
+from harness.contracts.types import Recalled
+from harness.parts.knowledge import _score
 
 
 class InMemoryMemory:

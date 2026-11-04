@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .contracts import TraceEvent
+from harness.contracts.types import TraceEvent
 
 
 class NullTracer:

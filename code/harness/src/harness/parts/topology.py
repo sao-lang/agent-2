@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from .contracts import Goal, RunStatus, SessionRef
-from .result import RunResult
+from harness.contracts.types import Goal, RunStatus, SessionRef
+from harness.contracts.result import RunResult
 
 
 def _merge_usage(results: list[RunResult]) -> dict[str, int]:

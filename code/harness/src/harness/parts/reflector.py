@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from .contracts import ActionResult, Verdict
-from .state import State
+from harness.contracts.types import ActionResult, Verdict
+from harness.contracts.state import State
 
 
 class NullReflector:

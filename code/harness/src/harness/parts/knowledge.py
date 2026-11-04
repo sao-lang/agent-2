@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .contracts import Recalled
+from harness.contracts.types import Recalled
 
 
 def _bigrams(text: str) -> set[str]:

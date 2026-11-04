@@ -11,9 +11,9 @@ import uuid
 from dataclasses import asdict
 from typing import Any
 
-from .actor import Actor
-from .budget import Budget
-from .contracts import (
+from harness.parts.actor import Actor
+from harness.parts.budget import Budget
+from harness.contracts.types import (
     ApprovalRequest,
     Decision,
     Done,
@@ -23,14 +23,14 @@ from .contracts import (
     SessionRef,
     Step,
 )
-from .delivery import DefaultDelivery
-from .durability import NullDurability
-from .errors import ApprovalExpired, ContractError, HarnessError
-from .guard import AllowAllGuard
-from .reflector import NullReflector
-from .result import RunResult
-from .state import State
-from .tracer import NullTracer, new_event
+from harness.parts.delivery import DefaultDelivery
+from harness.parts.durability import NullDurability
+from harness.contracts.errors import ApprovalExpired, ContractError, HarnessError
+from harness.parts.guard import AllowAllGuard
+from harness.parts.reflector import NullReflector
+from harness.contracts.result import RunResult
+from harness.contracts.state import State
+from harness.parts.tracer import NullTracer, new_event
 
 
 class Agent:

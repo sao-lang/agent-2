@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..contracts import Goal, Plan, Step
-from ..state import State
+from harness.contracts.types import Goal, Plan, Step
+from harness.contracts.state import State
 
 
 @dataclass

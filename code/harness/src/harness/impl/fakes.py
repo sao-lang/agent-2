@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .contracts import ModelReply, ToolCall
+from harness.contracts.types import ModelReply, ToolCall
 
 
 @dataclass

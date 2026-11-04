@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from .contracts import GuardDecision, Step
-from .state import State
+from harness.contracts.types import GuardDecision, Step
+from harness.contracts.state import State
 
 
 class AllowAllGuard:

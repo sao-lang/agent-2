@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .build import AgentConfig, build
+from harness.assembly.build import AgentConfig, build
 
 
 def build_minimal(*, model, tools=None, **kwargs) -> Any:

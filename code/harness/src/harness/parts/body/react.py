@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..contracts import Done, Step
+from harness.contracts.types import Done, Step
 
 
 class ReactPolicy:

@@ -5,8 +5,8 @@ Knowledge 决定“取哪几条”，Context 决定“放几条、放哪个槽�
 
 from __future__ import annotations
 
-from .contracts import Pack, Recalled
-from .state import State
+from harness.contracts.types import Pack, Recalled
+from harness.contracts.state import State
 
 
 def _as_recalled(value) -> Recalled:

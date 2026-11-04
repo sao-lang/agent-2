@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .contracts import ActionResult, Model, ModelReply, Pack, Step, ToolCall
-from .errors import ToolError
-from .state import State
-from .tools import ToolRegistry
+from harness.contracts.types import ActionResult, Model, ModelReply, Pack, Step, ToolCall
+from harness.contracts.errors import ToolError
+from harness.contracts.state import State
+from harness.parts.tools import ToolRegistry
 
 
 @dataclass
