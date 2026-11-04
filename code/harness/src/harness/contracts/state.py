@@ -10,6 +10,9 @@ from typing import Any
 
 from harness.contracts.types import Goal, RunStatus, SessionRef
 
+#: `State.to_dict()` 的落库版本；读取时走迁移函数链（SPEC §22）。
+SCHEMA_VERSION = 2
+
 
 @dataclass
 class State:
@@ -37,6 +40,7 @@ class State:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": SCHEMA_VERSION,
             "goal": {
                 "text": self.goal.text,
                 "user_id": self.goal.user_id,

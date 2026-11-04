@@ -9,18 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-
-@dataclass(frozen=True)
-class Namespace:
-    """四段元组而非字符串：任何一层隔离都不能靠拼字符串。"""
-
-    tenant: str = "default"
-    user: str = "anonymous"
-    session: str = "default"
-    agent: str = "agent"
-
-    def as_tuple(self) -> tuple[str, str, str, str]:
-        return (self.tenant, self.user, self.session, self.agent)
+from harness.contracts.types import Namespace  # noqa: F401  （复用契约层的四段元组）
 
 
 @dataclass(frozen=True)
