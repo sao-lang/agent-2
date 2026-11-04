@@ -595,6 +595,7 @@ class RunContext:
 class RunRequest:
     goal: Goal
     ns: Namespace = field(default_factory=Namespace)
+    state: Any = None
 
 
 @dataclass(frozen=True)

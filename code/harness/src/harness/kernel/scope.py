@@ -32,6 +32,9 @@ class RunScope:
     config: Any = None
     depth: int = 0
     max_depth: int = 2
+    #: 子 agent 并发槽位。挂在这里而不是挂在层上：层是值、会被复制，
+    #: 挂在层上会导致"每层各造一个信号量"，总量失控（SPEC M13.7）。
+    child_slots: Any = None
     capacity: dict[str, Any] = field(default_factory=dict)
 
     def child(self, name: str, *, budget_fraction: float = 0.3) -> "RunScope":
