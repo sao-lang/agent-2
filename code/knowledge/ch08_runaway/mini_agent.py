@@ -1,15 +1,19 @@
-"""一个完整的手写 agent 循环，接真实模型：走 openai 兼容接口，参数从命令行来。
+"""一个完整的手写 agent 循环，接真实模型：把文件顶部的参数填上，直接运行。
 
-    # 真实厂商（任何 OpenAI 兼容端点）
-    python code/knowledge/ch08_runaway/mini_agent.py \
-        --base-url https://api.deepseek.com/v1 \
-        --api-key sk-xxxx \
-        --model deepseek-chat \
-        --question "订单 A1002 签收 9 天了，能退吗？退货运费多少？"
+支持任何 OpenAI 兼容端点（DeepSeek、通义、Moonshot、vLLM、Ollama 都可以）：
 
-    # 没有 key 时，用同目录的 mock 服务验证整条链路（协议一致，代码不改）
-    python code/knowledge/ch08_runaway/mock_openai.py --port 8899
-    python code/knowledge/ch08_runaway/mini_agent.py --base-url http://127.0.0.1:8899/v1 --api-key sk-mock
+    # 1. 打开本文件，改这一段
+    BASE_URL = "https://api.deepseek.com/v1"
+    API_KEY  = "sk-你自己的key"
+    MODEL    = "deepseek-chat"
+
+    # 2. 运行
+    python code/knowledge/ch08_runaway/mini_agent.py
+
+没有 key 也能跑通全链路：先起同目录的 mock 服务，再把 BASE_URL 指到它。
+
+    python code/knowledge/ch08_runaway/mock_openai.py      # 默认 8899 端口
+    # 然后把 BASE_URL 改成 "http://127.0.0.1:8899/v1"，API_KEY 随便填
 
 覆盖的知识点（章号对应正文）：
   第 1 章  一次调用的形状：messages、finish_reason 四取值、usage
@@ -24,15 +28,25 @@
 
 from __future__ import annotations
 
-import argparse
 import json
-import os
 import sys
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
 from openai import OpenAI
 from pydantic import BaseModel, Field, ValidationError
+
+# ────────────────────────────────── 要你自己填的参数
+
+BASE_URL = "https://api.deepseek.com/v1"   # 换厂商只改这一行
+API_KEY = "sk-在这里填你自己的key"
+MODEL = "deepseek-chat"
+
+QUESTION = "订单 A1002 签收 9 天了，能退吗？退货运费多少？"
+
+TEMPERATURE = 0.0        # 结构化输出用低温
+STEP_LIMIT = 12            # 步数上限：超了就是 MAX_STEPS
+TOKEN_BUDGET = 20000       # 累计输入 token 上限：超了就是 BUDGET
 
 # ────────────────────────────────── 第 5 章：工具参数与结构化输出
 
@@ -251,17 +265,26 @@ def to_feedback(exc: ValidationError) -> str:
 
 
 def run(
-    question: str,
+    question: str | None = None,
     *,
-    base_url: str,
-    api_key: str,
-    model: str,
-    temperature: float = 0.0,
-    max_steps: int = 12,
-    max_prompt_tokens: int = 20000,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    model: str | None = None,
+    temperature: float | None = None,
+    max_steps: int | None = None,
+    max_prompt_tokens: int | None = None,
     max_dup_in_row: int = 2,
     verbose: bool = True,
 ) -> tuple[str, Answer | None, Stats]:
+    # 参数缺省时读文件顶部的常量；放在函数体内读，改常量不必改函数签名
+    question = question or QUESTION
+    base_url = base_url or BASE_URL
+    api_key = api_key or API_KEY
+    model = model or MODEL
+    temperature = TEMPERATURE if temperature is None else temperature
+    max_steps = STEP_LIMIT if max_steps is None else max_steps
+    max_prompt_tokens = TOKEN_BUDGET if max_prompt_tokens is None else max_prompt_tokens
+
     client = OpenAI(base_url=base_url, api_key=api_key, timeout=60.0, max_retries=1)
     messages: list[dict] = [
         {"role": ROLE_SYSTEM, "content": SYSTEM_PROMPT},
@@ -406,37 +429,14 @@ def run(
     return status, answer, stats
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="手写 agent 循环：接 OpenAI 兼容接口")
-    parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"))
-    parser.add_argument("--api-key", default=os.environ.get("OPENAI_API_KEY", ""))
-    parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"))
-    parser.add_argument("--question", default="订单 A1002 签收 9 天了，能退吗？退货运费多少？")
-    parser.add_argument("--temperature", type=float, default=0.0)
-    parser.add_argument("--max-steps", type=int, default=12)
-    parser.add_argument("--max-prompt-tokens", type=int, default=20000)
-    parser.add_argument("--quiet", action="store_true")
-    return parser.parse_args()
-
-
 def main() -> int:
-    args = parse_args()
-    if not args.api_key:
-        print("缺 API key：用 --api-key 或环境变量 OPENAI_API_KEY；也可以用 mock_openai.py 起本地服务。", file=sys.stderr)
+    if not API_KEY or API_KEY.startswith("sk-在这里"):
+        print("先把文件顶部的 API_KEY 填上（或用 mock_openai.py 起本地服务）。", file=sys.stderr)
         return 2
 
-    print(f"模型：{args.model}　端点：{args.base_url}")
-    print(f"问题：{args.question}")
-    status, answer, _stats = run(
-        args.question,
-        base_url=args.base_url,
-        api_key=args.api_key,
-        model=args.model,
-        temperature=args.temperature,
-        max_steps=args.max_steps,
-        max_prompt_tokens=args.max_prompt_tokens,
-        verbose=not args.quiet,
-    )
+    print(f"模型：{MODEL}　端点：{BASE_URL}")
+    print(f"问题：{QUESTION}")
+    status, answer, _stats = run(verbose=True)
     print("\n最终答复：")
     if answer:
         print(json.dumps(answer.model_dump(), ensure_ascii=False, indent=2))
