@@ -1,23 +1,43 @@
-"""一个退货域的 MCP server：三个工具、一份资源、一个提示词模板。
+"""一个退货域的 MCP server：六个工具、一份资源模板、一个提示词模板。
 
-运行（stdio，供 MCP Host 拉起）：
+三种传输入口，同一份工具定义：
+
+    # 1. stdio：Host 拉起子进程，用标准输入输出说话（单机、本地工具）
     python code/knowledge/ch26_mcp/order_server.py
 
-运行（HTTP，供远端 Host 连）：
-    python code/knowledge/ch26_mcp/order_server.py --http
+    # 2. streamable-http：独立进程 + URL，跨机可用
+    python code/knowledge/ch26_mcp/order_server.py --transport http --port 8765
+    # 客户端连 http://127.0.0.1:8765/mcp
+
+    # 3. sse：老式 Server-Sent Events 传输，部分客户端只支持这一种
+    python code/knowledge/ch26_mcp/order_server.py --transport sse --port 8766
+    # 客户端连 http://127.0.0.1:8766/sse
 
 工具与资源都不联网：订单与政策是本地常数，方便对照输出。
 """
 
 from __future__ import annotations
 
-import sys
+import argparse
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field
+
+PARSER = argparse.ArgumentParser(description="退货域 MCP server")
+PARSER.add_argument(
+    "--transport",
+    default="stdio",
+    choices=["stdio", "http", "streamable-http", "sse"],
+    help="stdio 走子进程；http 与 sse 起 URL",
+)
+PARSER.add_argument("--host", default="127.0.0.1")
+PARSER.add_argument("--port", type=int, default=8765)
+PARSER.add_argument("--path", default=None, help="自定义路径，默认 /mcp 或 /sse")
+PARSER.add_argument("--no-banner", action="store_true")
+ARGS = PARSER.parse_args()
 
 mcp = FastMCP(
     name="order-policy",
@@ -154,9 +174,27 @@ def review_flow(order_id: str) -> str:
     )
 
 
+def main() -> None:
+    """传输在入口处选，工具定义一行不改。"""
+    transport = "http" if ARGS.transport == "streamable-http" else ARGS.transport
+
+    if transport == "stdio":
+        print("[STDIO] 走标准输入输出，由 Host 拉起", flush=True)
+        mcp.run(transport="stdio", show_banner=not ARGS.no_banner)
+        return
+
+    kwargs: dict = {
+        "transport": transport,
+        "host": ARGS.host,
+        "port": ARGS.port,
+        "show_banner": not ARGS.no_banner,
+    }
+    if ARGS.path:
+        kwargs["path"] = ARGS.path
+    default_path = "/sse" if transport == "sse" else "/mcp"
+    print(f"[{ARGS.transport.upper()}] 监听 http://{ARGS.host}:{ARGS.port}{ARGS.path or default_path}", flush=True)
+    mcp.run(**kwargs)
+
+
 if __name__ == "__main__":
-    transport = "http" if "--http" in sys.argv else "stdio"
-    if transport == "http":
-        mcp.run(transport="http", host="127.0.0.1", port=8765)
-    else:
-        mcp.run(transport="stdio")
+    main()

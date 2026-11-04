@@ -1,30 +1,41 @@
-"""一个完整的手写 agent 循环：把第 1–8 章的重点串起来。
+"""一个完整的手写 agent 循环，接真实模型：走 openai 兼容接口，参数从命令行来。
 
-场景：退货客服。用户问「订单 A1002 签收 9 天了，能退吗？退货运费多少？」
+    # 真实厂商（任何 OpenAI 兼容端点）
+    python code/knowledge/ch08_runaway/mini_agent.py \
+        --base-url https://api.deepseek.com/v1 \
+        --api-key sk-xxxx \
+        --model deepseek-chat \
+        --question "订单 A1002 签收 9 天了，能退吗？退货运费多少？"
+
+    # 没有 key 时，用同目录的 mock 服务验证整条链路（协议一致，代码不改）
+    python code/knowledge/ch08_runaway/mock_openai.py --port 8899
+    python code/knowledge/ch08_runaway/mini_agent.py --base-url http://127.0.0.1:8899/v1 --api-key sk-mock
 
 覆盖的知识点（章号对应正文）：
   第 1 章  一次调用的形状：messages、finish_reason 四取值、usage
-  第 2 章  稳定性：temperature 进请求、同一输入多跑几次要比较分布
+  第 2 章  稳定性：temperature 进请求、结果要靠多次运行比较
   第 3 章  预算：累计 prompt token 与窗口预留
   第 4 章  提示词：角色/任务/约束/示例/输出格式/反例六要素
   第 5 章  pydantic：工具参数模型、结构化输出模型、校验失败回灌
   第 6 章  工具调用：tools 声明、tool_calls 解析、回灌三条格式
   第 7 章  终止：answered / max_steps / stalled 三态
   第 8 章  失控：请求指纹去重、结果指纹、单条裁剪、累计预算
-
-离线运行：模型是脚本化假后端，按剧本回放固定响应，不联网。
-    python code/knowledge/ch08_runaway/mini_agent.py
 """
 
 from __future__ import annotations
 
+import argparse
 import json
-from dataclasses import dataclass, field
+import os
+import sys
+from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
+from openai import OpenAI
 from pydantic import BaseModel, Field, ValidationError
 
 # ────────────────────────────────── 第 5 章：工具参数与结构化输出
+
 
 class OrderQuery(BaseModel):
     order_id: str = Field(pattern=r"^[A-Z]\d{4}$", description="订单号，例如 A1002")
@@ -58,7 +69,7 @@ class Answer(BaseModel):
     next_step: str = Field(min_length=4, max_length=60, description="给用户的一句下一步")
 
 
-# ────────────────────────────────── 第 6 章：tools 声明（schema 由模型生成）
+# ────────────────────────────────── 第 6 章：tools 声明（schema 由 pydantic 生成）
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -80,6 +91,14 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "calc_shipping_fee",
+            "description": "算退回运费：首重 1kg 8 元，续重每公斤 2 元。",
+            "parameters": FeeQuery.model_json_schema(),
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_clause_text",
             "description": "取条款全文。很长，只在用户要求原文时调用。",
             "parameters": ClauseQuery.model_json_schema(),
@@ -91,14 +110,6 @@ TOOLS: list[dict[str, Any]] = [
             "name": "check_coupon",
             "description": "查订单有没有可用优惠券。本平台目前一律返回「无」。",
             "parameters": CouponQuery.model_json_schema(),
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "calc_shipping_fee",
-            "description": "算退回运费：首重 1kg 8 元，续重每公斤 2 元。",
-            "parameters": FeeQuery.model_json_schema(),
         },
     },
 ]
@@ -113,6 +124,14 @@ POLICY = {
     "生鲜": {"window_days": 1, "clause": "P-9"},
     "定制": {"window_days": 0, "clause": "P-12"},
 }
+CLAUSE_TEXT = (
+    "退货政策（节选）第一条 本政策适用于本平台自营商品。第二条 本政策所称签收，指物流系统记录的妥投时间；"
+    "代收点签收视同本人签收。第三条 本政策所称退货，指退回商品并返还全部或部分货款。第四条 本政策所称七日，"
+    "按自然日计算，签收当日为第零日。第五条 消费者自签收之日起七日内，商品完好的，可以无理由退货。"
+    "第六条 商品完好指商品本身、配件、商标标识齐全。第七条 下列商品不适用无理由退货：定作商品、鲜活易腐商品、"
+    "在线下载或拆封的音像制品、交付的报纸期刊。第十条 商品存在质量问题的，不受七日限制，"
+    "消费者可以自签收之日起十五日内要求退货。第十二条 消费者主张质量问题的，应当提供照片或检测报告。"
+)
 
 
 def get_order(order_id: str) -> dict:
@@ -132,25 +151,11 @@ def calc_shipping_fee(order_id: str, weight_kg: float) -> dict:
     return {"order_id": order_id, "weight_kg": weight_kg, "fee": round(fee, 2)}
 
 
-CLAUSE_TEXT = (
-    "退货政策（节选）第一条 本政策适用于本平台自营商品。第二条 本政策所称签收，指物流系统记录的妥投时间；"
-    "代收点签收视同本人签收。第三条 本政策所称退货，指退回商品并返还全部或部分货款。第四条 本政策所称七日，"
-    "按自然日计算，签收当日为第零日。第五条 消费者自签收之日起七日内，商品完好的，可以无理由退货。"
-    "第六条 商品完好指商品本身、配件、商标标识齐全。第七条 下列商品不适用无理由退货：定作商品、鲜活易腐商品、"
-    "在线下载或拆封的音像制品、交付的报纸期刊。第八条 前条各项经营者应当以显著方式提示并经消费者确认。"
-    "第九条 消费者退回商品时应当一并退回配件、赠品与发票。第十条 商品存在质量问题的，不受七日限制，"
-    "消费者可以自签收之日起十五日内要求退货。第十一条 质量问题退货的运费由经营者承担。"
-    "第十二条 消费者主张质量问题的，应当提供能够证明问题存在的照片或检测报告。"
-)
-
-
 def get_clause_text(category: str) -> dict:
-    """故意返回一段长文本：用来触发第 8 章的单条裁剪。"""
     return {"category": category, "text": CLAUSE_TEXT}
 
 
 def check_coupon(order_id: str) -> dict:
-    """所有订单都返回同一个结果：用来触发结果指纹。"""
     return {"coupon": "无", "note": "本平台目前不发券"}
 
 
@@ -162,48 +167,14 @@ TOOL_IMPL: dict[str, tuple[Callable[..., dict], type[BaseModel]]] = {
     "check_coupon": (check_coupon, CouponQuery),
 }
 
-# ────────────────────────────────── 第 1 章：消息与响应的形状
+# ────────────────────────────────── 第 1 章：消息形状
 
 ROLE_SYSTEM, ROLE_USER, ROLE_ASSISTANT, ROLE_TOOL = "system", "user", "assistant", "tool"
-
-
-def system_msg(text: str) -> dict:
-    return {"role": ROLE_SYSTEM, "content": text}
-
-
-def user_msg(text: str) -> dict:
-    return {"role": ROLE_USER, "content": text}
 
 
 def tool_msg(call_id: str, content: str) -> dict:
     """回灌三条格式：role=tool、tool_call_id 配对、content 是字符串。"""
     return {"role": ROLE_TOOL, "tool_call_id": call_id, "content": content}
-
-
-@dataclass
-class ToolCall:
-    id: str
-    name: str
-    arguments: str
-
-
-@dataclass
-class Reply:
-    content: str | None
-    tool_calls: list[ToolCall] = field(default_factory=list)
-    finish_reason: str = "stop"
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-
-    def as_assistant_message(self) -> dict:
-        """原样保留：arguments 那串文字必须是模型当初生成的那一份。"""
-        msg: dict[str, Any] = {"role": ROLE_ASSISTANT, "content": self.content}
-        if self.tool_calls:
-            msg["tool_calls"] = [
-                {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.arguments}}
-                for c in self.tool_calls
-            ]
-        return msg
 
 
 # ────────────────────────────────── 第 4 章：提示词六要素
@@ -230,28 +201,10 @@ SYSTEM_PROMPT = """# 角色
 不要输出「通常 7 天」这类没有来源的数字；不要在没有签收天数时给出结论。
 """
 
-# ────────────────────────────────── 模型：脚本化假后端
+# ────────────────────────────────── 第 7、8 章：状态与守卫
 
-class FakeModel:
-    """按剧本回放响应。第 8 章的守卫要对着真实结构，所以这里只替换网络那一层。"""
-
-    def __init__(self, plan: list[Reply], temperature: float = 0.0) -> None:
-        self.plan = plan
-        self.temperature = temperature
-        self.calls = 0
-
-    def complete(self, messages: list[dict]) -> Reply:
-        if self.calls >= len(self.plan):
-            return Reply(content='{"conclusion":"待定"}', finish_reason="stop", prompt_tokens=50, completion_tokens=5)
-        reply = self.plan[self.calls]
-        self.calls += 1
-        return reply
-
-
-# ────────────────────────────────── 第 7、8 章：循环、状态与守卫
-
-RUNNING, ANSWERED, MAX_STEPS, STALLED, BUDGET, FILTERED, TRUNCATED_OUT = (
-    "RUNNING", "ANSWERED", "MAX_STEPS", "STALLED", "BUDGET", "FILTERED", "TRUNCATED_OUT",
+RUNNING, ANSWERED, MAX_STEPS, STALLED, BUDGET, FILTERED = (
+    "RUNNING", "ANSWERED", "MAX_STEPS", "STALLED", "BUDGET", "FILTERED",
 )
 
 
@@ -274,7 +227,6 @@ class Stats:
 
 
 def fingerprint(name: str, arguments: str) -> str:
-    """第 8 章：请求指纹。键序必须归一，否则同一请求会被当成两次。"""
     try:
         normalized = json.dumps(json.loads(arguments), sort_keys=True, ensure_ascii=False)
     except json.JSONDecodeError:
@@ -283,7 +235,6 @@ def fingerprint(name: str, arguments: str) -> str:
 
 
 def trim_tool_content(content: str, limit: int = 200) -> str:
-    """第 8 章：单条裁剪。留头留尾，中间插入标记，不整段丢。"""
     if len(content) <= limit:
         return content
     head = content[: limit // 2]
@@ -292,7 +243,6 @@ def trim_tool_content(content: str, limit: int = 200) -> str:
 
 
 def to_feedback(exc: ValidationError) -> str:
-    """第 5 章：把校验错误压成模型能读的三列，不夹带堆栈。"""
     lines = ["你上一次的输出不合法，请只输出 JSON 对象，字段如下："]
     for err in exc.errors():
         field_name = ".".join(str(p) for p in err["loc"])
@@ -302,20 +252,25 @@ def to_feedback(exc: ValidationError) -> str:
 
 def run(
     question: str,
-    plan: list[Reply],
     *,
-    max_steps: int = 10,
-    max_prompt_tokens: int = 2400,
+    base_url: str,
+    api_key: str,
+    model: str,
+    temperature: float = 0.0,
+    max_steps: int = 12,
+    max_prompt_tokens: int = 20000,
     max_dup_in_row: int = 2,
     verbose: bool = True,
 ) -> tuple[str, Answer | None, Stats]:
-    model = FakeModel(plan)
-    messages: list[dict] = [system_msg(SYSTEM_PROMPT), user_msg(question)]
+    client = OpenAI(base_url=base_url, api_key=api_key, timeout=60.0, max_retries=1)
+    messages: list[dict] = [
+        {"role": ROLE_SYSTEM, "content": SYSTEM_PROMPT},
+        {"role": ROLE_USER, "content": question},
+    ]
     stats = Stats()
     seen: set[str] = set()
     seen_results: dict[str, str] = {}
-    dup_in_row = 0
-    same_result_in_row = 0
+    dup_in_row = same_result_in_row = 0
     status = RUNNING
     answer: Answer | None = None
 
@@ -323,51 +278,69 @@ def run(
         stats.steps = step
         if stats.prompt_tokens > max_prompt_tokens:
             status = BUDGET
+            if verbose:
+                print(f"  步 {step} 预算用尽：{stats.prompt_tokens} > {max_prompt_tokens}")
             break
 
-        reply = model.complete(messages)
-        stats.prompt_tokens += reply.prompt_tokens
-        stats.completion_tokens += reply.completion_tokens
-        messages.append(reply.as_assistant_message())
+        resp = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            tools=TOOLS,
+            temperature=temperature,
+        )
+        choice = resp.choices[0]
+        finish = choice.finish_reason
+        if resp.usage:
+            stats.prompt_tokens += resp.usage.prompt_tokens
+            stats.completion_tokens += resp.usage.completion_tokens
 
-        # 第 1 章：先看 finish_reason，再看 content
-        if reply.finish_reason == "content_filter":
+        assistant: dict[str, Any] = {"role": ROLE_ASSISTANT, "content": choice.message.content}
+        if choice.message.tool_calls:
+            assistant["tool_calls"] = [
+                {
+                    "id": c.id,
+                    "type": "function",
+                    "function": {"name": c.function.name, "arguments": c.function.arguments},
+                }
+                for c in choice.message.tool_calls
+            ]
+        messages.append(assistant)
+
+        if finish == "content_filter":
             status = FILTERED
             if verbose:
                 print(f"  步 {step} 中止：content_filter，重试无效")
             break
 
-        if reply.finish_reason == "length":
+        if finish == "length":
             stats.truncated += 1
-            messages.append(user_msg("上一条被截断，请只输出完整的 JSON 对象，不要重复已说过的内容。"))
+            messages.append({"role": ROLE_USER, "content": "上一条被截断，请只输出完整的 JSON 对象。"})
             if verbose:
-                print(f"  步 {step} 截断：已回灌续写指令（第 {stats.truncated} 次）")
+                print(f"  步 {step} 截断：已回灌续写指令")
             continue
 
-        if reply.finish_reason == "tool_calls":
-            executed_any = False
-            for call in reply.tool_calls:
+        if finish == "tool_calls":
+            for call in choice.message.tool_calls or []:
                 stats.tool_calls += 1
-                fp = fingerprint(call.name, call.arguments)
+                fp = fingerprint(call.function.name, call.function.arguments)
                 if fp in seen:
                     stats.duplicate_blocked += 1
                     dup_in_row += 1
-                    messages.append(tool_msg(call.id, "重复调用：这一次请求与之前完全相同，结果上面已经有了，请直接用它。"))
+                    messages.append(tool_msg(call.id, "重复调用：这次请求与之前完全相同，结果上面已经有了。"))
                     if verbose:
-                        print(f"  步 {step} 工具 {call.name}：重复指纹被拦下（本步第 {stats.duplicate_blocked} 次）")
+                        print(f"  步 {step} 工具 {call.function.name}：重复指纹被拦下")
                     continue
                 seen.add(fp)
                 dup_in_row = 0
-                executed_any = True
 
-                impl, arg_model = TOOL_IMPL[call.name]
+                impl, arg_model = TOOL_IMPL[call.function.name]
                 try:
-                    args = arg_model.model_validate_json(call.arguments)
+                    args = arg_model.model_validate_json(call.function.arguments)
                 except ValidationError as exc:
                     stats.arg_errors += 1
                     messages.append(tool_msg(call.id, f"参数不合法，请按 schema 重发：{to_feedback(exc)}"))
                     if verbose:
-                        print(f"  步 {step} 工具 {call.name}：参数 JSON 解析失败，已回灌错误")
+                        print(f"  步 {step} 工具 {call.function.name}：参数解析失败，已回灌错误")
                     continue
 
                 try:
@@ -375,25 +348,24 @@ def run(
                 except KeyError as exc:
                     messages.append(tool_msg(call.id, json.dumps({"error": str(exc)}, ensure_ascii=False)))
                     if verbose:
-                        print(f"  步 {step} 工具 {call.name}：业务错误 -> {exc}")
+                        print(f"  步 {step} 工具 {call.function.name}：业务错误 -> {exc}")
                     continue
 
                 payload = json.dumps(result, ensure_ascii=False)
                 trimmed = trim_tool_content(payload)
                 if trimmed != payload:
                     stats.trimmed += 1
-                # 结果指纹：请求换了、结果没换，说明在换参数打转
                 if trimmed in seen_results:
                     stats.repeated_result += 1
                     same_result_in_row += 1
                     if verbose:
-                        print(f"  步 {step} 工具 {call.name}：结果与 {seen_results[trimmed]} 那次完全相同")
+                        print(f"  步 {step} 工具 {call.function.name}：结果与上一次完全相同")
                 else:
-                    seen_results[trimmed] = call.name
+                    seen_results[trimmed] = call.function.name
                     same_result_in_row = 0
                 messages.append(tool_msg(call.id, trimmed))
                 if verbose:
-                    print(f"  步 {step} 工具 {call.name}：{payload[:70]}")
+                    print(f"  步 {step} 工具 {call.function.name}：{payload[:70]}")
 
             if same_result_in_row >= max_dup_in_row:
                 status = STALLED
@@ -405,16 +377,9 @@ def run(
                 if verbose:
                     print(f"  步 {step} 判定空转：连续 {dup_in_row} 次重复请求")
                 break
-            if not executed_any and not reply.tool_calls:
-                status = STALLED
-                break
             continue
 
-        # finish_reason == "stop"：尝试结构化输出
-        raw = reply.content or ""
-        if raw.strip() == '{"conclusion":"待定"}':
-            status = TRUNCATED_OUT
-            break
+        raw = (choice.message.content or "").strip()
         try:
             answer = Answer.model_validate_json(raw)
             status = ANSWERED
@@ -423,11 +388,10 @@ def run(
             break
         except ValidationError as exc:
             stats.schema_retries += 1
-            messages.append(user_msg(to_feedback(exc)))
+            messages.append({"role": ROLE_USER, "content": to_feedback(exc)})
             if verbose:
-                print(f"  步 {step} 结构化输出不合法，回灌字段三列（第 {stats.schema_retries} 次）")
+                print(f"  步 {step} 结构化输出不合法，回灌字段三列")
             continue
-
     else:
         status = MAX_STEPS
 
@@ -442,80 +406,44 @@ def run(
     return status, answer, stats
 
 
-# ────────────────────────────────── 三份剧本
-
-QUESTION = "订单 A1002 签收 9 天了，能退吗？退货运费多少？"
-
-GOOD_PLAN = [
-    Reply(None, [ToolCall("c1", "get_order", '{"order_id":"A1002"}')], "tool_calls", 96, 12),
-    Reply(None, [ToolCall("c2", "get_policy", '{"category":"普通"}')], "tool_calls", 140, 14),
-    # 同一请求换一种键序与空格：指纹归一后仍应被拦下
-    Reply(None, [ToolCall("c3", "get_order", '{ "order_id" : "A1002" }')], "tool_calls", 176, 12),
-    # 参数不是合法 JSON
-    Reply(None, [ToolCall("c4", "calc_shipping_fee", '{"order_id":"A1002", weight_kg:1.5}')], "tool_calls", 214, 16),
-    # 业务错误：订单不存在
-    Reply(None, [ToolCall("c5", "calc_shipping_fee", '{"order_id":"Z9999","weight_kg":1.5}')], "tool_calls", 246, 16),
-    Reply(None, [ToolCall("c6", "calc_shipping_fee", '{"order_id":"A1002","weight_kg":1.5}')], "tool_calls", 280, 16),
-    # 长文本：超过单条上限，触发裁剪
-    Reply(None, [ToolCall("c7", "get_clause_text", '{"category":"普通"}')], "tool_calls", 300, 18),
-    # 截断
-    Reply("结论：不可退。依据：签收后第 9 天，", [], "length", 300, 24),
-    # 合法 JSON 但缺字段
-    Reply('{"conclusion":"不可退","clause":"P-7"}', [], "stop", 320, 18),
-    Reply(
-        json.dumps(
-            {
-                "conclusion": "不可退",
-                "signed_days_ago": 9,
-                "window_days": 7,
-                "clause": "P-7",
-                "shipping_fee": 9.0,
-                "next_step": "已过 7 天窗口，如属质量问题请提供照片走质量通道",
-            },
-            ensure_ascii=False,
-        ),
-        [],
-        "stop",
-        356,
-        42,
-    ),
-]
-
-STALL_PLAN = [
-    Reply(None, [ToolCall("d1", "get_order", '{"order_id":"A1002"}')], "tool_calls", 96, 12),
-    Reply(None, [ToolCall("d2", "get_order", '{"order_id":"A1002"}')], "tool_calls", 140, 12),
-    Reply(None, [ToolCall("d3", "get_order", '{"order_id":"A1002"}')], "tool_calls", 180, 12),
-]
-
-RESULT_PLAN = [
-    Reply(None, [ToolCall("f1", "check_coupon", '{"order_id":"A1001"}')], "tool_calls", 96, 12),
-    Reply(None, [ToolCall("f2", "check_coupon", '{"order_id":"A1002"}')], "tool_calls", 140, 12),
-    Reply(None, [ToolCall("f3", "check_coupon", '{"order_id":"B2001"}')], "tool_calls", 180, 12),
-]
-
-BUDGET_PLAN = [
-    Reply(None, [ToolCall("e1", "get_order", '{"order_id":"A1002"}')], "tool_calls", 380, 12),
-    Reply(None, [ToolCall("e2", "get_policy", '{"category":"普通"}')], "tool_calls", 420, 14),
-    Reply(None, [ToolCall("e3", "calc_shipping_fee", '{"order_id":"A1002","weight_kg":1.5}')], "tool_calls", 460, 16),
-    Reply("{}", [], "stop", 500, 20),
-]
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="手写 agent 循环：接 OpenAI 兼容接口")
+    parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"))
+    parser.add_argument("--api-key", default=os.environ.get("OPENAI_API_KEY", ""))
+    parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"))
+    parser.add_argument("--question", default="订单 A1002 签收 9 天了，能退吗？退货运费多少？")
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--max-steps", type=int, default=12)
+    parser.add_argument("--max-prompt-tokens", type=int, default=20000)
+    parser.add_argument("--quiet", action="store_true")
+    return parser.parse_args()
 
 
-def main() -> None:
-    print("=== 1. 正常路径：查单 → 查政策 → 算运费 → 结构化答复 ===")
-    status, answer, _ = run(QUESTION, GOOD_PLAN)
+def main() -> int:
+    args = parse_args()
+    if not args.api_key:
+        print("缺 API key：用 --api-key 或环境变量 OPENAI_API_KEY；也可以用 mock_openai.py 起本地服务。", file=sys.stderr)
+        return 2
+
+    print(f"模型：{args.model}　端点：{args.base_url}")
+    print(f"问题：{args.question}")
+    status, answer, _stats = run(
+        args.question,
+        base_url=args.base_url,
+        api_key=args.api_key,
+        model=args.model,
+        temperature=args.temperature,
+        max_steps=args.max_steps,
+        max_prompt_tokens=args.max_prompt_tokens,
+        verbose=not args.quiet,
+    )
+    print("\n最终答复：")
     if answer:
-        print("  最终答复：", answer.model_dump())
-
-    print("\n=== 2. 空转：同一请求第三次仍重发 ===")
-    run(QUESTION, STALL_PLAN)
-
-    print("\n=== 3. 换参数打转：请求不同、结果相同 ===")
-    run("这几单有优惠券吗？", RESULT_PLAN)
-
-    print("\n=== 4. 预算：累计 prompt token 触顶 ===")
-    run(QUESTION, BUDGET_PLAN, max_prompt_tokens=400)
+        print(json.dumps(answer.model_dump(), ensure_ascii=False, indent=2))
+    else:
+        print(f"（无结构化答复，status={status}）")
+    return 0 if status == ANSWERED else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
