@@ -100,28 +100,45 @@ DEMO = re.compile(r"示意|演示|原理|假设|例如|长这样|大约")
 BACKREF = re.compile(r"上文|上面|这段|刚才|它的输出|代码的输出")
 
 
+def _section_text(lines: list[str], start: int) -> str:
+    """从 start 向上取到最近的二级/三级标题为止的正文"""
+    out = []
+    j = start - 1
+    while j >= 0:
+        s = lines[j].strip()
+        if re.match(r"^#{2,3} ", s):
+            break
+        out.append(s)
+        j -= 1
+    return "\n".join(reversed(out))
+
+
 def check_a1(rng: dict) -> list[str]:
-    bad = []
+    """按"节"检查出处：一节内至少要有一处 `code/` 或 .py 出处，或标明示意图。
+
+    同一节只报一次，避免一个缺失的出处引出几十条重复告警。
+    """
+    bad, seen = [], set()
     lines = rng["lines"]
-    code_blocks = [(a, b) for a, lang, b in rng["fences"] if lang]
     for start, lang, end in rng["fences"]:
-        ctx = _lead(rng, start)
+        sec = _section_text(lines, start)
+        # 本节标题行（用于定位与去重）
+        head = ""
+        for j in range(start - 1, -1, -1):
+            if re.match(r"^#{2,3} ", lines[j].strip()):
+                head = lines[j].strip()
+                break
+        key = (head, "code" if lang else "out")
+        if key in seen:
+            continue
+        if SRC.search(sec) or DEMO.search(sec):
+            continue
+        # 整节没有任何出处：代码块报 A1，输出块报 A1b
+        seen.add(key)
         if lang:
-            if not (SRC.search(ctx) or DEMO.search(ctx)):
-                bad.append(f"L{start} A1 代码块缺来源/性质标注：…{ctx[-38:]}")
+            bad.append(f"L{start} A1 本节无代码出处（{head[:18] or '节首'}）")
         else:
-            # 输出块：① 引导句给文件名 ② 引导句明确指代 ③ 上方 30 行内有代码块且它有来源
-            ok = bool(SRC.search(ctx) or BACKREF.search(ctx) or DEMO.search(ctx)
-                      or re.search(r"\d+\.\d+ 节.*输出|那份输出|这一节.*输出", ctx))
-            if not ok:
-                for ca, cb in code_blocks:
-                    if cb <= start and start - cb <= 30:
-                        cctx = _lead(rng, ca)
-                        if SRC.search(cctx) or DEMO.search(cctx):
-                            ok = True
-                            break
-            if not ok:
-                bad.append(f"L{start} A1b 输出块无法追溯来源：…{ctx[-38:]}")
+            bad.append(f"L{start} A1b 本节无输出来源（{head[:18] or '节首'}）")
     return bad
 
 
@@ -192,27 +209,49 @@ def check_a3(rng: dict, text: str) -> list[str]:
     """
     bad = []
     lines = rng["lines"]
+    # 只查"出现在行文里"的标识符：表格、章首引用块、代码块里的不算（那些地方不承担解释义务）
+    prose = []
+    in_f = False
+    for l in lines:
+        s = l.strip()
+        if s.startswith("```"):
+            in_f = not in_f
+            continue
+        if in_f or s.startswith(("|", ">", "#")):
+            continue
+        prose.append(l)
+    prose_text = "\n".join(prose)
+
     cands = set()
-    for m in re.finditer(r"`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)", text):      # 反引号 snake_case
+    for m in re.finditer(r"`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)", prose_text):
         cands.add(m.group(1))
-    for m in re.finditer(r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\s*\(", text):   # 调用形式
+    for m in re.finditer(r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\s*\(", prose_text):
         cands.add(m.group(1))
-    for m in re.finditer(r"`([A-Z][A-Za-z0-9]{3,})`", text):              # 反引号 CamelCase
+    for m in re.finditer(r"`([A-Z][A-Za-z0-9]{3,})`", prose_text):
         cands.add(m.group(1))
 
     in_code = "\n".join("\n".join(lines[a:b - 1]) for a, _, b in rng["fences"])
+    full_no_fence = re.sub(r"```.*?```", "", "\n".join(lines), flags=re.S)
     for ident in sorted(cands):
         if ident in WHITELIST or ident in PLATFORMS:
             continue
         if ident.endswith(EXCLUDE_SUFFIX):
             continue
-        if re.fullmatch(r"[A-Z0-9]{2,}", ident):        # F10 / A1 这类编号
+        if re.fullmatch(r"[A-Z0-9]{2,}", ident):
             continue
-        if ident in in_code:                            # 代码里出现过 = 有示例
+        if ident in in_code:                      # 代码里出现过
             continue
-        pos = text.find(ident)
-        ln = text.count("\n", 0, pos) + 1
-        bad.append(f"L{ln} A3 提到 API 但全章无示例：{ident}")
+        # 中文名 + 标识符的"就地命名"也算定义：…更新时间，才能…`updated_at` 让人判断时效
+        pos0 = prose_text.find(ident)
+        if pos0 > 0 and re.search(r"(写成|改成|叫做|叫|就是|比如|加一个|带上|让|用它|指的是)",
+                                  prose_text[max(0, pos0 - 60):pos0]):
+            continue
+        # 全章范围内有定义句即可（不限于附近）
+        if re.search(rf"{re.escape(ident)}[^。\n]{{0,16}}(是|用来|表示|收|返回|接受|指|叫|一个|一种|对象|函数|方法|接口|参数|字段|类|装饰器|钩子|名字)", full_no_fence):
+            continue
+        pos = prose_text.find(ident)
+        ln = text.count("\n", 0, text.find(ident.split("`")[0])) + 1
+        bad.append(f"L{ln} A3 提到 API 但全章无示例/无定义：{ident}")
     return bad
 
 
