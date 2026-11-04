@@ -50,7 +50,8 @@ class MemoryCheckpointStore:
         key = (_ns_key(ns), sid)
         versions = self._rows.setdefault(key, [])
         current = len(versions) - 1
-        if expect_rev is not None and expect_rev != current:
+        # 乐观并发只在"已有版本"时生效：没有旧版本就不存在冲突
+        if expect_rev is not None and versions and expect_rev != current:
             raise ConcurrencyError(f"{sid}: 期望 rev={expect_rev}，实际 rev={current}")
         versions.append(copy.deepcopy(state.to_dict()))   # 深拷贝 = 旧版本不可变
         state.rev = len(versions) - 1

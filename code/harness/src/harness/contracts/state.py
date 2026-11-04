@@ -25,6 +25,7 @@ class State:
     status: RunStatus = RunStatus.RUNNING
     usage: dict[str, int] = field(default_factory=lambda: {"tokens": 0, "calls": 0})
     last_error: str | None = None
+    rev: int = 0                      # 最近一次落盘的版本号（不变量 1）
 
     def section(self, name: str) -> dict[str, Any]:
         """取一个策略自己的命名空间，不存在就建。"""
@@ -59,8 +60,8 @@ class State:
             "status": str(self.status),
             "usage": dict(self.usage),
             "last_error": self.last_error,
+            "rev": self.rev,
         }
-
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "State":
         goal = raw["goal"]
@@ -75,6 +76,7 @@ class State:
             status=RunStatus(raw.get("status", "running")),
             usage=raw.get("usage", {"tokens": 0, "calls": 0}),
             last_error=raw.get("last_error"),
+            rev=int(raw.get("rev", 0)),
         )
 
 

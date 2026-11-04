@@ -62,11 +62,21 @@ def describe(layers: Sequence[Any], point: str) -> str:
 
 
 async def execute(layers: Sequence[Any], request: Any, terminal: Any) -> Any:
-    """洋葱执行：第一层最外，最后一层最内，逐层包裹终端。"""
+    """洋葱执行：第一层最外，最后一层最内，逐层包裹终端。
 
-    async def call(index: int, req: Any) -> Any:
-        if index >= len(layers):
-            return await terminal(req)
-        return await layers[index](req, lambda nxt: call(index + 1, nxt))
+    层可以是 `Layer`（有 `wrap`）或普通 `(req, nxt)` 可调用对象。
+    """
 
-    return await call(0, request)
+    def _wrap(lay: Any, nxt: Any) -> Any:
+        if hasattr(lay, "wrap"):
+            return lay.wrap(nxt)
+
+        async def call(req: Any, *, _lay=lay, _nxt=nxt) -> Any:
+            return await _lay(req, _nxt)
+
+        return call
+
+    handler = terminal
+    for lay in reversed(list(layers)):
+        handler = _wrap(lay, handler)
+    return await handler(request)

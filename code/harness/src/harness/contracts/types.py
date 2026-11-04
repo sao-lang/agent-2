@@ -605,6 +605,7 @@ class StepRequest:
 
 @dataclass(frozen=True)
 class ModelRequest:
+    state: Any = None
     messages: tuple[Message, ...] = ()
     tools: tuple[dict[str, Any], ...] = ()
     budget: Budget | None = None
