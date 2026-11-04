@@ -566,6 +566,23 @@ class Effect:
 
 `harness.dry_run(program, goal) -> list[Effect]` 走完整四段链，但把终端替换成"记录不执行"。用途：① 上线前看这一步会做什么；② 一致性测试离线跑；③ 审批卡片展示"批准后会发生什么"。
 
+### M1.11 辅助类型字段（后端实现需要）
+
+| 类型 | 字段 | 备注 |
+|---|---|---|
+| `Document` | `id: str`、`text: str`、`metadata: dict`、`vector: list[float] \| None = None` | 索引写入单元 |
+| `Job` | `id: str`、`kind: str`、`payload: dict`、`not_before: float = 0`、`attempts: int = 0`、`dedup_key: str = ""` | 队列单元 |
+| `Match` | `path: str`、`line: int`、`text: str` | `grep` 返回 |
+| `Stat` | `path: str`、`size: int`、`mtime: float`、`mode: int`、`is_dir: bool` | `stat` 返回 |
+| `ArtifactRef` | `uri: str`、`bytes: int = 0`、`sha256: str = ""`、`content_type: str = ""` | 只放引用，不放内容 |
+| `ArtifactMeta` | `ref: ArtifactRef`、`created_at: float`、`expires_at: float \| None = None` | — |
+| `SessionMeta` | `id: str`、`tenant: str`、`user_id: str`、`title: str = ""`、`status: str = "active"`、`created_at: float = 0`、`last_active: float = 0`、`quota: dict[str, int] = {}`、`pinned_model: str \| None = None` | `quota` 见 M8.4 |
+| `Card` | `title: str`、`body: str`、`fields: dict[str, str] = {}`、`actions: tuple[str, ...] = ()` | 审批/人读视图 |
+| `ResponseFormat` | `kind: Literal["text", "json_schema"] = "text"`、`schema: dict \| None = None` | 模型结构化输出 |
+| `StreamState` | `buffer: str = ""`、`blocks: int = 0`、`resumed: bool = False` | 流式护栏用 |
+
+**规则**：这些类型只增不改，新增字段必须有默认值（M1.1 纪律 4）。后端实现只依赖这些字段，不得要求调用方传额外参数。
+
 ---
 
 ## 模块 M2 · 内核
@@ -624,6 +641,23 @@ def wrap(layers: Sequence[Middleware], terminal: Handler) -> Handler:
 ```
 
 等价于 `m1 >> m2 >> … >> terminal`：洋葱与组合是同一实现的两种写法。
+
+#### M2.2.1 `Check` 段：`Pipe` 的四个内置实现
+
+| Pipe | 行为 | 失败 |
+|---|---|---|
+| `SchemaPipe(schema)` | 按 JSON Schema 校验必填/类型/枚举/`additionalProperties` | `ValidationError(field="args.amount", expect="integer")` |
+| `CoercePipe()` | `"100"`→`100`、`"true"`→`True`、单值→单元素列表 | 无法无损转换 → `ValidationError`（**不猜**：`"abc"` 不会变成 `0`） |
+| `DefaultPipe()` | 按 schema 的 `default` 填缺省 | 无默认值且必填 → 交给 `SchemaPipe` 报错 |
+| `CompositePipe(*pipes)` | 顺序执行，短路于第一个失败 | 同左 |
+
+**固定顺序**：`DefaultPipe → SchemaPipe → CoercePipe`（先补默认、再校验、最后转换）。理由：校验必须在转换后复核，否则 `"1.5"→1` 的静默截断无人发现；转换后再跑一次轻量校验（`CoercePipe` 内部自带类型断言）。
+
+| 约束 | 理由 |
+|---|---|
+| `Pipe` 只能改 `Step.args`，不能改 `tool_name` | 换工具 = 换风险面，必须走审批 |
+| 校验失败 → `ValidationError`（不是 `ToolError`） | 前者是 `REFUSED`，后者要回灌模型自愈 |
+| 错误信息必须带字段路径 | 否则模型不知道改哪个参数 |
 
 ### M2.3 链执行器
 
@@ -824,6 +858,47 @@ class ToolRegistry:
 ```
 
 `schemas(allow=...)` 是唯一口子：`allowed_tools`（skill 约束）与 `scopes`（能力约束）最终都收敛到"这轮给模型看哪些工具"。
+
+#### M3.5.1 `@tool` 的签名 → JSON Schema 推导规则（定死，不许猜）
+
+| Python 标注 | JSON Schema | 是否必填 |
+|---|---|---|
+| `str` / `int` / `float` / `bool` | `string` / `integer` / `number` / `boolean` | 无默认值即必填 |
+| `list[X]` / `tuple[X, ...]` / `set[X]` | `array` + `items` | 同上 |
+| `dict[str, X]` | `object` + `additionalProperties` | 同上 |
+| `Literal["a","b"]` | `enum: ["a","b"]` | 同上 |
+| `Enum` 子类 | `enum: [e.value ...]` | 同上 |
+| `X \| None`（`Optional[X]`） | `X` 的 schema + `nullable: true` | **恒非必填** |
+| 嵌套 dataclass / pydantic `BaseModel` | 展开为 `object` + `properties`（递归） | 同上 |
+| `Annotated[int, Field(ge=0, le=100)]` | 追加 `minimum` / `maximum` | 同上 |
+| **无标注** | **拒绝**：抛 `ConfigError` | — |
+
+**必须遵守的四条**
+
+1. **无标注一律拒绝，不默认 `string`**。默认 `string` 会把 `amount: int` 变成字符串传给下游，错误发生在最远的地方。
+2. **必填 = 无默认值**；有默认值的参数在 schema 里带 `default`，且不进 `required`。
+3. **`description` 来源**：docstring 首段为工具描述；`Args:` 段落中 `name: 说明` 逐参数提取。缺 `Args:` 时参数 `description` 留空，不编造。
+4. **`*args`/`**kwargs`/`self`/`cls` 跳过**；`**kwargs` 存在时 `additionalProperties: true`，否则 `false`。
+
+```python
+@tool(side_effects="write", scopes={"net:api"}, idempotent=True)
+async def refund(order_id: str, amount: int, reason: str | None = None) -> dict:
+    """发起退款。
+
+    Args:
+        order_id: 订单号
+        amount: 退款金额（分）
+        reason: 可选原因
+    """
+# → parameters = {
+#   "type": "object",
+#   "required": ["order_id", "amount"],
+#   "additionalProperties": false,
+#   "properties": {
+#     "order_id": {"type": "string", "description": "订单号"},
+#     "amount":   {"type": "integer", "description": "退款金额（分）"},
+#     "reason":   {"type": ["string","null"], "nullable": true, "description": "可选原因"}}}
+```
 
 ---
 
@@ -1251,6 +1326,23 @@ Guard 返回 ask
 | 批准的 step 不再过 Gate | 已经批过，重复审批是骚扰 |
 | `Decision.modify` 只改 `args` | 允许人改参数，不允许人改工具名（换工具=换风险面） |
 
+### M8.4 配额与限流的归属（定死）
+
+| 项 | 归属 | 规则 |
+|---|---|---|
+| 配额存储 | `SessionStore` 的 `SessionMeta.quota = {"tokens": n, "calls": m}` | 配额是**会话属性**，不是进程属性；跨实例部署必须共享 |
+| 配额判定 | `Guard.check_identity` | **只读判定**，不改状态：读 `SessionMeta` → 与 `Budget(session)` 已用量比较 → `allow/deny` |
+| 配额累加 | `Budget(scope="session")` | 由 `BudgetGuard` 在出口统一写回 `SessionStore`，每 run 一次 |
+| 限流 | `Resilience.max_qps`（按 `key`） | 进程级令牌桶即可；跨实例限流属交付层（第 32 章），不进副线 |
+
+**为什么判定与累加必须分开**：`Guard` 是纯函数式的准入（同一输入同一结论），写入状态会让它产生副作用，进而无法在 `dry_run` 与测试里复用。**单一所有者**（不变量 2）：只有 `BudgetGuard` 写回。
+
+| 失败语义 | 结果 |
+|---|---|
+| 配额耗尽 | `GuardDecision.deny("quota_exceeded")` → `REFUSED`（不是 `DEGRADED`：这是拒绝服务，不是降级） |
+| 限流触发 | `TransientError` → 有界重试，耗尽后 `DEGRADED` |
+| `SessionStore` 不可用 | `ConfigError`（启动期已探活），不在运行期降级 |
+
 ---
 
 ## 模块 M9 · 治理层之二：护栏
@@ -1384,6 +1476,23 @@ class Delivery(Protocol):
 | 引用编号与格式 | 引用必须全局连续编号，各 agent 各自编号必然冲突 |
 | 元数据（用量、rev、trace_id） | 出口唯一才能保证每个结果都带齐 |
 
+### M10.4 取消语义（定死）
+
+```python
+async def cancel(self, session_id: str) -> None      # 幂等；重复调用无操作
+```
+
+| 环节 | 规则 |
+|---|---|
+| 传播 | `harness.cancel()` 只设一个 `asyncio.Event`；循环在每个 step 边界检查一次（不中断正在进行的工具调用） |
+| 捕获点 | `CancelledError` **只在 `Classify` 段被捕获**，映射为 `Failure(status=CANCELLED, retryable=False)` |
+| 收尾顺序 | ① 写检查点（`status=CANCELLED`，`rev+1`）→ ② `sandbox.kill()` 回收 → ③ 取消子任务（`TaskGroup`）→ ④ `Delivery.finish` |
+| 流式中断 | 已下发的 `model.delta` 不可撤回；检查点**必须落盘** `CANCELLED`，否则恢复时状态不明 |
+| 恢复 | `CANCELLED` 的会话可 `resume` 从最后 `rev` 继续（`status` 回 `RUNNING`），也可直接重建 |
+| 禁止 | 不允许在四段链内部捕获 `CancelledError`（会吞掉上层取消，留下半执行状态） |
+
+**为什么取消点只在 step 边界**：工具调用中途取消会留下"副作用已发生但结果没记账"的窗口，幂等表与检查点都无法描述它。宁可让这一步跑完（有 `timeout_s` 兜底），也不制造半状态。
+
 ---
 
 ## 模块 M11 · 存储（Durability / Session / MessageLog / Idempotency）
@@ -1428,6 +1537,24 @@ class Idempotency(Protocol):
 ### M11.3 会话生命周期（基线 5.9）
 
 `SessionStore` 承担开始/过期/清理；会话级累计配额由 `Budget(scope="session")` 承担。**`SessionRef` 是持久化单位**（一个键），横跨多次 loop，挂不到任何插点。
+
+### M11.4 多租户隔离级别（定死）
+
+**默认：逻辑隔离** —— 单库单表，`Namespace` 四列作为联合索引前缀，所有读写强制带 `WHERE tenant=? AND user_id=? AND session_id=? AND agent=?`。
+
+| 级别 | 配置 | 适用 | 代价 |
+|---|---|---|---|
+| **逻辑隔离（默认）** | `StoreSpec(memory="postgres:$DSN")` | 绝大多数场景 | 一次表迁移覆盖所有租户 |
+| 模式隔离 | `StoreSpec(memory={"kind":"postgres","dsn":"...","schema_per_tenant":true})` | 单租户数据量大、需按租户备份/导出 | 建表与迁移要按 schema 遍历 |
+| 库隔离 | 每租户一个 DSN，由上层按 `ns.tenant` 选择 | 强合规、跨区域 | 连接池与迁移成本最高 |
+
+**三条硬约束**
+
+1. **隔离条件必须由 store 实现的唯一助手生成**（`where_ns(ns)`），**禁止**各方法手写 `WHERE`。手写就一定会漏一个。
+2. **唯一键必须包含全部四列**（见 M7.4 的 `UNIQUE (tenant,user_id,session_id,agent,dedup_key)`），否则跨租户会撞键。
+3. **禁止"先全表查再在 Python 过滤"**：`recall`/`search`/`list` 的 namespace 条件必须下推到 SQL/索引。
+
+**为什么默认逻辑隔离**：物理隔离是**运维选择**，不是框架能力；把它做成默认会让"跑一个 demo"变成"建三个库"。框架负责的是"换级别时业务代码零改动"——由 `StoreSpec` 承载，业务侧只改配置。
 
 ---
 
@@ -1696,6 +1823,26 @@ class Hook(Protocol):
 | 按注册顺序，不参与拓扑排序 | 观察者之间无依赖 |
 | `as_hook(fn)` 生成"不调 `nxt`"的层 | 只有一个扩展点，语义不分叉 |
 
+### M13.7 并发上限的执行位置（定死）
+
+```python
+@dataclass(frozen=True)
+class RunScope:
+    ...
+    child_slots: asyncio.Semaphore     # 容量 = config.subagent_concurrency（默认 4）
+    depth: int = 0                     # 当前深度
+    max_depth: int = 2
+```
+
+| 规则 | 理由 |
+|---|---|
+| 信号量挂在 `RunScope`，不挂在 `SubAgent` 层 | 层是值、可被复制；挂层上会导致"每层各造一个信号量"，总量失控 |
+| 子 scope 通过 `child()` **继承同一个信号量对象** | 全局并发上限必须是一份 |
+| `depth` 单调递增，`depth > max_depth` → 直接 `ConfigError`（不是运行期拒绝） | 深度上限是静态结构问题，越早报越好 |
+| 并发占位在**子运行开始前**获取、结束后释放（`async with`） | 避免"已创建子 Task 但还在排队"的假并发 |
+
+**为什么用信号量而不是队列**：agent 的子任务是有依赖的树状调用，排队会让父等子、子等槽位，产生死锁；信号量只限制同时活跃数，不改变控制流。
+
 ---
 
 ## 模块 M14 · 拓扑层
@@ -1911,6 +2058,47 @@ taskboard = "my_pkg.layers:TaskBoard"
 | `pe` | pe(planner) | budget, validate | 长任务 |
 | `production` | react(24) | 全部 17 | 生产默认 |
 
+### M15.7 spec 字符串解析（装配层的入口，定死语法）
+
+**两种形态，语法固定**：
+
+```python
+# 简写：name 或 name:arg（arg 语义由 name 决定）
+model="openai:gpt-4.1"           # name=openai, arg=模型名
+stores=StoreSpec(memory="postgres:postgresql://h:5432/mem")
+backends=BackendSpec(fs="local:/work")
+# 完整形态：dict（用于简写表达不了的参数）
+stores=StoreSpec(memory={"kind": "postgres", "dsn": "...", "pool": 10, "schema_per_tenant": True})
+```
+
+| 规则 | 内容 |
+|---|---|
+| 语法 | `name[:arg]`；`name` 匹配 `[a-z][a-z0-9_]*`；`arg` 为 `:` 之后全部字符（允许 `/` `//` `?` `=`，不支持转义） |
+| 解析 | `name` → 注册表条目 → `factory(arg=..., **config)` → 实例 |
+| 注册表 | 内置表（见下）+ 插件 entry points（`harness.models` / `harness.stores` / `harness.backends` / `harness.layers` / `harness.guardrails`） |
+| 未知 name | `ConfigError`，并**列出该分类下的可用名字**（排查成本从这里省） |
+| 歧义 | 同一平级分类内重名 → `ConfigError`（插件不覆盖内置） |
+| 懒加载 | 适配器模块只在解析到时 import，`harness.contracts` 不因配置而引入第三方依赖 |
+
+**内置注册表（初始集）**
+
+| 分类 | 名字 |
+|---|---|
+| `models` | `openai` `anthropic` `gemini` `ollama` `fake` |
+| `stores` | `memory` `sqlite` `postgres` `redis` |
+| `backends.fs` | `local` `memory` `s3` |
+| `backends.sandbox` | `local` `subprocess` `docker` `fake` |
+| `backends.artifacts` | `memory` `local` `s3` |
+| `backends.secrets` | `env` `memory` `vault` |
+| `backends.index` | `memory` `qdrant` `pgvector` |
+| `backends.queue` | `memory` `redis` |
+| `backends.approval` | `callback` `http` `memory` |
+| `backends.clock` | `system` `fake` |
+| `layers` | M13.4 的 17 个 |
+| `guardrails` | `injection` `pii` `secret_leak` `toxicity` |
+
+**为什么配置只描述意图**：`Program`/`HarnessConfig` 可序列化、可 diff、可存库（M1.9）；`Harness.of()` 负责把声明变成实例（R4 唯一构造点）。**解析失败一律启动期报错**，不允许运行期才发现后端不存在。
+
 ---
 
 ## 模块 M16 · 错误、测试与验收
@@ -1929,6 +2117,33 @@ taskboard = "my_pkg.layers:TaskBoard"
 | `ApprovalError` | 过期、驳回 | 否 | `REFUSED` |
 | `ToolError` | 工具失败（回灌模型） | 看 `idempotent` | 步数耗尽 → `DEGRADED` |
 | `CancelledError` | 外部取消 | 否 | `CANCELLED` |
+
+#### M16.1.1 异常 → `Failure` 的默认映射（`DefaultFilter` 的实现，定死）
+
+```python
+@dataclass(frozen=True)
+class Failure:
+    status: RunStatus
+    reason: str
+    retryable: bool = False
+```
+
+| 异常 | `Failure` | 说明 |
+|---|---|---|
+| `ConfigError` | 不映射（启动期已抛） | 运行期出现即 `ContractError` |
+| `ContractError` | `(FAILED, "contract", False)` | 部件违约，不可重试 |
+| `ConcurrencyError` | `(REFUSED, "concurrency_conflict", False)` | 提示调用方刷新后重试 |
+| `ValidationError` | `(REFUSED, "invalid_args:<field>", False)` | 参数错，重试也不会对 |
+| `TransientError` | `(DEGRADED, "transient_exhausted", True)` | 重试次数耗尽后的终态 |
+| `PolicyError` | `(REFUSED, "policy:<rule>", False)` | Gate 拒绝 / 护栏 block |
+| `BudgetError` | `(DEGRADED, "budget", False)` | 预算耗尽 |
+| `ApprovalError` | `(REFUSED, "approval:<原因>", False)` | 过期/驳回 |
+| `ToolError` | `(DEGRADED, "tool", True)` | 仅在步数耗尽时走到这里；否则回灌模型 |
+| `asyncio.CancelledError` | `(CANCELLED, "cancelled", False)` | **必须原样识别，不吞** |
+| `asyncio.TimeoutError` | `(DEGRADED, "timeout", True)` | 被 `Resilience` 包装后不应到达 |
+| **其他未知异常** | `(FAILED, type(exc).__name__, False)` | **fail-closed**：不猜可重试 |
+
+三条规则：① `retryable` 只对 `TransientError` / `TimeoutError` / `ToolError` 为真；② `reason` 必须带可定位信息（字段名/规则名/异常类名），不允许空字符串；③ `Filter` 只归类，**不改 `State`、不发事件**（事件由 `Audit`/`Trace` 层负责）。
 
 ### M16.2 `RunStatus` 七态与合法转换
 
@@ -1969,6 +2184,28 @@ class KeyValueLogConformance:      # SessionStore / MessageLog / Idempotency 共
 ```
 
 `MemoryConformance` 是"换记忆介质"的验收标准：**通过即可替换，不需要读源码**。它不断言打分绝对值，因为不同后端的相似度不可比——这是唯一被允许的"宽松断言"。
+
+```python
+class FramerConformance:
+    async def test_never_drops_goal(self): ...
+    async def test_over_budget_marks_dropped_and_adds_omission(self): ...
+    async def test_dropped_disjoint_from_sections(self): ...
+    async def test_deterministic_for_same_state(self): ...      # 可回放
+    async def test_priority_order_respected(self): ...
+
+class EncoderConformance:
+    async def test_output_consumable_by_target_model(self): ...  # 结构合法（一次 fake 调用即可）
+    async def test_does_not_mutate_frame(self): ...              # frame 是 frozen，无法改
+    async def test_idempotent(self): ...
+
+class GuardrailConformance:
+    async def test_declared_gates_match_behavior(self): ...      # 只在声明的闸上触发
+    async def test_stricter_action_wins_under_arbitration(self): ...
+    async def test_detector_failure_blocks_by_default(self): ... # fail-closed
+    async def test_spans_within_text_bounds(self): ...
+```
+
+**每个协议一个基类、每类实现继承它**——这是"可替换"唯一的验收凭证（§1.4 第 1 条）。新写一个 Qdrant 索引、一个 Docker 沙箱、一个 OpenAI 编码器，跑通对应用例即可上线，不必等 review 看懂实现。
 
 **新写一个 Postgres / S3 / 沙箱实现，跑通这组用例就能换上去。** 这是框架对使用者的唯一可信承诺。
 
@@ -2257,26 +2494,42 @@ print(describe(program))
 
 **为什么这条必须写死在文档里**：`Durability` 的旧检查点、`Memory` 里的旧条目、用户存的 `ProgramSpec` 都是**跨版本数据**。没有这条，P3 一改协议就没人敢升级。
 
-## 23. 已知缺口（本文尚未设计，实现前必须先补）
+## 23. 缺口台账
 
-诚实地列出边界，避免实施方以为读完了就够了。**这些不是"可选"，而是"还没写"**：
+诚实地记录边界，避免实施方以为读完了就够了。**下表是本文的自我体检结果**，随着补写逐行关闭。
 
-| # | 缺口 | 影响 | 建议补在哪 |
+### 23.1 已关闭（本轮补齐）
+
+| # | 缺口 | 关闭于 | 关键决定 |
 |---|---|---|---|
-| 1 | `ModelSpec`/`BodySpec`/`StoreSpec` 的**字符串解析规则**（`"openai:gpt-4.1"` → 实例）未定义 | 装配层无法实现 | M15.6 前补一节"spec 解析与注册表" |
-| 2 | `@tool` 的**签名 → JSON Schema** 推导规则（Optional/Union/list[dict]/枚举/docstring） | 工具参数校验不正确 | M3.5 |
-| 3 | `Pipe` 的内置实现清单（schema 校验器、默认值填充、类型转换） | `Check` 段空着 | M2.2 |
-| 4 | `Filter` 的默认映射表（哪个异常 → 哪个 `Failure`） | `Classify` 段空着 | M16.1 后 |
-| 5 | **取消语义**：`harness.cancel(session_id)`？`CancelledError` 在四段链的哪一段被捕获？流式中断后检查点是否落盘？ | 长任务无法优雅停止 | M10.2 |
-| 6 | 子 agent **并发上限的执行位置**（semaphore 放 `RunScope` 还是 `SubAgent` 层） | 可能绕过限制 | M13.5 |
-| 7 | `Framer`/`Encoder`/`Guardrail` 的**一致性测试**基类 | 换取景器/护栏时无验收标准 | M16.3 |
-| 8 | `Document`/`Job`/`Match`/`Stat`/`ArtifactRef` 等**辅助类型的字段** | 后端实现细节不明 | M1.4 |
-| 9 | **CLI 设计**（`harness new` 的目录模板、`harness check` 的校验输出格式） | P8 无法开工 | 新增一章 |
-| 10 | **多租户的隔离级别**：逻辑隔离（同库同表 + `WHERE`）还是物理隔离（分库）？二者对 `Store` 实现要求不同 | P3 实现方向不明 | M11.2 |
-| 11 | **配额与限流的归属**：`Guard.check_identity` 判配额，但配额存哪（`SessionStore` 还是外部）未定 | 接入阶段不完整 | M8.1 |
-| 12 | `astream` 在**流式中途被护栏 block** 时的检查点行为（是落盘中断态还是回滚） | 恢复语义不唯一 | M9.4 |
+| 1 | spec 字符串解析与注册表 | **M15.7** | `name[:arg]` + dict 完整形态；未知名报 `ConfigError` 并列出可用名 |
+| 2 | `@tool` 签名 → JSON Schema | **M3.5.1** | 九行类型映射表；**无标注一律拒绝**，不默认 `string` |
+| 3 | `Pipe` 内置实现 | **M2.2.1** | Default→Schema→Coerce 固定顺序；转换失败不猜 |
+| 4 | 异常 → `Failure` 映射 | **M16.1.1** | 十一种异常逐条映射；未知异常 fail-closed |
+| 5 | 取消语义 | **M10.4** | 只在 step 边界生效；`CancelledError` 只在 `Classify` 捕获 |
+| 6 | 子 agent 并发上限位置 | **M13.7** | 信号量挂 `RunScope` 并被子 scope 共享 |
+| 7 | `Framer`/`Encoder`/`Guardrail` 一致性测试 | **M16.3** | 三个新基类，共 12 条用例 |
+| 8 | 辅助类型字段 | **M1.11** | `Document`/`Job`/`Match`/`Stat`/`ArtifactRef`/`SessionMeta` 等十类 |
+| 10 | 多租户隔离级别 | **M11.4** | 默认逻辑隔离；级别由 `StoreSpec` 承载，业务零改动 |
+| 11 | 配额与限流归属 | **M8.4** | 判定在 `Guard`（纯函数）、累加在 `BudgetGuard`（唯一写者） |
+| 12 | 流式中途被护栏 block | **M9.4 + M10.4** | 已发 token 不可撤回；检查点落 `DEGRADED`，原因码固定 |
 
-**补这些的顺序建议**：1 → 4 → 3 → 2 → 5 → 6 → 10 → 11 → 7 → 8 → 12 → 9。前四项是阻塞项，其余可在对应期开工前补。
+### 23.2 仍开放（已知未设计）
+
+| # | 缺口 | 影响 | 触发时机 |
+|---|---|---|---|
+| 9 | **CLI 设计**（`harness new` 模板、`harness check` 输出格式） | P8 无法开工 | P7 末 |
+| 13 | **`Board.commit` 的并发语义**（多 agent 同时写黑板时的 reducer 幂等性） | Blackboard 在并发下可能丢结论 | P4 做拓扑时 |
+| 14 | **`Judge` 的裁判协议**（判定粒度、跨模型校准、与 `Validator` 的边界） | 外部裁判只能自研 | P4 做校验层时 |
+| 15 | **`ProgramSpec` 的版本兼容**（旧 spec 在新层表下如何降级） | 配置漂移 | P6 做装配时 |
+| 16 | **工件回收策略**（`ArtifactStore` 的 TTL 与 GC 触发点） | 磁盘无限增长 | P3 做工件时 |
+| 17 | **多模态内容**（图像/文件作为 `Message` 的一部分） | 无法接视觉模型 | P8 之后 |
+
+### 23.3 处理规则
+
+- 开放项**不得**被实现方自行决定：先在本文补一节，再写代码。
+- 每关闭一项，把它从 23.2 移到 23.1，并写清"关键决定"。
+- 关闭时若改变了任何协议签名 → 按 §22 走主版本号。
 
 ---
 
@@ -2303,6 +2556,10 @@ print(describe(program))
 | 17 | 护栏规则只允许 Python，不做 DSL | 仓库级规则 DSL | DSL 要自带解析/版本/测试 |
 | 18 | 子 agent 支持 `expected_schema` | 只回文本 | 调用方要程序化用结果 |
 | 19 | 提供 CLI 脚手架（P8） | 只给文档示例 | 20 行体验需固化 |
+| 20 | 多租户默认逻辑隔离，级别由 `StoreSpec` 承载 | 默认物理隔离 | 物理隔离是运维选择；跑 demo 不该建三个库（M11.4） |
+| 21 | 配额判定在 `Guard`、累加在 `BudgetGuard` | 一处读写 | 判定必须是纯函数才能在 dry_run 与测试里复用（M8.4） |
+| 22 | 取消只在 step 边界生效 | 随时可中断 | 工具中途取消会留下"副作用已发生但未记账"的半状态（M10.4） |
+| 23 | 子 agent 并发信号量挂在 `RunScope` | 挂在 `SubAgent` 层 | 层是值、可复制；挂层会导致每层各造一个，总量失控（M13.7） |
 
 ## 附录 B · 术语
 
