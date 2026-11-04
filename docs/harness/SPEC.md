@@ -1359,6 +1359,8 @@ class Middleware(Protocol):
 | `Knowledge` | `Retrieval` 层 | model_call | 只给候选 |
 | `Skills` | `Capability` 层的子能力 | tool_call, model_call | 三段式披露 |
 
+> 表内是基线十五个组件。v2 另有两个不属于基线的层：`TaskBoard`（任务管理）与 `MemoryWrite` 之外的 `Tenancy`/`Audit`/`IdempotencyLayer`/护栏三层等横切件——它们不改决策也不改执行，只增观察与约束，所以用层表达（完整清单见 M13.4）。
+
 ### M13.3 排序规则
 
 1. 只对**同一插点**内的层排序。
@@ -1366,7 +1368,7 @@ class Middleware(Protocol):
 3. 无约束层按注册顺序稳定排序（可复现）。
 4. 三条默认铁律：改输入的在外、改输出的在内；便宜的在外的；安全在最内（`Guardrail` 紧贴终端，`Gate` 最后）。
 
-### M13.4 内置层清单（14 个）
+### M13.4 内置层清单（17 个）
 
 | # | 层 | points | needs | after / before | 行为 |
 |---|---|---|---|---|---|
@@ -1384,10 +1386,65 @@ class Middleware(Protocol):
 | 12 | `Context` | model_call | — | before: InputGuard | `Framer` → `Encoder` |
 | 13 | `InputGuard` | model_call | guardrails | — | 闸 ①②；按仲裁改写或拒绝 |
 | 14 | `OutputGuard` | model_call, run | guardrails | after: Context | 闸 ③⑤；流式走 `GuardrailStream` |
-| 15 | `Capability` | tool_call | fs, sandbox, secrets, artifacts | after: Approval | 文件五件套、沙箱路由、skill 披露、截断转 artifact |
+| 15 | `Capability` | tool_call | fs, sandbox, secrets, artifacts | after: Approval | 挂三组工具集（文件五件套 / 沙箱两件 / skill 三件）、沙箱路由、结果截断转 artifact |
 | 16 | `SubAgent` | tool_call | durability, sandbox, budget | after: Approval | `task` 工具 → 子运行 |
+| 17 | `TaskBoard` | step, model_call | — | after: Context | 任务清单注入 + `task_*` 三工具（见 M13.4.2） |
 
-（表内 16 行含 `Capability` 的可拆子层；对使用者暴露为 14 个可开关项 + 2 个复合项。）
+**共 17 个内置层**（`Capability` 与 `SubAgent` 是复合项，可各自拆成子层，但对外按一层开关）。
+
+### M13.4.1 `TaskBoard`（任务管理，v2 扩展，非基线组件）
+
+```python
+# 状态：state.section("tasks") = {"items": [{"id","text","status","owner"}], "updated_at": ...}
+```
+
+| 项 | 规格 |
+|---|---|
+| 位置 | `step`（推进状态）+ `model_call`（注入清单）两处 |
+| 注入 | 每次取景时把"当前任务 + 未完成项"写成一个 `Section(name="task", priority=90, ephemeral=True)` |
+| 工具 | `task_create(text) -> id`、`task_update(id, status)`、`task_list() -> list` |
+| 状态机 | `todo → doing → done / blocked`；`blocked` 必须带 `reason` |
+| 上限 | 单会话 50 条；超出拒绝 `task_create`（防模型无限建任务） |
+
+**为什么它是层而不是组件**：它不改决策、不改执行，只在取景时多塞一段、在执行后更新一行。基线的十五个组件里没有它，因为它服务的不是"怎么想/怎么做"，而是"怎么不忘记"——这是 v2 新增的能力，用层表达最省。
+
+**为什么必须内建而不是让用户自己拼**：长任务真正的瓶颈是上下文压缩把意图压没了。任务清单把意图从 `messages` 里提出来放到 `Section`，是一次性的、抗压缩的；用户自己拼会各写一版。
+
+### M13.4.2 `Capability` 提供的三组工具（完整签名）
+
+**① 文件五件套**（全部走 `FileSystem` 后端，路径先过 `resolve()`）
+
+| 工具 | 参数 | 返回 | `side_effects` |
+|---|---|---|---|
+| `read_file` | `path, offset=0, limit=2000` | 文本（超限标 `truncated`） | `read` |
+| `write_file` | `path, content` | `{ok, bytes}` | `write` |
+| `edit_file` | `path, old, new, count=1` | `{ok, replaced}` | `write` |
+| `glob` | `pattern` | `list[str]` | `read` |
+| `grep` | `pattern, glob="**/*", max_hits=200` | `list[Match{path, line, text}]` | `read` |
+
+**② 沙箱两件**（`exec` 必须 `argv` 列表）
+
+| 工具 | 参数 | 返回 | 说明 |
+|---|---|---|---|
+| `exec` | `argv: list[str], cwd="/work", timeout_s=30, env_keys: list[str] = []` | `ExecResult` | `env_keys` 只接受 `SecretBroker` 里的名字，值不回流 |
+| `kill` | `exec_id` | `{ok}` | 幂等 |
+
+**③ Skill 三件**（三段式披露的落地）
+
+| 工具 | 参数 | 说明 |
+|---|---|---|
+| `load_skill` | `name` | 注入正文到本轮 sections（`ephemeral=True`） |
+| `read_skill_resource` | `name, path` | 注入单个 reference |
+| `list_skills` | — | 必要时的显式列举（目录已常驻，通常不需要） |
+
+**共同约束**
+
+| 约束 | 理由 |
+|---|---|
+| 三组工具按 `spec.scopes` 注入 `ToolContext` | 没声明 `fs:write` 的工具拿不到 `fs` |
+| `exec` 的 `env_keys` 只能取密钥名 | 防止模型把 key 写进 stdout |
+| 所有工具输出先过 `OutputGuard` 闸 ④ 与截断 | 工具结果是注入载体，也是上下文炸弹 |
+| 工具不存在时不必报错：`schemas(allow=)` 直接不展示 | 模型不该看见它无权使用的工具 |
 
 ### M13.5 子 agent（最容易做成玩具，五个必须做全）
 
@@ -1616,7 +1673,7 @@ taskboard = "my_pkg.layers:TaskBoard"
 | `react` | react(24) | budget, trace | 普通工具 agent |
 | `workflow` | workflow(steps) | trace, checkpoint | 确定性流程 |
 | `pe` | pe(planner) | budget, validate | 长任务 |
-| `production` | react(24) | 全部 16 | 生产默认 |
+| `production` | react(24) | 全部 17 | 生产默认 |
 
 ---
 
@@ -1898,7 +1955,7 @@ print(describe(program))
 | **P1 骨架** | 目录重排（七层）、依赖 AST 测试、`RunScope`、四段链、`Classify` 出口 | `kernel/*`、`tests/test_architecture.py` | 现有 18 测试全绿 + 架构测试通过；行为零变化 |
 | **P2 契约** | 12 类型补齐 v2 字段、33 协议、错误分类、`RunStatus` 七态 | `contracts/*` | 契约单测；类型冻结检查 |
 | **P3 存储与后端** | 4 存储 + 工件 + 8 后端的内存实现 + 一致性测试基类 | `impl/stores`、`impl/backends` | 每个实现跑通对应 conformance |
-| **P4 部件** | 15 组件 + 14 层 + 四拓扑 | `parts/*` | 每组件离线单测；`NullX` 可替换 |
+| **P4 部件** | 15 组件 + 17 层 + 四拓扑 | `parts/*` | 每组件离线单测；`NullX` 可替换 |
 | **P5 门面** | `fp`：`Layer`/`Program`/`Harness`/`compose`/`>>`/`describe`/`dry_run` | `fp/*` | §19 前 5 个示例可跑 |
 | **P6 装配** | `build(cfg)` 判别联合、装配表、5 预设、插件 | `assembly/*` | 五预设各跑一次；六例只改配置 |
 | **P7 护栏与流式** | 五道闸、三段式、流式护栏、`astream` | `parts/guardrail`、`fp/runtime` | 五闸各有测试；流式中断语义正确 |
