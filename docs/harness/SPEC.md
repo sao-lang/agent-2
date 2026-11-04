@@ -318,7 +318,7 @@ src/harness/
 | `contracts/{types,status,events,protocols}/` | ✅ `types.py`+`status.py`+`events.py`+`protocols/{model,tools,body,runtime,guards,framing,stores,backends,governance}.py` | P2 已完成 |
 | `kernel/{loop,stage,chain,scope}.py` | `kernel/{stage,chain,scope}.py` ✅；`loop.py` 待 P4（Agent 仍用 v1 循环） | P4 |
 | `parts/{policy,framing,...}/` | `parts/*.py` 扁平 + `parts/body/` | P4 拆子包 |
-| `impl/{stores,backends,fakes}/` | `impl/fakes.py`（由 `testing.py` 迁入） | P3 |
+| `impl/{stores,backends,fakes}/` | ✅ `impl/stores/memory.py` + `impl/fakes.py`；`impl/backends/` 待建 | P3 剩余 |
 | `assembly/{config,app,plugins,presets}.py` | `assembly/{agent,build,presets}.py`（`Agent` 是组合产物，必有部件依赖，故属 L4） | P6 |
 | `fp/*` | 空包 + 文档字符串 | P5 |
 | 兼容壳 | `harness/{errors,testing,state,result}.py` 再导出旧路径 | P2 起逐个删除 |
@@ -2467,7 +2467,7 @@ print(describe(program))
 |---|---|---|---|
 | **P1 骨架** ✅ | 目录重排（六层）、依赖 AST 测试、`RunScope`、四段链、`Classify` 出口 | `kernel/{scope,stage,chain}.py`、`tests/test_architecture.py`、`tests/test_kernel.py` | **已完成（2026-11-04）**：18 个原测试 + 4 条架构用例 + 16 条内核用例 = **38 全绿**，行为零变化 |
 | **P2 契约** ✅ | 12 类型补齐 v2 字段、33 协议、错误分类、`RunStatus` 七态 | `contracts/{types,status,events,protocols/*}.py`、`tests/test_contracts.py` | **已完成（2026-11-04）**：30+ 类型冻结检查、七态与 TERMINAL 集合、协议运行期可判定、`__all__` 完整、`State` 带 `schema_version` 往返；54 测试全绿（18 原 + 4 架构 + 16 内核 + 16 契约） |
-| **P3 存储与后端** | 4 存储 + 工件 + 8 后端的内存实现 + 一致性测试基类 | `impl/stores`、`impl/backends` | 每个实现跑通对应 conformance |
+| **P3 存储与后端**（存储部分 ✅ / 后端待做） | 5 存储 + 工件 + 8 后端的内存实现 + 一致性测试基类 | `impl/stores/memory.py` ✅、`tests/conformance.py` ✅、`impl/backends/` 待建 | 存储 5 个实现已跑通 21 条 conformance（C1–C7 全覆盖）；后端待接 |
 | **P4 部件** | 15 组件 + 17 层 + 四拓扑 | `parts/*` | 每组件离线单测；`NullX` 可替换 |
 | **P5 门面** | `fp`：`Layer`/`Program`/`Harness`/`compose`/`>>`/`describe`/`dry_run` | `fp/*` | §19 前 5 个示例可跑 |
 | **P6 装配** | `build(cfg)` 判别联合、装配表、5 预设、插件 | `assembly/*` | 五预设各跑一次；六例只改配置 |
