@@ -108,7 +108,7 @@ BaseTool         来自 ['langchain_core.tools']
 
 落到工程里是连传递依赖一起钉住：`langchain-openai` 对 `openai` 有 `>=1.109.1,<3.0.0` 的宽区间，不钉的话同一条命令装出的 `openai` 版本可能不同，而响应解析的细节由它决定。
 
-第二块输出是符号归属：模型入口在 `langchain`，厂商适配在 `langchain-openai`，消息与裁剪在 `langchain-core`，这张表是每个例子的 import 行的依据。切法从依赖方向看得出来：core 只放与厂商无关的东西，不 import 任何厂商 SDK；`langchain` 放编排与入口，需要时才 import 某个厂商包；`langchain-openai` 放与一家 SDK 对齐的请求编码与响应解析。`init_chat_model` 替第 1 章拼请求体加选厂商那几行，`create_agent` 替第 7 章那个最小循环，第 12 章才讲。新符号的归属可以用 `versions.py` 第二块的 `hasattr` 逐个模块确认。
+第二块输出是符号归属：模型入口在 `langchain`，厂商适配在 `langchain-openai`，消息与裁剪在 `langchain-core`，这张表是每个例子的 import 行的依据。切法从依赖方向看得出来：core 只放与厂商无关的东西，不 import 任何厂商 SDK；`langchain` 放编排与入口，需要时才 import 某个厂商包；`langchain-openai` 放与一家 SDK 对齐的请求编码与响应解析。`init_chat_model` 替第 1 章拼请求体加选厂商那几行，`create_agent` 是框架内置的循环入口、替第 7 章那个最小循环，第 12 章才讲。新符号的归属可以用 `versions.py` 第二块的 `hasattr` 逐个模块确认。
 
 包拆开之后旧路径就消失了。`versions.py` 的第三块把四个旧 import 原样跑了一遍：
 
@@ -138,7 +138,7 @@ langchain.text_splitter  -> ModuleNotFoundError: No module named 'langchain.text
 
 ## 三、模型接入的参数
 
-第 1 章的请求体里，`model` 是字符串、`temperature` 是数字，两个值都写在业务代码里；第 1 章的协议层对照把这条路摊开过：URL、认证头、请求体，各是一行。换厂商要动这几行，换一种同一模型不同参数的实验也要动这几行。`init_chat_model` 把这一段收成一个函数：按厂商找到适配类，把参数透传下去。先核对签名：
+第 1 章的请求体里，`model` 是字符串、`temperature` 是数字，两个值都写在业务代码里；第 1 章的协议层对照把这条路摊开过：URL、认证头、请求体，各是一行。换厂商要动这几行，换一种同一模型不同参数的实验也要动这几行。`init_chat_model` 把这一段收成一个函数：按厂商找到适配类，把参数透传下去。先核对签名，`code/knowledge/ch09_lc_basic/model_access.py` 里的 `show_signature`：
 
 ```python
 import inspect
@@ -470,7 +470,7 @@ additional_kwargs 的键: ['refusal']
 
 ## 六、裁剪的六个参数
 
-第 3 章讲过窗口满了会怎样：请求被拒、生成中途被截断、溢出时丢的是最早的轮次。手写的应对是一段从后往前数 token 的循环；框架里是一个函数，六个参数，其中两个默认值与直觉相反：`include_system` 与 `allow_partial` 都是 `False`。第七个参数 `text_splitter` 单独说。
+第 3 章讲过窗口满了会怎样：请求被拒、生成中途被截断、溢出时丢的是最早的轮次。手写的应对是一段从后往前数 token 的循环；框架里是一个函数，六个参数，其中两个默认值与直觉相反：`include_system` 与 `allow_partial` 都是 `False`。第七个参数 `text_splitter` 单独说。先核对签名（`code/knowledge/ch09_lc_basic/trimming.py` 里的 `signature`）：
 
 ```python
 import inspect
@@ -676,7 +676,7 @@ gpt-4o-mini 的 tokenizer: 77
 
 ## 七、三种流式接口
 
-第 1 章讲过流式的三个事实：正文散在增量里、`finish_reason` 只在最后一块、`usage` 默认不返回。手写要处理的正是这三件事；框架提供三个接口，语义不变。
+第 1 章讲过流式的三个事实：正文散在增量里、`finish_reason` 只在最后一块、`usage` 默认不返回。手写要处理的正是这三件事；框架提供三个接口，语义不变。`code/knowledge/ch09_lc_basic/streaming.py` 里起了一个脚本化后端：
 
 ```python
 import httpx
@@ -733,7 +733,7 @@ finish_reason: stop
 usage_metadata: None
 ```
 
-拼出来的文本与非流式调用一致，`finish_reason` 靠块相加带过来，`usage_metadata` 是 `None`，因为这个 SSE 响应体里没有 `usage`。第 1 章说过要 `stream_options={"include_usage": True}` 服务端才在最后一帧带用量，框架不会自己补估算值，第 3 章那条用量以服务端返回为准的结论同样成立。
+拼出来的文本与非流式调用一致，`finish_reason` 靠块相加带过来，`usage_metadata` 是 `None`，因为这个 SSE 响应体里没有 `usage`。第 1 章说过 `stream_options` 是请求体里的一个开关，写成 `{"include_usage": True}` 服务端才在最后一帧带用量，框架不会自己补估算值，第 3 章那条用量以服务端返回为准的结论同样成立。
 
 `.astream()` 是同一件事的异步接口，逐块产出的顺序一致：
 
@@ -805,7 +805,7 @@ on_chain_end           RunnableSequence   parent=(根)
 
 ## 八、结构化输出的三种策略
 
-第 4 章实现了五种把输出变成结构化数据的做法，每种都要手写请求构造与解析；第 5 章用 pydantic 定义了结构。框架里这两件事接在一处：`with_structured_output(schema, method=...)`，`schema` 来自第 5 章的模型。
+第 4 章实现了五种把输出变成结构化数据的做法，每种都要手写请求构造与解析；第 5 章用 pydantic 定义了结构。框架里这两件事接在一处：`with_structured_output(schema, method=...)`，`schema` 来自第 5 章的模型。先核对签名，`code/knowledge/ch09_lc_basic/structured.py` 里的 `signature`：
 
 ```python
 import inspect
