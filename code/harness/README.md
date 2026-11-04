@@ -34,6 +34,7 @@ $env:PYTHONIOENCODING='utf-8'
 
 python -m unittest discover -s code/harness/tests -v
 python code/harness/examples/refund_agent.py
+python code/harness/examples/fp_composition.py   # FP 组合形态样张（无依赖）
 ```
 
 ## 最小用法
