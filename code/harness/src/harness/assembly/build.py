@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from harness.parts.actor import Actor
-from harness.kernel.agent import Agent
-from .body import PlanExecutePolicy, ReactPolicy, WorkflowPolicy
+from harness.assembly.agent import Agent
+from harness.parts.body import PlanExecutePolicy, ReactPolicy, WorkflowPolicy
 from harness.parts.budget import Budget
 from harness.parts.context import BudgetedContext
 from harness.contracts.types import Step

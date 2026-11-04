@@ -37,3 +37,47 @@ class MaxStepsExceeded(HarnessError):
 
 class ContractError(HarnessError):
     """组件返回的类型不符合契约。"""
+
+
+# ---- SPEC M16.1.1 的错误分类（P1 先落类型，映射在 kernel.stage.DefaultClassify）
+
+
+class ValidationError(HarnessError):
+    """参数不合法（Check 段的产物）。携带字段路径，便于模型自愈。"""
+
+    def __init__(self, message: str, *, field: str = "") -> None:
+        super().__init__(f"{field}: {message}" if field else message)
+        self.field = field
+
+
+class ConcurrencyError(HarnessError):
+    """乐观并发冲突（expect_rev 不匹配）。"""
+
+
+class TransientError(HarnessError):
+    """可重试失败：超时、限流、5xx。"""
+
+
+class PolicyError(HarnessError):
+    """准入或护栏拒绝。"""
+
+
+#: SPEC 里叫 BudgetError；保留旧名以兼容 v1 代码。
+BudgetError = BudgetExceeded
+
+__all__ = [
+    "HarnessError",
+    "ConfigError",
+    "BudgetExceeded",
+    "BudgetError",
+    "GuardDenied",
+    "ToolError",
+    "ReflectorReject",
+    "ApprovalExpired",
+    "MaxStepsExceeded",
+    "ContractError",
+    "ValidationError",
+    "ConcurrencyError",
+    "TransientError",
+    "PolicyError",
+]

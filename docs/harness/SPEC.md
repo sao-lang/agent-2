@@ -262,31 +262,38 @@ L0 内核     kernel/      循环 · 四段 · 链 · 作用域
 
 ### 3.2 依赖白名单（唯一铁律）
 
-> **除内核外，任何模块对同包其它模块的依赖，只允许指向 `contracts`。**
+> **只向内，不向上：任何模块只能依赖自己所在层与更内层的模块；层与层之间不得成环。**
+
+**P1 实施修正**：初稿写的是"除内核外只允许指向 `contracts`"，落地时发现这条不可执行——同一层内的实现必然共享工具（`memory` 用 `knowledge` 的 `_score`、`skills` 用 `body` 的 `WorkflowPolicy`）。**禁止同层依赖只能靠把所有共享工具塞进契约层**，那会污染"零依赖"。所以改成六边形架构的标准表述：**同一层内部允许互依，约束方向与成环**。
 
 | 模块 | 允许依赖 |
 |---|---|
-| `contracts` | 无（仅标准库） |
+| `contracts` | 仅自身（且**零第三方依赖**） |
 | `kernel` | `contracts` |
-| `impl` | `contracts` |
-| `parts` | `contracts` |
-| `assembly` | `contracts` `kernel` `impl` `parts` |
+| `parts` | `contracts` `parts`（同层） |
+| `impl` | `contracts` `impl`（同层） |
+| `assembly` | `contracts` `kernel` `parts` `impl`（同层） |
 | `fp` | `contracts` `parts` `assembly` |
 | `adapters` | 全部（只被 `assembly` 懒加载） |
 
-禁令：禁止向上依赖；禁止兄弟依赖（`middleware/a` 不许 import `middleware/b`）；`__init__.py` 只做导出不做初始化。
+禁令：禁止向上依赖（`parts` ↛ `kernel`）；禁止层间成环（`kernel → parts` 与 `parts → kernel` 不能同时存在）；`__init__.py` 只做导出不做初始化。
 
 ### 3.3 用测试守住
 
 ```python
-# tests/test_architecture.py
+# tests/test_architecture.py（已落地，P1）
 ALLOWED = {
-    "contracts": set(), "kernel": {"contracts"}, "impl": {"contracts"}, "parts": {"contracts"},
-    "assembly": {"contracts", "kernel", "impl", "parts"},
-    "fp": {"contracts", "parts", "assembly"},
+    "contracts": {"contracts"},
+    "kernel": {"contracts", "kernel"},
+    "parts": {"contracts", "parts"},
+    "impl": {"contracts", "impl"},
+    "assembly": {"contracts", "kernel", "parts", "impl", "assembly"},
+    "fp": {"contracts", "parts", "assembly", "fp"},
 }
-# 遍历 ast，任何 level>=1 的 ImportFrom 的目标模块必须在白名单内
+# 四条用例：目录存在、依赖方向、契约层零三方依赖、层间无环
 ```
+
+### 3.4 目标文件树
 
 ### 3.4 目标文件树
 
@@ -301,6 +308,22 @@ src/harness/
 ├── fp/         layer.py ops.py runtime.py topo.py
 └── adapters/   openai.py qdrant.py otel.py mcp.py
 ```
+
+#### 3.4.1 落地状态（P1 已完成的过渡布局）
+
+目标树中的子包划分属 P3/P4 工作。**P1 先保证分层与依赖方向正确**，目录内部暂为扁平：
+
+| 目标 | P1 实际 | 何时对齐 |
+|---|---|---|
+| `contracts/{types,status,errors,events}/` | `contracts/{types,state,result,errors}.py` + `__init__` 再导出 | P2 拆 `protocols/` 与 `status.py` |
+| `kernel/{loop,stage,chain,scope}.py` | `kernel/{stage,chain,scope}.py` ✅；`loop.py` 待 P4（Agent 仍用 v1 循环） | P4 |
+| `parts/{policy,framing,...}/` | `parts/*.py` 扁平 + `parts/body/` | P4 拆子包 |
+| `impl/{stores,backends,fakes}/` | `impl/fakes.py`（由 `testing.py` 迁入） | P3 |
+| `assembly/{config,app,plugins,presets}.py` | `assembly/{agent,build,presets}.py`（`Agent` 是组合产物，必有部件依赖，故属 L4） | P6 |
+| `fp/*` | 空包 + 文档字符串 | P5 |
+| 兼容壳 | `harness/{errors,testing,state,result}.py` 再导出旧路径 | P2 起逐个删除 |
+
+**为什么 `Agent` 放在 `assembly` 而不是 `kernel`**：`Agent` 要 `new` 具体部件（`Actor`/`Guard`/`Tracer`），违反"内核只依赖契约"。它是组合产物，属装配层（R4：构造只在装配层）。
 
 ---
 
@@ -2442,7 +2465,7 @@ print(describe(program))
 
 | 期 | 目标 | 交付物 | 验收 |
 |---|---|---|---|
-| **P1 骨架** | 目录重排（七层）、依赖 AST 测试、`RunScope`、四段链、`Classify` 出口 | `kernel/*`、`tests/test_architecture.py` | 现有 18 测试全绿 + 架构测试通过；行为零变化 |
+| **P1 骨架** ✅ | 目录重排（六层）、依赖 AST 测试、`RunScope`、四段链、`Classify` 出口 | `kernel/{scope,stage,chain}.py`、`tests/test_architecture.py`、`tests/test_kernel.py` | **已完成（2026-11-04）**：18 个原测试 + 4 条架构用例 + 16 条内核用例 = **38 全绿**，行为零变化 |
 | **P2 契约** | 12 类型补齐 v2 字段、33 协议、错误分类、`RunStatus` 七态 | `contracts/*` | 契约单测；类型冻结检查 |
 | **P3 存储与后端** | 4 存储 + 工件 + 8 后端的内存实现 + 一致性测试基类 | `impl/stores`、`impl/backends` | 每个实现跑通对应 conformance |
 | **P4 部件** | 15 组件 + 17 层 + 四拓扑 | `parts/*` | 每组件离线单测；`NullX` 可替换 |
