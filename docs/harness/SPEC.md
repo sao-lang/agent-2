@@ -2471,7 +2471,7 @@ print(describe(program))
 | **P4 部件**（17/17 层 ✅） | 15 组件 + 17 层 + 四拓扑 | 17 层全部落地（含 input_guard/output_guard 与五道闸仲裁）；`parts/tools.py` schema 推导 ✅、`parts/capability.py` ✅、`parts/subagent.py` ✅；剩三策略迁 v2 签名 + 四拓扑 `scope` 参数 | 取景 12 + 层 14 + 治理 15 + 工具/能力 19 + 子 agent/薄层 11 + 护栏 19 条；**193 测试全绿** |
 | **P5 门面** | `fp`：`Layer`/`Program`/`Harness`/`compose`/`>>`/`describe`/`dry_run` | `fp/*` | §19 前 5 个示例可跑 |
 | **P6 装配** ✅ | spec 解析与注册表、八条构造期校验、Harness 归位、五预设 | `assembly/{registry,config,harness,fpresets}.py` | **已完成（2026-11-05）**：`name[:arg]`/dict 两形态解析；未知名报错并列出可用名；缺适配器给安装提示；8 条校验（护栏/工具重名/层名/预算/深度/租户/挂载/存储可解析）；换存储介质只改配置；**226 测试全绿** |
-| **P7 护栏与流式** | 五道闸、三段式、流式护栏、`astream` | `parts/guardrail`、`fp/runtime` | 五闸各有测试；流式中断语义正确 |
+| **P7 护栏与流式** ✅ | 五道闸、三段式、流式护栏、`astream` | `parts/guardrail/{detectors,layer,streaming}.py`、`kernel/loop.py`（事件）、`assembly/harness.py`（astream/auto_layers） | **已完成（2026-11-05）**：护栏经 `model_call` 链真正生效（入站注入→REFUSED、输出 PII→脱敏）；`astream` 与 `run` 共用同一条内核（队列 sink）；`StreamGuard` 窗口缓冲 64、命中即中断、flush 收尾；**235 测试全绿** |
 | **P8 验收** | 替换实验矩阵（取 3 点）、`adapters/openai`、CLI 脚手架 | `adapters/*`、`cli` | 替换实验全过；真实模型跑通 |
 
 **拆分原则**：每个任务都以"一个协议 + 一个内存实现 + 一组一致性测试"为最小交付单位；不允许交付"只有实现没有测试"的部件。

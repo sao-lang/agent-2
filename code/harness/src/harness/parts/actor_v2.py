@@ -18,12 +18,29 @@ class LlmActor:
     name: str = "actor"
 
     async def propose(self, state: Any, scope: Any) -> Step | Done:
-        """决定下一步：取景 → 编码 → 问模型 → 解析 tool_call。"""
+        """决定下一步：取景 → 编码 → （经 model_call 链）问模型 → 解析 tool_call。
+
+        取景永远在这里做；`scope.model_call` 由内核提供（内含护栏/缓存等层），
+        所以本类不需要知道链的存在，也不需要 import kernel。
+        """
+        from harness.contracts.types import ModelReply, ModelRequest
+
+        schemas = self.tools.schemas() if self.tools is not None else None
         frame = await scope.framer.frame(state, budget=scope.budget)
         pack = await scope.encoder.encode(frame)
-        reply = await self.model.complete(
-            pack.messages, self.tools.schemas() if self.tools is not None else None
+        request = ModelRequest(
+            state=state,
+            messages=tuple(pack.messages),
+            tools=tuple(schemas or ()),
+            budget=scope.budget,
+            frame=frame,
         )
+
+        model_call = getattr(scope, "model_call", None)
+        if model_call is not None:
+            reply = (await model_call(request)).reply
+        else:
+            reply = await self.model.complete(pack.messages, schemas)
 
         usage = dict(getattr(reply, "usage", {}) or {})
         tokens = int(usage.get("total", usage.get("tokens", 0)) or 0)

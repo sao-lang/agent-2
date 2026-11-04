@@ -168,8 +168,25 @@ def build_harness(config: HarnessConfig) -> Any:
         backends=backends,
     )
     harness.namespace = _namespace(config, harness)
+    harness.auto_layers = _auto_layers(config, harness, guardrails, stores)
     harness.layers = tuple(LayerSpec(name=s.name, config=dict(s.config)) for s in config.layers)
     return harness
+
+
+def _auto_layers(config: HarnessConfig, harness: Any, guardrails: tuple, stores: dict) -> tuple:
+    """由能力派生出该默认挂上的层（护栏 + 检查点）。"""
+    layers: list[Any] = []
+    if guardrails:
+        from harness.parts.guardrail import input_guard_layer, output_guard_layer
+
+        layers.append(input_guard_layer(guardrails=guardrails))
+        layers.append(output_guard_layer(guardrails=guardrails))
+    store = stores.get('durability')
+    if store is not None:
+        from harness.parts.middleware import checkpoint_layer
+
+        layers.append(checkpoint_layer(store=store))
+    return tuple(layers)
 
 
 def _namespace(config: HarnessConfig, harness: Any) -> Any:

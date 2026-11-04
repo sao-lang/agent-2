@@ -1,4 +1,4 @@
-"""护栏：检测器、仲裁与两个层（SPEC M9）。"""
+"""护栏：检测器、仲裁、两个层与流式过滤（SPEC M9）。"""
 
 from harness.parts.guardrail.detectors import (
     ACTION_ORDER,
@@ -11,6 +11,7 @@ from harness.parts.guardrail.detectors import (
     builtin_detectors,
 )
 from harness.parts.guardrail.layer import input_guard_layer, output_guard_layer
+from harness.parts.guardrail.streaming import StreamGuard, guard_stream
 
 __all__ = [
     "ACTION_ORDER",
@@ -23,4 +24,6 @@ __all__ = [
     "apply_verdict",
     "input_guard_layer",
     "output_guard_layer",
+    "StreamGuard",
+    "guard_stream",
 ]

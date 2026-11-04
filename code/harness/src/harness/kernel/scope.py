@@ -38,6 +38,8 @@ class RunScope:
     index: Any = None
     memory: Any = None
     guardrails: tuple[Any, ...] = ()
+    events: Any = None
+    model_call: Any = None   # 由内核注入：经 model_call 链的模型调用                     # EventSink：唯一对外观察面
     pipes: tuple[Any, ...] = ()
     layers: tuple[Any, ...] = ()
     filter: Any = None
