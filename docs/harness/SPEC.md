@@ -319,7 +319,7 @@ src/harness/
 | `kernel/{loop,stage,chain,scope}.py` | `kernel/{stage,chain,scope}.py` ✅；`loop.py` 待 P4（Agent 仍用 v1 循环） | P4 |
 | `parts/{policy,framing,middleware,...}/` | ✅ `parts/framing/`、`parts/middleware/`；其余仍扁平 + `parts/body/` | P4 后半 |
 | `impl/{stores,backends,fakes}/` | ✅ `stores/memory.py`、`backends/{paths,fs,core}.py`、`fakes.py` | P3 已完成 |
-| `assembly/{config,app,plugins,presets}.py` | `assembly/{agent,build,presets}.py`（`Agent` 是组合产物，必有部件依赖，故属 L4） | P6 |
+| `assembly/{config,harness,registry,fpresets}.py` | ✅ 已就位；v1 的 `agent/build/presets` 保留兼容 | P6 已完成 |
 | `fp/*` | 空包 + 文档字符串 | P5 |
 | 兼容壳 | `harness/{errors,testing,state,result}.py` 再导出旧路径 | P2 起逐个删除 |
 
@@ -2470,7 +2470,7 @@ print(describe(program))
 | **P3 存储与后端** ✅ | 5 存储 + 工件 + 8 后端的内存实现 + 一致性测试基类 | `impl/stores/memory.py`、`impl/backends/{paths,fs,core}.py`、`tests/{conformance,test_stores,test_backends}.py` | **已完成（2026-11-05）**：5 存储跑通 21 条 conformance；9 个后端（FS×2/沙箱×2/工件/密钥×2/索引/队列/审批×2/时钟×2）；路径 jail 12 条用例含 traversal/只读/符号链接逃逸；**101 测试全绿（1 跳过：平台不允许建符号链接）** |
 | **P4 部件**（17/17 层 ✅） | 15 组件 + 17 层 + 四拓扑 | 17 层全部落地（含 input_guard/output_guard 与五道闸仲裁）；`parts/tools.py` schema 推导 ✅、`parts/capability.py` ✅、`parts/subagent.py` ✅；剩三策略迁 v2 签名 + 四拓扑 `scope` 参数 | 取景 12 + 层 14 + 治理 15 + 工具/能力 19 + 子 agent/薄层 11 + 护栏 19 条；**193 测试全绿** |
 | **P5 门面** | `fp`：`Layer`/`Program`/`Harness`/`compose`/`>>`/`describe`/`dry_run` | `fp/*` | §19 前 5 个示例可跑 |
-| **P6 装配** | `build(cfg)` 判别联合、装配表、5 预设、插件 | `assembly/*` | 五预设各跑一次；六例只改配置 |
+| **P6 装配** ✅ | spec 解析与注册表、八条构造期校验、Harness 归位、五预设 | `assembly/{registry,config,harness,fpresets}.py` | **已完成（2026-11-05）**：`name[:arg]`/dict 两形态解析；未知名报错并列出可用名；缺适配器给安装提示；8 条校验（护栏/工具重名/层名/预算/深度/租户/挂载/存储可解析）；换存储介质只改配置；**226 测试全绿** |
 | **P7 护栏与流式** | 五道闸、三段式、流式护栏、`astream` | `parts/guardrail`、`fp/runtime` | 五闸各有测试；流式中断语义正确 |
 | **P8 验收** | 替换实验矩阵（取 3 点）、`adapters/openai`、CLI 脚手架 | `adapters/*`、`cli` | 替换实验全过；真实模型跑通 |
 

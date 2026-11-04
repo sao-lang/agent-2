@@ -10,8 +10,8 @@ Program 里没有实例，能力全在 Harness——这是"换后端不改程序
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
-from typing import Any, Iterable
+from dataclasses import dataclass, replace
+from typing import Any
 
 from harness.contracts.errors import ConfigError
 from harness.contracts.result import RunResult
@@ -157,66 +157,7 @@ def pe(planner, *, max_steps: int = 24) -> Program:
     return Program(body=PlanExecutePolicy(planner=planner), max_steps=max_steps)
 
 
-# ------------------------------------------------------------------ Harness
-
-
-@dataclass
-class Harness:
-    """能力容器：模型、工具、存储、后端。不持有任何策略。"""
-
-    model: Any = None
-    tools: ToolRegistry = field(default_factory=ToolRegistry)
-    budget: Budget = field(default_factory=Budget)
-    namespace: Namespace = field(default_factory=Namespace)
-    stores: dict[str, Any] = field(default_factory=dict)
-    backends: dict[str, Any] = field(default_factory=dict)
-    guard: Any = None
-    pipes: tuple[Any, ...] = ()
-    filter: Any = None
-    guardrails: tuple[Any, ...] = ()
-    system: str = ""
-    max_depth: int = 2
-
-    @classmethod
-    def of(cls, model: Any = None, *, tools: Iterable[Any] = (), **kwargs: Any) -> "Harness":
-        registry = ToolRegistry()
-        if tools:
-            registry.add(*tools)
-        return cls(model=model, tools=registry, **kwargs)
-
-    def scope_for(self, goal: Goal) -> RunScope:
-        from harness.kernel.stage import DefaultClassify
-
-        known = set(RunScope.__dataclass_fields__)
-        backends = {k: v for k, v in self.backends.items() if k in known}
-        return RunScope(
-            namespace=replace(self.namespace, session=goal.session_id or "default"),
-            budget=self.budget,
-            actor=LlmActor(model=self.model, tools=self.tools),
-            framer=ModelFramer(system=self.system),
-            encoder=ChatEncoder(),
-            guard=self.guard,
-            pipes=tuple(self.pipes),
-            filter=self.filter or DefaultClassify(),
-            guardrails=tuple(self.guardrails),
-            max_depth=self.max_depth,
-            **backends,
-        )
-
-    async def run(self, program: Program, goal: Goal) -> RunResult:
-        state = State(
-            goal=goal,
-            session=SessionRef(goal.session_id or "default", tenant=self.namespace.tenant),
-        )
-        return await run_loop(program=program, state=state, scope=self.scope_for(goal))
-
-    async def dry_run(self, program: Program, goal: Goal) -> list[Effect]:
-        """走完整四段，但终端只记账不执行（SPEC M1.10）。"""
-        state = State(goal=goal, session=SessionRef(goal.session_id or "default"))
-        effects: list[Effect] = []
-        await run_loop(program=program, state=state, scope=self.scope_for(goal),
-                       record_effects=effects)
-        return effects
+from harness.assembly.harness import Harness  # noqa: E402  （能力容器属装配层）
 
 
 __all__ = [
