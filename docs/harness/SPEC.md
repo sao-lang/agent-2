@@ -330,7 +330,7 @@ src/harness/
 | `ActionResult` | `step: Step`、`ok: bool`、`output: str`、`error: str \| None`、`tokens: int` | `citations: list[str] = []`、`artifacts: list[ArtifactRef] = []` |
 | `Verdict` | `passed: bool`、`reason: str`、`action: Literal["accept","retry","patch","replan_all"]` | — |
 | `Plan` | `id: str`、`steps: list[Step]`、`rev: int` | — |
-| `Recalled` | `text: str`、`layer: Literal["semantic","episodic","procedural"]`、`score: float`、`source: str`、`age_days: int` | `dedup_key: str = ""`、`id: str = ""` |
+| `Recalled` | `text: str`、`layer: Literal["semantic","episodic","procedural"]`、`score: float`、`source: str`、`age_days: int` | `dedup_key: str = ""`、`id: str = ""`、`superseded_by: str = ""` |
 | `Pack` | `messages: list[dict]`、`usage: dict[str,int]`、`dropped: list[str]` | `frame: Frame \| None = None` |
 | `SessionRef` | `session_id: str`、`tenant: str`、`started_at: str` | — |
 | `Brief` | `goal: Goal`、`context_refs: list[str]`、`done: list[str]`、`forbidden: list[str]`、`deadline: float \| None` | — |
@@ -920,7 +920,7 @@ class Knowledge(Protocol):
 class Memory(Protocol):
     async def recall(self, ns: Namespace, query: str, *, layers: Sequence[str], k: int) -> list[Recalled]: ...
     async def upsert(self, ns: Namespace, items: Sequence[Recalled]) -> int: ...
-    async def forget(self, ns: Namespace, ids: Sequence[str]) -> int: ...
+    async def forget(self, ns: Namespace, ids: Sequence[str]) -> int: ...   # 软删：置 superseded_by，recall 不再返回
     async def expire(self, ns: Namespace, now: datetime) -> int: ...
 ```
 
@@ -960,6 +960,111 @@ class Skills(Protocol):
 | 目录只暴露 name + description | 目录是常驻成本，正文是偶发成本，量级差两个数量级 |
 | `SkillRegistry.from_dir` **懒加载**正文 | 启动时读全部 SKILL.md 会让首屏变慢 |
 | Skill 可编译成 `WorkflowPolicy` | "Skill 程序"是主体第四形态（基线 5.2） |
+
+### M7.4 换存储介质：把记忆换成 PostgreSQL（完整演练）
+
+**结论先行**：`kernel/` 与 `parts/` **零改动**，`Program` **零改动**，只改 1 行配置 + 新增 1 个 `impl` 文件 + 1 组一致性测试。
+
+**第 1 步：改配置（唯一的一行业务改动）**
+
+```python
+h = Harness.of(
+    model="openai:gpt-4.1",
+    stores=StoreSpec(memory="postgres:$MEM_DSN"),      # memory 从 memory 换成 postgres
+)
+```
+
+**第 2 步：实现 `Memory` 四个方法（约 180 行）**
+
+```python
+class PostgresMemory:                       # 实现 M7.2 的 Memory 协议
+    def __init__(self, dsn: str, *, embed: Embedder, table="memory_items"):
+        self.pool, self.embed, self.table = make_pool(dsn), embed, table
+
+    async def recall(self, ns, query, *, layers, k) -> list[Recalled]:
+        vec = await self.embed(query)
+        rows = await self.pool.fetch(f"""
+            SELECT id, text, layer, source, age_days, dedup_key,
+                   1 - (embedding <=> $1) AS score
+              FROM {self.table}
+             WHERE tenant=$2 AND user_id=$3 AND session_id=$4 AND agent=$5   -- 命名空间下推
+               AND layer = ANY($6)                                           -- layer 下推
+               AND superseded_by IS NULL                                     -- 只取最新版本
+               AND (expires_at IS NULL OR expires_at > now())                -- 过期下推
+             ORDER BY embedding <=> $1
+             LIMIT $7""",
+            vec, ns.tenant, ns.user, ns.session, ns.agent, list(layers), k)
+        return [Recalled(**r) for r in rows]
+
+    async def upsert(self, ns, items) -> int:      # 去重靠 DB 唯一约束，不靠应用层先查后写
+        async with self.pool.acquire() as c, c.transaction():
+            await c.executemany(f"""
+                INSERT INTO {self.table}(tenant,user_id,session_id,agent,layer,text,
+                                         source,age_days,dedup_key,embedding)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                ON CONFLICT (tenant,user_id,session_id,agent,dedup_key)
+                DO UPDATE SET text=EXCLUDED.text, embedding=EXCLUDED.embedding,
+                              age_days=EXCLUDED.age_days, source=EXCLUDED.source""",
+                [(ns.tenant, ns.user, ns.session, ns.agent, i.layer, i.text,
+                  i.source, i.age_days, i.dedup_key, await self.embed(i.text)) for i in items])
+        return len(items)
+
+    async def forget(self, ns, ids) -> int: ...     # 软删：置 superseded_by
+    async def expire(self, ns, now) -> int: ...      # 物理删或标记，二选一写死
+```
+
+**第 3 步：表结构（三处细节决定成败）**
+
+```sql
+CREATE TABLE memory_items (
+  id            BIGSERIAL PRIMARY KEY,
+  tenant        TEXT NOT NULL,          -- 命名空间是四列复合，不是字符串前缀
+  user_id       TEXT NOT NULL,
+  session_id    TEXT NOT NULL,
+  agent         TEXT NOT NULL,
+  layer         TEXT NOT NULL,
+  text          TEXT NOT NULL,
+  source        TEXT NOT NULL DEFAULT '',
+  age_days      INT  NOT NULL DEFAULT 0,
+  dedup_key     TEXT NOT NULL,
+  embedding     VECTOR(1024),
+  superseded_by BIGINT REFERENCES memory_items(id),   -- 支撑 MemoryPolicy 的"旧条目保留为超链接"
+  expires_at    TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant, user_id, session_id, agent, dedup_key)   -- 并发 upsert 的正确性来源
+);
+CREATE INDEX ON memory_items (tenant, user_id, agent, layer);
+CREATE INDEX ON memory_items USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX ON memory_items (expires_at) WHERE expires_at IS NOT NULL;
+```
+
+**第 4 步：跑一致性测试（`MemoryConformance`，见 M16.3）**
+
+**第 5 步：迁移存量数据**
+
+```text
+旧 InMemory/JSONL → SELECT 全部条目 → 计算 dedup_key（无则用 sha256(text)[:16]）→ 批量 upsert → 校验条数
+```
+
+**为什么这么容易：四个设计决定在起作用**
+
+| 设计决定 | 这次替换里省掉了什么 |
+|---|---|
+| `Memory` 只有 4 个方法（M1.1 窄而深） | 不用实现 20 个方法；Postgres 版本半年能维护 |
+| `Namespace` 是四列复合值（不是字符串） | 租户隔离写成 4 个 `WHERE` 条件，不用解析前缀 |
+| `MemoryPolicy` 与 `Memory` 分离 | 写入策略（该不该写/合并/衰减）在换介质时**完全不动** |
+| `Program` 里没有实例（§0.3） | 业务侧只改 1 行配置，不动任何 `react(...) >> ...` 组合 |
+
+**四个必须避开的坑（都来自"换了介质"这件事本身）**
+
+| 坑 | 正确做法 |
+|---|---|
+| 在 Python 里过滤 layer/ns/过期 | 必须**下推**到 SQL：否则先拉全表再过滤，既慢又泄漏 |
+| 先 `SELECT` 再 `INSERT` 做去重 | 必须靠 `UNIQUE` + `ON CONFLICT`，否则并发下会产生两条 |
+| 一致性测试断言精确 `score` | 只断言"返回 ≤ k 条、按 score 降序、ns 隔离、dedup 覆盖旧值"——不同后端的打分不可比 |
+| `expire` 与 `recall` 各写一套过期判断 | 一处在 SQL、一处在定时任务，语义必须同源（都用 `expires_at > now()`） |
+
+**代价评估**：新实现 ~180 行 + 一致性测试 ~120 行 + 表结构与迁移脚本；**内核与部件零改动**。这就是"可替换"这条验收判据（§1.4 第 1 条）的实际兑现方式。
 
 ---
 
@@ -1605,11 +1710,30 @@ def build(cfg: AgentConfig) -> Agent: ...
 
 ```python
 @dataclass(frozen=True)
+class StoreSpec:                     # 五个存储各一个槽，互不牵连
+    durability:   str = "memory"     # "sqlite:runs.db" / "postgres:$DSN"
+    session:      str = "memory"
+    messages:     str = "memory"
+    memory:       str = "memory"     # ← 换记忆介质就改这一行
+    idempotency:  str = "memory"
+
+@dataclass(frozen=True)
+class BackendSpec:                   # 八个执行/供应后端各一个槽
+    fs: str = "local:/work"
+    sandbox: str = "local"
+    artifacts: str = "memory"
+    secrets: str = "env"
+    index: str = "memory"
+    queue: str = "memory"
+    approval: str = "callback"
+    clock: str = "system"
+
+@dataclass(frozen=True)
 class HarnessConfig:
     model: ModelSpec                                  # "openai:gpt-4.1" 或实例
     tools: tuple[str | Tool, ...] = ()
-    stores: StoreSpec = StoreSpec()                   # durability/session/messages/idempotency
-    backends: BackendSpec = BackendSpec()             # fs/sandbox/artifacts/secrets/index/queue/approval/clock
+    stores: StoreSpec = StoreSpec()
+    backends: BackendSpec = BackendSpec()
     guardrails: tuple[GuardrailSpec, ...] = ()
     hooks: tuple[HookSpec, ...] = ()
     namespace: NamespaceSpec = NamespaceSpec()
@@ -1715,7 +1839,24 @@ class DurabilityConformance:
     async def test_old_rev_immutable(self): ...          # C1
     async def test_optimistic_conflict_raises(self): ...  # C2
     async def test_namespace_isolation(self): ...         # C3
+
+class MemoryConformance:
+    async def test_upsert_then_recall(self): ...
+    async def test_recall_limits_k_and_orders_by_score(self): ...   # 只断言 ≤k 与降序，不断言精确分数
+    async def test_recall_filters_layers(self): ...                  # layer 必须下推
+    async def test_namespace_isolation(self): ...                    # 跨 ns 必须读不到
+    async def test_dedup_key_overwrites_not_appends(self): ...        # C4
+    async def test_concurrent_upsert_same_key_yields_one_row(self): ...  # 靠 DB 唯一约束
+    async def test_forget_is_soft_and_hides_from_recall(self): ...
+    async def test_expire_removes_from_recall_only(self): ...
+
+class KeyValueLogConformance:      # SessionStore / MessageLog / Idempotency 共用骨架
+    async def test_append_only(self): ...
+    async def test_tail_respects_token_budget(self): ...
+    async def test_namespace_isolation(self): ...
 ```
+
+`MemoryConformance` 是"换记忆介质"的验收标准：**通过即可替换，不需要读源码**。它不断言打分绝对值，因为不同后端的相似度不可比——这是唯一被允许的"宽松断言"。
 
 **新写一个 Postgres / S3 / 沙箱实现，跑通这组用例就能换上去。** 这是框架对使用者的唯一可信承诺。
 
