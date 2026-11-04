@@ -131,11 +131,11 @@ structured = StructuredTool.from_function(
 
 ### 2.2 编码前后的差别
 
-把两行并排看：`args` 里每个字段带一个 `title`，进请求的 `parameters` 里没有。差别来自中间那次编码，`convert_to_openai_tool` 只保留 `type`、`description`、`default`、`required`。这个细节是改哪里才会影响请求的边界：想让某个字段出现在请求里，必须落在 pydantic 的字段声明上；想让一个说明不可见，得改 `description` 或删掉字段。第 6 章算过工具定义占多少 token，本机一份定义 492 字符。
+把两行并排看：`args` 里每个字段带一个 `title`，进请求的 `parameters` 里没有。差别来自中间那次编码，`convert_to_openai_tool` 是一个转换函数，只保留 `type`、`description`、`default`、`required`。这个细节是改哪里才会影响请求的边界：想让某个字段出现在请求里，必须落在 pydantic 的字段声明上；想让一个说明不可见，得改 `description` 或删掉字段。第 6 章算过工具定义占多少 token，本机一份定义 492 字符。
 
 ### 2.3 校验发生在本地
 
-`args_schema` 不只是给模型看的说明书，也是执行前的校验器。三种坏参数的表现：
+`args_schema` 不只是给模型看的说明书，也是执行前的校验器。三种坏参数的表现，输出见 `code/knowledge/ch11_lc_tools/define_tools.py`：
 
 ```
 === 三、参数校验发生在本地，不花一次调用 ===
@@ -150,7 +150,7 @@ structured = StructuredTool.from_function(
 
 ### 2.4 两处报错的时机
 
-定义阶段有两处错误要到调用时才出现。第一处是没有 docstring 也没给 `description`，装饰器要求两者有其一：
+定义阶段有两处错误要到调用时才出现。第一处是没有 docstring 也没给 `description`，装饰器要求两者有其一，输出见 `code/knowledge/ch11_lc_tools/define_tools.py`：
 
 ```
 === 四、两处不在定义时出现的报错 ===
@@ -169,7 +169,7 @@ structured = StructuredTool.from_function(
 
 ## 三、绑定的请求体
 
-`bind_tools(tools, tool_choice=...)` 做两件事：把工具列表编成请求体的 `tools` 字段，把 `tool_choice` 编进去。它不改变消息、不改模型、不发请求，返回的是一个绑定了参数的模型对象，实际发请求还是 `invoke`。
+`bind_tools(tools, tool_choice=...)` 做两件事：把工具列表编成请求体的 `tools` 字段，把 `tool_choice` 编进去。它不改变消息、不改模型、不发请求，返回的是一个绑定了参数的模型对象，实际发请求还是 `invoke`，代码见 `code/knowledge/ch11_lc_tools/bind_and_call.py` 的 `one_shot()`。
 
 ```python
 def one_shot(choice: object) -> None:
@@ -214,7 +214,7 @@ def one_shot(choice: object) -> None:
 
 ### 3.1 另外两个参数编在哪
 
-`bind_tools` 还有两个参数不在 `tool_choice` 上：
+`bind_tools` 还有两个参数不在 `tool_choice` 上，输出见 `code/knowledge/ch11_lc_tools/bind_and_call.py`：
 
 ```
 === 二、strict 与 parallel_tool_calls 的位置 ===
@@ -227,7 +227,7 @@ def one_shot(choice: object) -> None:
 
 ### 3.2 手写的字典直接传
 
-迁移时用得上一条：`bind_tools` 也接受第 6 章那种手写字典，不需要先改写成工具对象。把 `LEGACY` 那份 `{"type": "function", "function": {...}}` 直接传进去，请求体里出现的就是它，一个字段没改：
+迁移时用得上一条：`bind_tools` 也接受第 6 章那种手写字典，不需要先改写成工具对象。把 `LEGACY` 那份 `{"type": "function", "function": {...}}` 直接传进去，请求体里出现的就是它，一个字段没改，输出见 `code/knowledge/ch11_lc_tools/bind_and_call.py`：
 
 ```
 OK tools: [{"type": "function", "function": {"name": "get_order", "description": "查询订单状态。", "parameters": {"type": "object", "properties": {"order_id": {"type": "string", "description": "订单号"}}, "required": ["order_id"]}}}]
@@ -237,7 +237,7 @@ OK tools: [{"type": "function", "function": {"name": "get_order", "description":
 
 ## 四、一次响应里的多个调用
 
-模型一步里想做的事不止一件时，一次响应会带多个 `tool_calls`。`bind_and_call.py` 让响应带三个调用，然后逐个执行：
+模型一步里想做的事不止一件时，一次响应会带多个 `tool_calls`。`code/knowledge/ch11_lc_tools/bind_and_call.py` 让响应带三个调用，然后逐个执行：
 
 ```python
 def execute_all(first: object, tools: list[BaseTool]) -> tuple[list[ToolMessage], float]:
@@ -270,7 +270,7 @@ def execute_all(first: object, tools: list[BaseTool]) -> tuple[list[ToolMessage]
 
 ### 4.1 顺序执行的证据
 
-三个调用各睡 0.2 秒，一次响应里的三个调用串起来跑，总耗时 0.60 秒：
+三个调用各睡 0.2 秒，一次响应里的三个调用串起来跑，总耗时 0.60 秒，输出见 `code/knowledge/ch11_lc_tools/bind_and_call.py`：
 
 ```
   3 次调用各睡 0.2 秒，总耗时 0.60 秒  <- 顺序执行，不是并发
@@ -331,7 +331,7 @@ def get_order(order_id: str) -> tuple[str, dict]:
 
 ### 4.4 自动执行要挂在图上
 
-本章所有执行都写成一行列表推导：把 `call` 逐个交给工具对象。框架里另有负责自动执行的 `ToolNode`，它替的就是第 7 章那个循环里的执行段，只是要挂在图上才能跑，单独调拿到的是一句与工具无关的报错：
+本章所有执行都写成一行列表推导：把 `call` 逐个交给工具对象。框架里另有负责自动执行的 `ToolNode`，它替的就是第 7 章那个循环里的执行段，只是要挂在图上才能跑，单独调拿到的是一句与工具无关的报错，输出见 `code/knowledge/ch11_lc_tools/bind_and_call.py`：
 
 ```
 === 四、ToolNode 单独调 ===
@@ -429,7 +429,7 @@ def mark_handled(order_id: str, tool_call_id: Annotated[str, InjectedToolCallId]
 
 ### 6.1 重试的三个参数
 
-`ToolRetryMiddleware` 的控制面是三个参数：
+`ToolRetryMiddleware` 的控制面是三个参数，代码在 `code/knowledge/ch11_lc_tools/retry_error.py` 里：
 
 ```python
 ToolRetryMiddleware(max_retries=2,
@@ -456,7 +456,7 @@ ToolRetryMiddleware(max_retries=2,
     工具执行次数 = 3
 ```
 
-第二段的失败文案是框架写死的英文句子：它是英文的，与中文对话混在一起；它说 `Please try again`，而这一次扣款已经失败三次，再试就是第四次扣款请求。第三段把 `on_failure` 换成函数，文案变成自己的，可以写清楚不要重试。
+第二段的失败文案是框架写死的英文句子，与中文对话混在一起；它说 `Please try again`，而这一次扣款已经失败三次，再试就是第四次扣款请求。第三段把 `on_failure` 换成函数，文案变成自己的，可以写清楚不要重试。
 
 `on_failure` 的三种取值与它对应的语义：
 
@@ -476,7 +476,7 @@ ToolRetryMiddleware(max_retries=2,
 
 ### 6.2 错误回灌的中间件
 
-`ToolErrorMiddleware` 只管一件事：把执行期间的异常转成 error `ToolMessage`。它不重试，参数只有 `on_error`、`aon_error` 和 `tools`。
+`ToolErrorMiddleware` 只管一件事：把执行期间的异常转成 error `ToolMessage`。它不重试，参数只有 `on_error`、`aon_error`、`tools` 三个，其中 `aon_error` 是异步版，代码见 `code/knowledge/ch11_lc_tools/retry_error.py` 的 `on_error()`。
 
 ```python
 def on_error(exc: Exception, request: ToolCallRequest) -> str:
@@ -498,7 +498,7 @@ def on_error(exc: Exception, request: ToolCallRequest) -> str:
 
 ### 6.3 两个中间件的里外顺序
 
-重试与回灌要一起用时，顺序是固定的：重试在内，回灌在外。重试中间件要先接到异常才会重试，所以它贴着工具；回灌要接到重试也失败的异常，所以它在外层。中间件列表的顺序是从外到内，回灌写在前面：
+重试与回灌要一起用时，顺序是固定的：重试在内，回灌在外。重试中间件要先接到异常才会重试，所以它贴着工具；回灌要接到重试也失败的异常，所以它在外层。中间件列表的顺序是从外到内，回灌写在前面，输出见 `code/knowledge/ch11_lc_tools/retry_error.py`：
 
 ```
 === 四、两个一起用：重试在内，回灌在外 ===
@@ -511,7 +511,7 @@ def on_error(exc: Exception, request: ToolCallRequest) -> str:
 
 ### 6.4 参数绑定错误的归属
 
-还有一类失败不需要任何中间件：
+还有一类失败不需要任何中间件，输出见 `code/knowledge/ch11_lc_tools/retry_error.py`：
 
 ```
 === 五、参数绑定错误不需要中间件 ===
@@ -524,7 +524,7 @@ def on_error(exc: Exception, request: ToolCallRequest) -> str:
 
 ### 6.5 工具自己的异常声明
 
-中间件是从外面套上去的做法，还有一层在工具自己身上：`ToolException` 加 `handle_tool_error`。这个属性在 `BaseTool` 子类上设置，异常一越过工具边界就变成消息，一个中间件都不用配。
+中间件是从外面套上去的做法，还有一层在工具自己身上：`ToolException` 加 `handle_tool_error`。这个属性在 `BaseTool` 子类上设置，异常一越过工具边界就变成消息，一个中间件都不用配，代码见 `code/knowledge/ch11_lc_tools/retry_error.py`。
 
 ```python
 class FragileTool(BaseTool):
@@ -559,7 +559,7 @@ class FragileTool(BaseTool):
 
 ### 7.1 选择器多加一轮请求
 
-`LLMToolSelectorMiddleware` 在主模型之前先发一次请求，让模型从全部工具里选出相关的几个，然后只把选中的工具编进主请求。
+`LLMToolSelectorMiddleware` 在主模型之前先发一次请求，让模型从全部工具里选出相关的几个，然后只把选中的工具编进主请求，输出见 `code/knowledge/ch11_lc_tools/narrow.py`：
 
 ```
 === 一、选择器：进请求的工具数 ===
@@ -580,11 +580,11 @@ class FragileTool(BaseTool):
 
 第二段里选择器的请求没有 `tools` 字段，它把五个工具的名字与说明放进了 `response_format` 的 JSON Schema 里，可取值是五个 `const`。这个形状决定了成本：选择器那一轮本身也要带上全部工具说明，省下来的 token 是主模型的，不是总 token 的；工具多到 40 个时，省下的是主模型每一轮循环。第三段是 `always_include` 的效果：指定的工具被直接放进主请求，同时从选择器的候选里拿掉。`max_tools` 是上限不是下限，选几个由选择器那一轮的输出决定。
 
-选择器还有两个参数：`model` 不传时用主模型，传了就用指定的便宜小模型；`on_parsing_failure` 决定选择器输出解析失败时怎么办，默认是 `"error"`，也就是整个运行失败。多一次模型调用就多一个失败点，工具数没到那个量级时，这一轮请求纯属白花。
+选择器还有两个参数：`model` 不传时用主模型，传了就用指定的便宜小模型；`on_parsing_failure` 是解析失败时的处置，默认为 `"error"`，也就是整个运行失败。多一次模型调用就多一个失败点，工具数没到那个量级时，这一轮请求纯属白花。
 
 ### 7.2 上限拦的是执行
 
-`ToolCallLimitMiddleware` 数工具调用次数，`run_limit` 是单次运行的，`thread_limit` 是跨运行累计的，需要 `thread_id`。看一个反复要查同一个工具的模型，跑 5 轮：
+`ToolCallLimitMiddleware` 数工具调用次数，`run_limit` 是单次运行的，`thread_limit` 是跨运行累计的，需要带上 `thread_id`。看一个反复要查同一个工具的模型，跑 5 轮，输出见 `code/knowledge/ch11_lc_tools/narrow.py`：
 
 ```
 === 二、调用上限：拦的是执行，不是轮数 ===
@@ -616,7 +616,7 @@ class FragileTool(BaseTool):
   第 3 次运行：工具执行 = 0  被拦回 = 1
 ```
 
-同一个 `thread_id` 上连跑四次，每次只调一次工具，`thread_limit=3` 在第 4 次运行被拦住，前三次各放行一次。这就是用户连点四次重试的情形：`run_limit` 每次都从零数，一次都拦不住。
+同一个 `thread_id` 上连跑四次，`thread_limit=3` 在第 4 次运行被拦住，前三次各放行一次。这就是用户连点四次重试的情形：`run_limit` 每次都从零数，一次都拦不住。
 
 ## 八、工具模拟
 
@@ -658,8 +658,6 @@ Return ONLY the tool's output, no explanation or preamble. Introduce variation i
 
 ## 九、会怎么坏
 
-前面各节的做法各有自己的失效点，这一节把它们的信号列在一起。
-
 | 坏法 | 现象 | 在哪产生 |
 |---|---|---|
 | schema 与实现分叉 | 模型填的参数名对、值不对；或必填字段永远为空 | `args_schema` 与函数签名不一致 |
@@ -669,7 +667,7 @@ Return ONLY the tool's output, no explanation or preamble. Introduce variation i
 | 上限给了虚假安全感 | 执行次数降下来了，请求次数没降 | `ToolCallLimitMiddleware` 只拦执行 |
 | 模拟器输出被当成事实 | 评测里"答案正确"，上线后错 | 模拟输出无真实依据 |
 
-第二行值得展开。注入参数的识别靠 `Annotated` 标记，写漏了标记，那个参数就变成普通参数进 `parameters`。`failure_modes.py` 把这一处跑了出来：
+第二行值得展开。注入参数的识别靠 `Annotated` 标记，写漏了标记，那个参数就变成普通参数进 `parameters`。`code/knowledge/ch11_lc_tools/failure_modes.py` 把这一处跑了出来：
 
 ```
 === 一、注入标记漏写 ===
@@ -695,15 +693,15 @@ Return ONLY the tool's output, no explanation or preamble. Introduce variation i
 
 ## 十、边界
 
-第一，框架不判断该不该重试。三个参数的默认值面向只读工具，用在写工具上会把副作用放大 `max_retries` 倍，只能按工具逐个配。第二，注入参数不解决这个值可不可信。`InjectedState` 保证 `user_id` 来自调用方，不保证调用方填的是当前登录用户；第 6 章的权限一节说过工具清单就是权限清单，这里更具体：state 里的字段是谁放进去的，比字段本身更重要。
+框架不判断该不该重试：三个参数的默认值面向只读工具，用在写工具上会把副作用放大 `max_retries` 倍，只能按工具逐个配。注入参数也不解决这个值可不可信。`InjectedState` 保证 `user_id` 来自调用方，不保证调用方填的是当前登录用户；第 6 章的权限一节说过工具清单就是权限清单，这里更具体：state 里的字段是谁放进去的，比字段本身更重要。
 
-第三，选择器只能在上限内工作。它降低的是这一次请求带多少工具说明，不改变总共有多少个工具；工具总数到几十个、说明互相含糊时，选择器自己也会选错。
+选择器只能在上限内工作。它降低的是这一次请求带多少工具说明，不改变总共有多少个工具；工具总数到几十个、说明互相含糊时，选择器自己也会选错。
 
-第四，模拟器不能替代联调。它让循环跑完，不让接口跑通，参数边界、超时行为、错误码只有真实实现里才出现。
+模拟器不能替代联调。它让循环跑完，不让接口跑通，参数边界、超时行为、错误码只有真实实现里才出现。
 
-第五，这些中间件都要装在 `create_agent` 上。本章讲的五个中间件全部是 agent 中间件，脱离 `create_agent` 用不了；它本身有十几个参数、钩子有八个，那些是第 12 章的内容。
+这些中间件都要装在 `create_agent` 上。本章讲的五个中间件全部是 agent 中间件，脱离 `create_agent` 用不了；它本身有十几个参数、钩子有八个，那些是第 12 章的内容。
 
-第六，`bind_tools` 不执行任何东西。工具被调用几次全部发生在调用方那一行，把 `bind_tools` 当成注册了工具，是这一章最容易犯的理解错误。
+`bind_tools` 不执行任何东西。工具被调用几次全部发生在调用方那一行，把 `bind_tools` 当成注册了工具，是这一章最容易犯的理解错误。
 
 ## 这一章建立的 7 件事
 
