@@ -58,7 +58,9 @@ class ModelFramer:
             sections.append(Section("system", PRIORITY["system"], "config", self.system,
                                     est_tokens(self.system)))
 
-        tasks = state.data.get("tasks") or []
+        # 任务清单的权威位置是 state.section("tasks")["items"]；也容忍直接给 list
+        tasks_raw = state.data.get("tasks") or []
+        tasks = tasks_raw.get("items", []) if isinstance(tasks_raw, dict) else list(tasks_raw)
         if tasks:
             lines = [
                 f"- [{t.get('status', 'todo')}] {t.get('text', '')}"

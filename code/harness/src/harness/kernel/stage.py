@@ -74,6 +74,7 @@ class DefaultClassify:
     async def classify(self, exc: BaseException, *, phase: str, state: State) -> Failure:
         import asyncio
 
+        from harness.contracts.approval_errors import ApprovalRequired
         from harness.contracts.errors import (
             ApprovalExpired,
             BudgetExceeded,
@@ -89,6 +90,8 @@ class DefaultClassify:
 
         if isinstance(exc, asyncio.CancelledError):
             return Failure(RunStatus.CANCELLED, "cancelled", False)
+        if isinstance(exc, ApprovalRequired):
+            return Failure(RunStatus.NEEDS_APPROVAL, exc.reason or "approval_required", False)
         if isinstance(exc, (GuardDenied, PolicyError)):
             return Failure(RunStatus.REFUSED, f"policy:{exc}", False)
         if isinstance(exc, ApprovalExpired):

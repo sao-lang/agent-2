@@ -7,6 +7,7 @@ from harness.contracts import events as _events
 from harness.contracts import protocols as _protocols
 from harness.contracts import status as _status
 from harness.contracts import types as _types
+from harness.contracts.approval_errors import ApprovalRequired
 from harness.contracts.errors import (
     ApprovalExpired,
     BudgetError,
@@ -47,6 +48,7 @@ _ERRORS = [
     "ConcurrencyError",
     "TransientError",
     "PolicyError",
+    "ApprovalRequired",
 ]
 
 __all__ = sorted(

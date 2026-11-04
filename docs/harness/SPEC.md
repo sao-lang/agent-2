@@ -2468,7 +2468,7 @@ print(describe(program))
 | **P1 骨架** ✅ | 目录重排（六层）、依赖 AST 测试、`RunScope`、四段链、`Classify` 出口 | `kernel/{scope,stage,chain}.py`、`tests/test_architecture.py`、`tests/test_kernel.py` | **已完成（2026-11-04）**：18 个原测试 + 4 条架构用例 + 16 条内核用例 = **38 全绿**，行为零变化 |
 | **P2 契约** ✅ | 12 类型补齐 v2 字段、33 协议、错误分类、`RunStatus` 七态 | `contracts/{types,status,events,protocols/*}.py`、`tests/test_contracts.py` | **已完成（2026-11-04）**：30+ 类型冻结检查、七态与 TERMINAL 集合、协议运行期可判定、`__all__` 完整、`State` 带 `schema_version` 往返；54 测试全绿（18 原 + 4 架构 + 16 内核 + 16 契约） |
 | **P3 存储与后端** ✅ | 5 存储 + 工件 + 8 后端的内存实现 + 一致性测试基类 | `impl/stores/memory.py`、`impl/backends/{paths,fs,core}.py`、`tests/{conformance,test_stores,test_backends}.py` | **已完成（2026-11-05）**：5 存储跑通 21 条 conformance；9 个后端（FS×2/沙箱×2/工件/密钥×2/索引/队列/审批×2/时钟×2）；路径 jail 12 条用例含 traversal/只读/符号链接逃逸；**101 测试全绿（1 跳过：平台不允许建符号链接）** |
-| **P4 部件**（前半 ✅） | 15 组件 + 17 层 + 四拓扑 | `parts/framing/*` ✅、`parts/middleware/{base,builtin}.py` ✅（4/17 层）；剩余 13 层、三策略迁移、四拓扑 | 前半验收：取景 4 + 编码 3 跑通 12 条 conformance；层机制 4 层跑通 14 条用例；**129 测试全绿** |
+| **P4 部件**（8/17 层 ✅） | 15 组件 + 17 层 + 四拓扑 | `parts/framing/*` ✅；`parts/middleware/` 已落地 context/checkpoint/budget/trace/approval/idempotency/validate/taskboard；剩余 9 层、三策略迁移、四拓扑 | 取景 12 条 conformance + 层 14 + 治理 15 条用例；**144 测试全绿** |
 | **P5 门面** | `fp`：`Layer`/`Program`/`Harness`/`compose`/`>>`/`describe`/`dry_run` | `fp/*` | §19 前 5 个示例可跑 |
 | **P6 装配** | `build(cfg)` 判别联合、装配表、5 预设、插件 | `assembly/*` | 五预设各跑一次；六例只改配置 |
 | **P7 护栏与流式** | 五道闸、三段式、流式护栏、`astream` | `parts/guardrail`、`fp/runtime` | 五闸各有测试；流式中断语义正确 |
