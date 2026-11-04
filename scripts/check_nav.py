@@ -2,10 +2,10 @@
 """全书导航自检：book.json、章首元信息、章内目录、章末导航、文件名、INDEX.md、相对链接、章号引用。
 
 用法：
-    python docs/check_nav.py
-    python docs/check_nav.py --quiet     # 只报问题
+    python scripts/check_nav.py
+    python scripts/check_nav.py --quiet     # 只报问题
 
-它在 `python docs/gen_book.py build` 之后运行；任何一条不过都返回非零。
+它在 `python scripts/gen_book.py build` 之后运行；任何一条不过都返回非零。
 检查项与 docs/WRITING-SPEC.md 第 1.4 节、OUTLINE.md 的全局不变量一一对应。
 """
 
@@ -117,9 +117,9 @@ def check_files(data: dict) -> list[str]:
 def check_index(data: dict) -> list[str]:
     path = ROOT / "docs" / "INDEX.md"
     if not path.exists():
-        return ["docs/INDEX.md 不存在（跑 python docs/gen_book.py index）"]
+        return ["docs/INDEX.md 不存在（跑 python scripts/gen_book.py index）"]
     if path.read_text(encoding="utf-8") != render_index(data):
-        return ["docs/INDEX.md 与 book.json 不同步（跑 python docs/gen_book.py index）"]
+        return ["docs/INDEX.md 与 book.json 不同步（跑 python scripts/gen_book.py index）"]
     return []
 
 

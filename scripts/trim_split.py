@@ -2,7 +2,7 @@
 """把一章切成「散文 / 受保护块」，输出改写视图与段表。
 
 用法：
-    python docs/trim_split.py 01-一次调用的四个字段.md
+    python scripts/trim_split.py 01-一次调用的四个字段.md
 
 产物（放在 .trim/ 下）：
     01.seg.json   段表，记录每个受保护块的原文与 sha256

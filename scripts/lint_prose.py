@@ -2,8 +2,8 @@
 """散文体检：把《方案 v12》第二节的口径做成机检。
 
 用法：
-    python docs/lint_prose.py --all
-    python docs/lint_prose.py 01-一次调用的四个字段.md
+    python scripts/lint_prose.py --all
+    python scripts/lint_prose.py 01-一次调用的四个字段.md
 
 指标分两层：
     章级（check_chapters 口径，含标题与章末）—— 决定阅读时长，目标 6000–6800；
@@ -58,7 +58,7 @@ def zh(s: str) -> int:
 
 
 def chapter_zh(text: str) -> int:
-    """与 docs/check_chapters.py 同一口径。"""
+    """与 scripts/check_chapters.py 同一口径。"""
     body = re.sub(r"```.*?```", "", text, flags=re.S)
     body = re.sub(r"^\|.*$", "", body, flags=re.M)
     return zh(body)

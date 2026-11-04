@@ -2,8 +2,8 @@
 """把改写后的散文回填成完整章节（按「散文段」对齐，不手写序号）。
 
 用法：
-    python docs/trim_apply.py 01 .trim/01.new.md            # → .trim/01.final.md
-    python docs/trim_apply.py 01 .trim/01.new.md -o out.md
+    python scripts/trim_apply.py 01 .trim/01.new.md            # → .trim/01.final.md
+    python scripts/trim_apply.py 01 .trim/01.new.md -o out.md
 
 约定：改写文件里**只有散文**，段与段之间用一行 ⟦GAP⟧ 分隔。散文段数必须等于
 原文的散文段数（受保护块把原文切成的那些空隙），一段对一段。受保护块

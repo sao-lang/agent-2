@@ -32,7 +32,7 @@
 | 查卷与卷的先后 | `../outline/50-知识依赖图.md` |
 | 写结业项目 | `../outline/51-结业项目.md` |
 | 查附录与术语表 | `../outline/53-附录与调研.md` |
-| 改章节结构 / 加章 | **先改 `book.json`，再跑 `python docs/gen_book.py build`，最后跑 `python docs/check_nav.py`** |
+| 改章节结构 / 加章 | **先改 `book.json`，再跑 `python scripts/gen_book.py build`，最后跑 `python scripts/check_nav.py`** |
 
 **规则**：本索引只记指针与不变量，不记细节。改结构时先改分册，再回来改索引的指针。
 

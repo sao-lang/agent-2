@@ -2,7 +2,7 @@
 
 > 14 卷、60 章（第 0–59 章）、109 条知识点。**已写 60 章（0–59）**，待写 —。
 >
-> 本文件由 `python docs/gen_book.py index` 从 [`book.json`](./book.json) 生成，不要手改。
+> 本文件由 `python scripts/gen_book.py index` 从 [`book.json`](./book.json) 生成，不要手改。
 > 章节结构见 [OUTLINE.md](./OUTLINE.md)，知识点定义见 [outline/](../outline/)，写法见 [WRITING-SPEC.md](./WRITING-SPEC.md)。
 
 ## 怎么用这份目录
@@ -346,7 +346,7 @@
 
 ## 文件名与章号对照
 
-文件名 = 章号 + 章节标题（空格与引号去掉，`：，、` 统一换成 `-`）。改标题时同步改文件名，`python docs/check_nav.py` 会查这一条。
+文件名 = 章号 + 章节标题（空格与引号去掉，`：，、` 统一换成 `-`）。改标题时同步改文件名，`python scripts/check_nav.py` 会查这一条。
 
 | 文件 | 章 | 标题 |
 |---|---|---|

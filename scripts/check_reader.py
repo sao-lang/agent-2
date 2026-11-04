@@ -11,9 +11,9 @@
     A5 章内重复       同一句连发两次，或两段高度相似
 
 用法：
-    python docs/check_reader.py 01 02 ...      # 指定章
-    python docs/check_reader.py --all          # 全部章
-    python docs/check_reader.py --all --quiet  # 只出汇总
+    python scripts/check_reader.py 01 02 ...      # 指定章
+    python scripts/check_reader.py --all          # 全部章
+    python scripts/check_reader.py --all --quiet  # 只出汇总
 """
 
 from __future__ import annotations

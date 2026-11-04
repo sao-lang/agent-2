@@ -462,9 +462,9 @@
 | E | 13–18 | RAG 卷：删"边界"与"LangChain 侧" |
 | F | 19–26 | 进阶卷：合并为主，21 章副线改题前移 |
 
-**每章六步**：定骨架 → 改 H2 标题 → 合并/删除 → 补缺口 → 同步 `code/knowledge/chNN/`（删节要处置脚本）→ `python docs/gen_book.py build` + 四项检查。
+**每章六步**：定骨架 → 改 H2 标题 → 合并/删除 → 补缺口 → 同步 `code/knowledge/chNN/`（删节要处置脚本）→ `python scripts/gen_book.py build` + 四项检查。
 
-**新增机检** `docs/check_modules.py`：以 `book.json` 的 `modules` 字段为真源，校验 ①H2 集合与 modules 完全一致 ②每节 ≥400 汉字 ③标题 ≤12 汉字且不命中禁用词表 ④每章 H2 数在区间（理论 4–6、技术栈 6–9、框架 7–8）⑤理论章框架专名计数为 0。
+**新增机检** `scripts/check_modules.py`：以 `book.json` 的 `modules` 字段为真源，校验 ①H2 集合与 modules 完全一致 ②每节 ≥400 汉字 ③标题 ≤12 汉字且不命中禁用词表 ④每章 H2 数在区间（理论 4–6、技术栈 6–9、框架 7–8）⑤理论章框架专名计数为 0。
 
 **验收**：`check_nav` / `check_chapters` / `lint_prose` / `check_modules` 全绿；每章收尾型 H2 ≤1；框架章 API 覆盖 ≥8 项。
 

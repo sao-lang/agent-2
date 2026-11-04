@@ -8,17 +8,17 @@
 把一章的**正文散文**压短、去掉 AI 味，同时**不让读者读不懂**。四个门槛全部要过：
 
 ```
-python docs/lint_prose.py    NN-*.md      # 十项风格指标
-python docs/check_chapters.py NN-*.md     # 章首/章末/标题/表格/代码块结构
-python docs/trim_verify.py   NN --base 627ddd9 [--restructure]   # 代码输出表格逐字一致、引用不减
-python docs/check_reader.py  NN           # 四类锚点缺失（代码来源/输出出处/并列项总起/术语定义）
+python scripts/lint_prose.py    NN-*.md      # 十项风格指标
+python scripts/check_chapters.py NN-*.md     # 章首/章末/标题/表格/代码块结构
+python scripts/trim_verify.py   NN --base 627ddd9 [--restructure]   # 代码输出表格逐字一致、引用不减
+python scripts/check_reader.py  NN           # 四类锚点缺失（代码来源/输出出处/并列项总起/术语定义）
 ```
 
-或一条命令：`python docs/trim_all.py NN`（四列全绿才算过）。
+或一条命令：`python scripts/trim_all.py NN`（四列全绿才算过）。
 
 ## 一、流程（每章照做）
 
-1. `python docs/trim_split.py "NN-*.md"` —— 生成 `.trim/NN.seg.json` 与 `.trim/NN.view.md`；视图里 `⟦Pnnnn⟧` 是受保护块，其余是散文。
+1. `python scripts/trim_split.py "NN-*.md"` —— 生成 `.trim/NN.seg.json` 与 `.trim/NN.view.md`；视图里 `⟦Pnnnn⟧` 是受保护块，其余是散文。
 2. 打印散文段清单（**关键一步**）：
    ```python
    import json, re
@@ -36,7 +36,7 @@ python docs/check_reader.py  NN           # 四类锚点缺失（代码来源/�
    ```
    `n=` 是该散文段里含几个自然段。**相邻的两个自然段属于同一个散文段**，改写时不能把一个自然段拆成独立一段。
 3. 读 `.trim/NN.view.md`，写 `.trim/NN.new.md`：**只写散文**，段间用单独一行 `⟦GAP⟧` 分隔，段数必须等于 runs 数。段内可以合并自然段，**绝不能跨越受保护块合并**（会把解释文字挪到代码块前面）。
-4. `python docs/trim_apply.py NN .trim/NN.new.md` —— 段数不符会直接报错，修到过。
+4. `python scripts/trim_apply.py NN .trim/NN.new.md` —— 段数不符会直接报错，修到过。
 5. 跑四个门槛，改到全绿。
 6. `Copy-Item .trim/NN.final.md "NN-*.md" -Force` 写回正式文件。
 7. **不要执行任何 git 命令**；**不要跑 `gen_book.py build`、`check_nav.py`**（会改写全库文件，与并行的其他人冲突）——由主代理最后统一跑。

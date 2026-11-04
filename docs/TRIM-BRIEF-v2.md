@@ -29,7 +29,7 @@
 git show 627ddd9:NN-*.md > .trim/NN.base.md     # 只读，不要 git add
 ```
 
-然后用 `docs/trim_split.py` 处理 `.trim/NN.base.md`（它会生成 `.trim/NN.seg.json` 与 `.trim/NN.view.md`）。
+然后用 `scripts/trim_split.py` 处理 `.trim/NN.base.md`（它会生成 `.trim/NN.seg.json` 与 `.trim/NN.view.md`）。
 **注意**：`trim_apply.py` 写回时用的是当前工作目录里的同名段表，所以第 1 步先把它 split 一次即可；回填后用 compare 确认代码块哈希与基线一致即可（`trim_verify --base 627ddd9` 就是干这个的）。
 
 要求：
@@ -71,11 +71,11 @@ git show 627ddd9:NN-*.md > .trim/NN.base.md     # 只读，不要 git add
 > 3. 因此 verify 的判据是：**代码块/输出块/表格逐字一致、标题集合一致（改过结构时带 `--restructure`）、`第 N 章` 与 `code/` 引用数不减、知识点名词仍在**。章首和章末本身不参与比对。
 
 ```bash
-python docs/lint_prose.py    NN-*.md      # 风格（现行口径 2800–4400 散文，见下）
-python docs/check_chapters.py NN-*.md     # 结构
-python docs/trim_verify.py   NN --base 627ddd9 [--restructure]   # 代码输出表格逐字、引用不减
-python docs/check_reader.py  NN           # 锚点（代码来源/输出出处/并列项/术语）
-python docs/check_flow.py    NN           # 连贯（孤儿指代/指向已删表格/空壳小节/未定义说法）
+python scripts/lint_prose.py    NN-*.md      # 风格（现行口径 2800–4400 散文，见下）
+python scripts/check_chapters.py NN-*.md     # 结构
+python scripts/trim_verify.py   NN --base 627ddd9 [--restructure]   # 代码输出表格逐字、引用不减
+python scripts/check_reader.py  NN           # 锚点（代码来源/输出出处/并列项/术语）
+python scripts/check_flow.py    NN           # 连贯（孤儿指代/指向已删表格/空壳小节/未定义说法）
 ```
 
 **散文长度：4800–6250**（已改回）。上一版试过 2800–4400，结果代理为了达标删掉了整节知识点（第 21–26 章各丢 3–5 个知识点小节），reader/verify 立刻报「知识点名词消失」。**知识点完整优先于字数**：4060 字以下放不下原始稿的知识点时，就停在 5000–6200，把 2800–4400 只当参考。

@@ -2,10 +2,10 @@
 """从 book.json 生成 INDEX.md，并维护各章的章首元信息、章内目录与章末导航。
 
 用法：
-    python docs/gen_book.py index          # 只重新生成 INDEX.md
-    python docs/gen_book.py build          # 生成 INDEX.md，并改写已写章节的章首/目录/章末
-    python docs/gen_book.py build --dry    # 只打印将要发生的改动
-    python docs/gen_book.py new 33         # 按当前标准创建第 33 章骨架（不覆盖已存在文件）
+    python scripts/gen_book.py index          # 只重新生成 INDEX.md
+    python scripts/gen_book.py build          # 生成 INDEX.md，并改写已写章节的章首/目录/章末
+    python scripts/gen_book.py build --dry    # 只打印将要发生的改动
+    python scripts/gen_book.py new 33         # 按当前标准创建第 33 章骨架（不覆盖已存在文件）
 
 约定（改动前先读 docs/WRITING-SPEC.md 第 1.4 节）：
   * book.json 是唯一事实源：卷、章、知识点、状态、落点计划都在这里。
@@ -310,7 +310,7 @@ def render_index(data: dict) -> str:
       f"**已写 {len(done)} 章（{num_ranges([c['no'] for c in done])}）**，"
       f"待写 {num_ranges(pending)}。")
     a(">")
-    a("> 本文件由 `python docs/gen_book.py index` 从 [`book.json`](./book.json) 生成，不要手改。")
+    a("> 本文件由 `python scripts/gen_book.py index` 从 [`book.json`](./book.json) 生成，不要手改。")
     a("> 章节结构见 [OUTLINE.md](./OUTLINE.md)，知识点定义见 [outline/](../outline/)，"
       "写法见 [WRITING-SPEC.md](./WRITING-SPEC.md)。")
     a("")
@@ -389,7 +389,7 @@ def render_index(data: dict) -> str:
     a("## 文件名与章号对照")
     a("")
     a("文件名 = 章号 + 章节标题（空格与引号去掉，`：，、` 统一换成 `-`）。改标题时同步改文件名，"
-      "`python docs/check_nav.py` 会查这一条。")
+      "`python scripts/check_nav.py` 会查这一条。")
     a("")
     a("| 文件 | 章 | 标题 |")
     a("|---|---|---|")
@@ -482,7 +482,7 @@ def main(argv: list[str]) -> int:
         return build(dry)
     if cmd == "new":
         if len(argv) < 3:
-            print("用法：python docs/gen_book.py new <章号>")
+            print("用法：python scripts/gen_book.py new <章号>")
             return 2
         try:
             no = int(argv[2])

@@ -201,14 +201,14 @@ JSON 解析失败：Expecting property name enclosed in double quotes: line 1 co
 新章先按标准建骨架：
 
 ```bash
-python docs/gen_book.py new 33   # 章号必须已在 book.json 里
+python scripts/gen_book.py new 33   # 章号必须已在 book.json 里
 ```
 
 它会生成 H1、卷行、知识点行、`---`、`## 目录` 和 `## 下一章` 导航；`本章回答` / `示例目录` / `读完应当能回答` 留成 `TODO`，由作者填写。骨架创建后，把 TODO 和占位标题换成正文，再跑：
 
 ```bash
-python docs/gen_book.py build   # 重建 INDEX.md 与各章章首/目录/章末
-python docs/check_nav.py        # 校验是否一致
+python scripts/gen_book.py build   # 重建 INDEX.md 与各章章首/目录/章末
+python scripts/check_nav.py        # 校验是否一致
 ```
 
 **分工要分清**：卷行、知识点行、章内目录、章末导航由 `book.json` 和正文 H2 生成；`本章回答` / `示例目录` / `读完应当能回答` 是正文内容，生成器只保留、不代写，缺了 `check_nav.py` 会报错。
@@ -240,7 +240,7 @@ python docs/check_nav.py        # 校验是否一致
 第 33 章 · 拆分与协作：四种拓扑（卷 7，待写）→ [章节计划](./outline/40-编排架构章节计划.md)
 ```
 
-**文件名规则**：文件名 = 章号 + 标题，空格与引号去掉，`：，、` 统一换成 `-`（例：`22-编排的三层-分派-主体-校验.md`）。标题改了，文件名必须一起改，`docs/check_nav.py` 会报出来。
+**文件名规则**：文件名 = 章号 + 标题，空格与引号去掉，`：，、` 统一换成 `-`（例：`22-编排的三层-分派-主体-校验.md`）。标题改了，文件名必须一起改，`scripts/check_nav.py` 会报出来。
 
 ### 1.5 一处必须自查的跑偏
 
@@ -264,7 +264,7 @@ python docs/check_nav.py        # 校验是否一致
 
 **判定"是否真的不够"**：按第一节的六件事逐项自查。六件事都交代清楚了、每种做法都有一个可运行例子、例子输出都贴了，仍然不到下限——那就是这个知识点本身只有这么大，写短是对的。
 
-**三项机检指标**（`python docs/lint_prose.py --all`，阈值见 `REFACTOR-v12-精简.md`）：散文汉字落在区间内；平均段长 85–140 字（避免一句一段的碎片节奏）；破折号、第二人称、情绪评价词命中数在阈值内。
+**三项机检指标**（`python scripts/lint_prose.py --all`，阈值见 `REFACTOR-v12-精简.md`）：散文汉字落在区间内；平均段长 85–140 字（避免一句一段的碎片节奏）；破折号、第二人称、情绪评价词命中数在阈值内。
 
 **凑字数的典型形态（出现即返工）**：
 
@@ -419,7 +419,7 @@ python docs/check_nav.py        # 校验是否一致
 | **框架示例要能对照** | 每个框架示例都要能指回它替代的主线章节；指不回去的不写 |
 | **每个部件必带单测** | 无模型、无网络的离线测试；测不了说明耦合了 |
 | **每个示例必须能跑** | `code/knowledge/chNN_*` 下每个入口文件单独运行即通过；卷 6 示例要求 `python code/framework/<名>/xxx.py` 可跑 |
-| 引用永远有效 | `第 N 章` / `code/` 路径 / 相对链接由 `docs/check_nav.py` 校验 |
+| 引用永远有效 | `第 N 章` / `code/` 路径 / 相对链接由 `scripts/check_nav.py` 校验 |
 | **知识点可追溯** | 章首标注 A1–H10 中的哪几条，且带中文名与一句解释（由 `book.json` 生成） |
 | **示例可追溯** | 每章开头标注示例目录 |
 
@@ -431,7 +431,7 @@ python docs/check_nav.py        # 校验是否一致
 
 ### 6.1 四类毛病与机检口径
 
-"AI 味"不是措辞问题，是可定位的四种形态。`python docs/lint_prose.py --all` 把它们做成指标：
+"AI 味"不是措辞问题，是可定位的四种形态。`python scripts/lint_prose.py --all` 把它们做成指标：
 
 | 形态 | 判定（能搜到就是有病） | 改法 | 机检口径 |
 |---|---|---|---|
@@ -450,7 +450,7 @@ python docs/check_nav.py        # 校验是否一致
 
 #### 6.1.1 改写特有的一类毛病：锚点缺失
 
-上面四类讲的是"话说得难听"，这一类讲的是"话说不完整"——**压缩时删掉的不是废话，而是别人脚下那块砖**。它比 AI 味更严重：AI 味让人读得烦，锚点缺失让人读不懂。四条，`python docs/check_reader.py` 机检：
+上面四类讲的是"话说得难听"，这一类讲的是"话说不完整"——**压缩时删掉的不是废话，而是别人脚下那块砖**。它比 AI 味更严重：AI 味让人读得烦，锚点缺失让人读不懂。四条，`python scripts/check_reader.py` 机检：
 
 | # | 形态 | 读者看到的样子 | 判定（机检） | 正确做法 |
 |---|---|---|---|---|
@@ -535,14 +535,14 @@ python docs/check_nav.py        # 校验是否一致
 ### 6.5 流程
 
 ```bash
-python docs/trim_split.py 01-xxx.md        # 切成「散文 / 受保护块」，产出 .trim/01.view.md
+python scripts/trim_split.py 01-xxx.md        # 切成「散文 / 受保护块」，产出 .trim/01.view.md
 # 在 .trim/01.new.md 里只写散文，段与段之间用一行 ⟦GAP⟧ 分隔
-python docs/trim_apply.py 01 .trim/01.new.md   # 回填，散文段数不符即失败
-python docs/lint_prose.py 01-xxx.md            # 六项指标
-python docs/trim_verify.py 01 --base HEAD      # 代码/输出/表格哈希、章首、章末、引用、知识点词表
-python docs/check_chapters.py 01-xxx.md && python docs/check_nav.py
-python docs/gen_book.py build                  # 改过小节标题就要重跑，重建目录与导航
-python docs/trim_all.py --vol1to3              # 一次跑完一卷的 lint / 章节 / verify 三项
+python scripts/trim_apply.py 01 .trim/01.new.md   # 回填，散文段数不符即失败
+python scripts/lint_prose.py 01-xxx.md            # 六项指标
+python scripts/trim_verify.py 01 --base HEAD      # 代码/输出/表格哈希、章首、章末、引用、知识点词表
+python scripts/check_chapters.py 01-xxx.md && python scripts/check_nav.py
+python scripts/gen_book.py build                  # 改过小节标题就要重跑，重建目录与导航
+python scripts/trim_all.py --vol1to3              # 一次跑完一卷的 lint / 章节 / verify 三项
 ```
 
 - **每章一个 commit**，message 写清 `9515→6704（−30%）`，任何一章可单独 revert。

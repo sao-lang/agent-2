@@ -2,7 +2,7 @@
 
 > 目标读者反馈：每章概念多、读得慢、AI 味重（情绪化用词、不精炼）。
 > 本方案只处理**语言的组织方式**，不动章节结构、知识点、代码、输出、表格。
-> 生效后需同步修改 `docs/WRITING-SPEC.md` 第二节与 `docs/check_chapters.py` 的篇幅下限，否则改写会被生成器按旧口径补回去。
+> 生效后需同步修改 `docs/WRITING-SPEC.md` 第二节与 `scripts/check_chapters.py` 的篇幅下限，否则改写会被生成器按旧口径补回去。
 
 ---
 
@@ -167,24 +167,24 @@
 ### 步骤 0：修基线（一次性）
 
 ```
-python docs/gen_book.py build          # 同步 7 处章内目录
-python docs/check_chapters.py --all
-python docs/check_nav.py
+python scripts/gen_book.py build          # 同步 7 处章内目录
+python scripts/check_chapters.py --all
+python scripts/check_nav.py
 git branch trim/v12 && git checkout trim/v12
 ```
 第 54、55 章缺失单独处理（补写，或调整 `book.json` 的卷归属后再跑 build）。
 
 ### 步骤 1：新增两个脚本
 
-**`docs/lint_prose.py`** —— 把第二节的目标口径做成机检，输出每章的违规清单与分数：
+**`scripts/lint_prose.py`** —— 把第二节的目标口径做成机检，输出每章的违规清单与分数：
 
 ```
-python docs/lint_prose.py --all
-python docs/lint_prose.py 04-提示词工程-从规则到结构化输出.md
+python scripts/lint_prose.py --all
+python scripts/lint_prose.py 04-提示词工程-从规则到结构化输出.md
 ```
 检查项：汉字数、平均段长、≤20 字段落连续数、粗体占比、破折号数、"不是…而是"数、括号补充数、第二人称、元话语短语、情绪词表命中。**它的意义是给"改没改到位"一个客观标准**，避免人工逐章判断风格。
 
-**`docs/trim_verify.py`** —— 对比改前改后两个版本，核对第三节的不可触碰清单（fence 哈希、标题集合、表格、章首、章末、知识点词表、交叉引用数），任何一项不符即失败。
+**`scripts/trim_verify.py`** —— 对比改前改后两个版本，核对第三节的不可触碰清单（fence 哈希、标题集合、表格、章首、章末、知识点词表、交叉引用数），任何一项不符即失败。
 
 ### 步骤 2：分章改写（每章一次调用）
 
@@ -212,9 +212,9 @@ python docs/lint_prose.py 04-提示词工程-从规则到结构化输出.md
 ### 步骤 3：自动校验（每章，几秒）
 
 ```
-python docs/trim_verify.py 04-*.md --base HEAD
-python docs/lint_prose.py 04-*.md
-python docs/check_chapters.py 04-*.md
+python scripts/trim_verify.py 04-*.md --base HEAD
+python scripts/lint_prose.py 04-*.md
+python scripts/check_chapters.py 04-*.md
 ```
 三项全绿才进入人工复核。
 
@@ -339,7 +339,7 @@ P0 通过后每批可以连续跑，不需要逐章确认；每批结束你抽�
 | 11 工具定义与绑定 | ≈9140 → 7161 | 6247 | 同上；粗体 43%→0 |
 | 12 Agent 与中间件 | ≈9290 → 7184 | 6242 | 同上 |
 
-验收口径：`python docs/trim_all.py --vol1to3`，逐章跑 lint / check_chapters / trim_verify 三项；2026-11 全十二卷一二三章 **12/12 通过**（`lint_prose.py --all` 由 0/58 升至 12/58）。
+验收口径：`python scripts/trim_all.py --vol1to3`，逐章跑 lint / check_chapters / trim_verify 三项；2026-11 全十二卷一二三章 **12/12 通过**（`lint_prose.py --all` 由 0/58 升至 12/58）。
 
 
 ### 卷四~卷五完成情况（第 13–26 章）

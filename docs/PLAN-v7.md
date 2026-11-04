@@ -4,7 +4,7 @@
 
 > 触发：① 主线章节没有真实技术栈代码；② RAG 缺"向量化 / 向量数据库"两块地基；③ 框架章的位置不对（LangChain 与 LangGraph 连着出现、LlamaIndex 与 RAGAS 各自孤立）。
 > 本文件是**方案**，不改正文。确认后按第五节分批执行。
-> 配套清查：`docs/AUDIT-CODE-GAPS.md`（代码缺口）、`docs/AUDIT-CONCEPTS.md`（RAG 概念缺口）、`docs/audit_concepts.py`（全书概念扫描）。
+> 配套清查：`docs/AUDIT-CODE-GAPS.md`（代码缺口）、`docs/AUDIT-CONCEPTS.md`（RAG 概念缺口）、`scripts/audit_concepts.py`（全书概念扫描）。
 
 ---
 

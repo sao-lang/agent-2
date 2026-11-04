@@ -2,8 +2,8 @@
 """核对改写前后的不可触碰清单（见 docs/REFACTOR-v12-精简.md 第三节）。
 
 用法：
-    python docs/trim_verify.py 01 --base HEAD          # 对比 git 里的旧版
-    python docs/trim_verify.py 01 --base path/old.md   # 对比指定文件
+    python scripts/trim_verify.py 01 --base HEAD          # 对比 git 里的旧版
+    python scripts/trim_verify.py 01 --base path/old.md   # 对比指定文件
 
 检查项：
     1. 代码块 / 输出块逐字一致（哈希）

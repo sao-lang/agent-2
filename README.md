@@ -122,12 +122,12 @@ python code/knowledge/ch09_lc_basic/messages.py
 章节结构只有一个事实源：`docs/book.json`（卷、章、标题、知识点、状态）。章首元信息、章内目录、章末导航与 `docs/INDEX.md` 都由它生成，不要手改章节的导航部分。
 
 ```bash
-python docs/gen_book.py build      # 改完 docs/book.json 后重建 docs/INDEX.md 与各章章首/目录/章末
-python docs/check_nav.py           # 校验章号、标题与文件名、章首、目录、章末链接、INDEX 同步
-python docs/check_chapters.py --all   # 校验篇幅、结构、表格、章号引用
+python scripts/gen_book.py build      # 改完 docs/book.json 后重建 docs/INDEX.md 与各章章首/目录/章末
+python scripts/check_nav.py           # 校验章号、标题与文件名、章首、目录、章末链接、INDEX 同步
+python scripts/check_chapters.py --all   # 校验篇幅、结构、表格、章号引用
 ```
 
-检查前 12 章的机械项：`python docs/check_ch01_12.py`。
+检查前 12 章的机械项：`python scripts/check_ch01_12.py`。
 
 ## 仓库结构
 
@@ -198,11 +198,22 @@ python docs/check_chapters.py --all   # 校验篇幅、结构、表格、章号�
 │   ├── PLAN-v11.md            章节方案
 │   ├── REFACTOR-v11.md        本轮前 12 章的施工说明
 │   ├── PLAN-ARCH.md           编排架构章节计划
-│   ├── harness/DEV-SESSION.md 卷 12 组件基座的开发会话指导
+│   └── harness/DEV-SESSION.md 卷 12 组件基座的开发会话指导
+├── scripts/                   构建与检查脚本（全部脚本集中在此，docs/ 不再放代码）
+│   ├── README.md              两类脚本、路径约定与常用命令
 │   ├── gen_book.py            从 book.json 生成 INDEX.md 与章首/目录/章末
 │   ├── check_nav.py           导航与结构自检
+│   ├── check_chapters.py      章节结构/篇幅/章号自检（任意章）
 │   ├── check_ch01_12.py       前 12 章的机械检查
-│   └── check_chapters.py      章节结构/篇幅/章号自检（任意章）
+│   ├── check_flow.py          连贯性：孤儿指代、指向已删表格、空壳小节
+│   ├── check_reader.py        四类锚点：代码来源/输出出处/并列项/术语
+│   ├── lint_prose.py          散文风格十项指标
+│   ├── audit_code.py          代码缺口扫描
+│   ├── audit_concepts.py      概念覆盖扫描
+│   ├── trim_all.py            一章四检一次跑完
+│   ├── trim_verify.py         改前改后核对（代码输出/表格/引用）
+│   ├── trim_split.py / trim_apply.py   精简施工的分段视图与写回
+│   └── _*.py                  写作期一次性小工具（_stat / _titles / _para …）
 └── code/
     ├── knowledge/
     │   ├── _common/           脚本化后端（fake_server / scripted_chat）

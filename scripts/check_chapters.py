@@ -1,8 +1,8 @@
 """章节自检：结构、篇幅、表格、章号引用。
 
 用法：
-    python docs/check_chapters.py 22-编排的三层.md [更多文件...]
-    python docs/check_chapters.py --all        # 检查仓库根目录的 00-*.md … 26-*.md
+    python scripts/check_chapters.py 22-编排的三层.md [更多文件...]
+    python scripts/check_chapters.py --all        # 检查仓库根目录的 00-*.md … 26-*.md
 
 检查项（对应 docs/WRITING-SPEC.md 与 outline/ 的约定）：
   1. 章首四行元信息齐全（知识点 / 本章回答 / 示例目录 / 读完应当能回答）

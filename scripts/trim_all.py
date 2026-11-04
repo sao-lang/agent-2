@@ -2,9 +2,9 @@
 """全书验收：对每章跑 lint / check_chapters / trim_verify（对比基线提交）。
 
 用法：
-    python docs/trim_all.py 01 02 03 ...      # 指定章
-    python docs/trim_all.py --vol1to3        # 第 1–12 章
-    python docs/trim_all.py --all
+    python scripts/trim_all.py 01 02 03 ...      # 指定章
+    python scripts/trim_all.py --vol1to3        # 第 1–12 章
+    python scripts/trim_all.py --all
 
 基线默认取 `627ddd9`（精简前的最后一次全量提交）。
 返回码 0 表示全部通过。
@@ -51,11 +51,11 @@ def main() -> int:
     sel = ["--vol1to3"] if args.vol1to3 else args.stems
     for stem in chapters(sel):
         f = next(ROOT.glob(f"{stem}-*.md")).name
-        c1, o1 = run([sys.executable, "docs/lint_prose.py", f])
-        c0, o0 = run([sys.executable, "docs/check_reader.py", stem, "--quiet"])
-        c2, o2 = run([sys.executable, "docs/check_chapters.py", f])
+        c1, o1 = run([sys.executable, "scripts/lint_prose.py", f])
+        c0, o0 = run([sys.executable, "scripts/check_reader.py", stem, "--quiet"])
+        c2, o2 = run([sys.executable, "scripts/check_chapters.py", f])
         base = BASE_MAP.get(stem, BASE)
-        c3, o3 = run([sys.executable, "docs/trim_verify.py", stem, "--base", base])
+        c3, o3 = run([sys.executable, "scripts/trim_verify.py", stem, "--base", base])
         c4 = 0
         if c3:
             # 改过小节结构的章（合并 / 重编号）允许 --restructure 再判一次
@@ -63,7 +63,7 @@ def main() -> int:
                           ["--allow-tail", "--allow-head"],
                           ["--restructure", "--allow-tail"],
                           ["--restructure", "--allow-tail", "--allow-head"]):
-                c4, o4 = run([sys.executable, "docs/trim_verify.py", stem,
+                c4, o4 = run([sys.executable, "scripts/trim_verify.py", stem,
                               "--base", base] + extra)
                 if c4 == 0:
                     c3, o3 = 0, o4

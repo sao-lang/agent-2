@@ -14,8 +14,8 @@
     F4 空壳小节     标题下直接是代码块或结论，没有一句总起
 
 用法：
-    python docs/check_flow.py 01 02 ...
-    python docs/check_flow.py --all
+    python scripts/check_flow.py 01 02 ...
+    python scripts/check_flow.py --all
 """
 
 from __future__ import annotations
