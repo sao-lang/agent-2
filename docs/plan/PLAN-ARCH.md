@@ -104,7 +104,7 @@ agent = 分派 + 主体 + 校验
 | 33 | `code/knowledge/ch33_multiagent/` | `supervisor.py`、`handoff.py`、`blackboard.py` | 同一任务的 agent 数、消息条数、总 token、延迟 |
 | 52 | `code/harness/topology.py` + `code/harness/tests/test_topology.py` | 四种拓扑 + `FakeActor` | 替换实验的断言结果；无模型、无网络 |
 
-**运行约定**沿用 `docs/REFACTOR-v11.md` 3.2 节（Windows、`PYTHONIOENCODING`、脚本单独可跑、不留交互输入）。第 33、52 章的示例**不调真实模型**，actor 用脚本化替身并标注"原理演示，不是模型实测"。
+**运行约定**沿用 `docs/refactor/REFACTOR-v11.md` 3.2 节（Windows、`PYTHONIOENCODING`、脚本单独可跑、不留交互输入）。第 33、52 章的示例**不调真实模型**，actor 用脚本化替身并标注"原理演示，不是模型实测"。
 
 ---
 
@@ -184,5 +184,5 @@ agent = 分派 + 主体 + 校验
 
 ## 九、遗留
 
-- `PLAN-v11` 的卷 11 由 5 章变 6 章，总章数 52 → 53；重排时需要同步改 `docs/PLAN-v11.md` 第二节的表格与知识点总数说明。
+- `PLAN-v11` 的卷 11 由 5 章变 6 章，总章数 52 → 53；重排时需要同步改 `docs/plan/PLAN-v11.md` 第二节的表格与知识点总数说明。
 - 术语表（附录 A）要新增两条："转人工（`handoff=True`）"与"交接（agent 间控制权转移）"。

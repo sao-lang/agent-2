@@ -115,7 +115,7 @@ python code/knowledge/ch09_lc_basic/messages.py
 
 有多种做法的内容，每种做法都给一个可运行例子和它的输出；输出逐字来自同目录脚本。
 
-详细规范见 [docs/WRITING-SPEC.md](./docs/WRITING-SPEC.md)，本轮施工说明见 [docs/REFACTOR-v11.md](./docs/REFACTOR-v11.md)。
+详细规范见 [docs/WRITING-SPEC.md](./docs/WRITING-SPEC.md)，本轮施工说明见 [docs/refactor/REFACTOR-v11.md](docs/refactor/REFACTOR-v11.md)。
 
 ## 结构维护
 
@@ -190,15 +190,17 @@ python scripts/check_chapters.py --all   # 校验篇幅、结构、表格、章�
 ├── 57-计算机操作agent.md              第 57 章
 ├── drafts-v5/                 卷 10 的旧稿（42–46 已重写完成，此处留档）
 ├── chapters-pending/          已无待改稿（第 33 章旧稿已由新章替代）
-├── docs/
+├── docs/                      书的“结构 + 规范”，不放代码（脚本在 scripts/）
+│   ├── README.md              分类索引：每个文件回答什么问题、什么时候读
 │   ├── OUTLINE.md             大纲索引：加载规则、卷→分册映射、全局不变量
-│   ├── INDEX.md               全书目录（由 book.json 生成）：按卷分组、知识点索引、文件名对照
+│   ├── INDEX.md               全书目录（由 book.json 生成）：按卷分组、知识点索引
 │   ├── book.json              结构唯一事实源：14 卷、60 章、108 条知识点
-│   ├── WRITING-SPEC.md        写作规范
-│   ├── PLAN-v11.md            章节方案
-│   ├── REFACTOR-v11.md        本轮前 12 章的施工说明
-│   ├── PLAN-ARCH.md           编排架构章节计划
-│   └── harness/DEV-SESSION.md 卷 12 组件基座的开发会话指导
+│   ├── WRITING-SPEC.md        写作规范（所有机检口径的出处）
+│   ├── plan/                  章节规划：PLAN-v7…v11、PLAN-ARCH
+│   ├── refactor/              施工记录：REFACTOR-v11 / v12 精简 / v13 结构
+│   ├── trim/                  精简施工：TRIM-BRIEF 与 v2
+│   ├── audit/                 审计：代码缺口、概念覆盖
+│   └── harness/               卷 12 组件基座：SPEC.md、DEV-SESSION.md
 ├── scripts/                   构建与检查脚本（全部脚本集中在此，docs/ 不再放代码）
 │   ├── README.md              两类脚本、路径约定与常用命令
 │   ├── gen_book.py            从 book.json 生成 INDEX.md 与章首/目录/章末

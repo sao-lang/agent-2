@@ -1,7 +1,7 @@
 # 章节精简作业书（给执行者）
 
 > 本文件是"把一章压到可读长度"的完整作业流程。**先读完这一份，再动手。**
-> 规范细节见 `docs/WRITING-SPEC.md` 第二节、第六节；已完成 26 章的实测数据见 `docs/REFACTOR-v12-精简.md`。
+> 规范细节见 `docs/WRITING-SPEC.md` 第二节、第六节；已完成 26 章的实测数据见 `docs/refactor/REFACTOR-v12-精简.md`。
 
 ## 零、你要达成什么
 

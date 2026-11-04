@@ -599,7 +599,7 @@ assert agent.run(goal).status is RunStatus.COMPLETED
 ## 12. 开工前检查清单
 
 - [ ] 读 `outline/20-副线封装推导.md` 的 5.0–5.9。
-- [ ] 读 `outline/vol12-组件封装.md` 与 `docs/PLAN-ARCH.md` 的 52/53 部分。
+- [ ] 读 `outline/vol12-组件封装.md` 与 `docs/plan/PLAN-ARCH.md` 的 52/53 部分。
 - [ ] 确认第 11 节六个未决问题。
 - [ ] 建 `code/harness/` 与 `pyproject.toml`。
 - [ ] 先写 `contracts.py` + `FakeModel` + 一个失败测试，再写 `Agent`。
