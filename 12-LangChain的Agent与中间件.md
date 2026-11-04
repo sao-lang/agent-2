@@ -40,7 +40,7 @@
 
 ## 二、一次调用的参数表
 
-`create_agent` 在本机 1.4.7 上的签名，逐行打出来是这样：
+`create_agent` 在本机 1.4.7 上的签名，逐行打出来是这样，见 `code/knowledge/ch12_lc_agent/agent_params.py` 的 `show_signature()`：
 
 ```python
 import inspect
@@ -144,7 +144,7 @@ def build_agent():
     )
 ```
 
-`scripted_chat(respond)` 是本目录的脚本化后端：把 `ChatOpenAI` 的传输层换成回放，请求照常序列化、响应来自写死的剧本，原理演示，不是模型实测。换成真实服务只改这一行：`ChatOpenAI(model="gpt-4.1", api_key=..., base_url=...)`；模型对象与消息对象长什么样，见第 9 章。
+`scripted_chat(respond)` 是本目录的脚本化后端：把 `ChatOpenAI` 的传输层换成回放，请求照常序列化、响应来自写死的剧本。换成真实服务只改这一行：`ChatOpenAI(model="gpt-4.1", api_key=..., base_url=...)`；模型对象与消息对象长什么样，见第 9 章。
 
 这段跑出来的结果：
 
@@ -163,7 +163,7 @@ structured_response: can_refund=True days_left=4
 
 第一，`response_format` 不是让模型输出 JSON 的口头约定：它在工具表里加了一个以类名命名的工具，模型调它一次，框架把参数校验成 `RefundAnswer`，再从 `messages` 之外给出 `structured_response`，所以最后一条 `ToolMessage` 的正文是框架自己写的。第 4 章那五种做法到框架里变成一个参数，底层仍是工具调用加校验。
 
-第二，`cache` 传了不等于会命中：两次完全相同的输入，模型被请求两次，`model` 节点的 `cache_policy` 是 `None`。
+`cache` 传了不等于会命中：两次完全相同的输入，模型被请求两次，`model` 节点的 `cache_policy` 是 `None`。
 
 ```text
 === cache：传了 cache 是否命中
@@ -175,7 +175,7 @@ structured_response: can_refund=True days_left=4
 
 `transformers` 接流式事件的变换器，与第 10 章的 `astream_events` 是同一套事件树，顺序固定：先 `ToolCallTransformer`，再中间件声明的，最后是这个参数传的。本章没有跑它。
 
-`response_format` 收三种东西：pydantic 类、`ToolStrategy`、`ProviderStrategy`。传 pydantic 类时框架按模型能力挑策略包起来，`ProviderStrategy` 走 provider 自带的结构化输出，`ToolStrategy` 强制走工具。三者对调用方是同一个出口，state 里多一个 `structured_response` 字段，代价是选了哪种策略在调用处看不出来。第 4 章比过五种做法的差别，到框架里收成一个参数。
+`response_format` 收三种东西：pydantic 类、`ToolStrategy`、`ProviderStrategy`。传 pydantic 类时框架按模型能力挑策略包起来，`ProviderStrategy` 是走 provider 自带结构化输出的一种，`ToolStrategy` 是强制走工具的一种。三者对调用方是同一个出口，state 里多一个 `structured_response` 字段，代价是选了哪种策略在调用处看不出来。
 
 ## 三、钩子与洋葱顺序
 
@@ -190,9 +190,9 @@ structured_response: can_refund=True days_left=4
 | 每次工具执行前（包住） | `wrap_tool_call` | 改调用、短路、重试 | 审批、模拟、错误兜底 |
 | 整轮结束后 | `after_agent` | 返回 state 增量 | 汇总、写库 |
 
-类上还有三个声明位置：`state_schema`、`transformers`、`name`。模块级还导出了 `hook_config`、`before_model`、`after_model`、`dynamic_prompt` 四个装饰器，用来写函数式中间件。
+类上还有三个声明位置：`state_schema`、`transformers`、`name`。模块级还导出了 `hook_config` 这个装饰器与 `before_model`、`after_model`、`dynamic_prompt` 另外三个，用来写函数式中间件。
 
-顺序用两个只会打日志的中间件就能看清，注册 `[Tracer("A"), Tracer("B")]` 跑一个调一次工具再作答的任务：
+顺序用两个只会打日志的中间件就能看清，注册 `[Tracer("A"), Tracer("B")]` 跑一个调一次工具再作答的任务，见 `code/knowledge/ch12_lc_agent/middleware_order.py`：
 
 ```python
 class Tracer(AgentMiddleware):
@@ -347,7 +347,7 @@ def rewrite_prompt(request):
 
 ### 4.1 预算与重试
 
-这一组直接对应第 7 章的 `max_steps` 与第 8 章的失控。六个各跑一遍，剧本是模型永远要调工具或工具永远失败：
+这一组直接对应第 7 章的 `max_steps` 与第 8 章的失控。六个各跑一遍，剧本是模型永远要调工具或工具永远失败，见 `code/knowledge/ch12_lc_agent/builtin_budget.py` 的 `test_model_call_limit()`：
 
 ```python
 def test_model_call_limit() -> None:
@@ -430,7 +430,7 @@ for round_no in range(2):
 
 ### 4.2 上下文与待办
 
-第 3 章讲过上下文窗口的账，第 7 章讲过历史长度按步线性长。这一组把压历史做成钩子，三种压法：
+第 3 章讲过上下文窗口的账，第 7 章讲过历史长度按步线性长。这一组把压历史做成钩子，三种压法，见 `code/knowledge/ch12_lc_agent/builtin_context.py` 的 `test_summarization()`：
 
 ```python
 def test_summarization() -> None:
@@ -487,11 +487,11 @@ def test_summarization() -> None:
   todos: [{'content': '查订单', 'status': 'in_progress'}, {'content': '查政策', 'status': 'pending'}]
 ```
 
-它注册 `write_todos`，模型自己往里写清单，`todos` 落在 state 里。这是把第 7 章进度只存在于调用方代码里这件事翻了个面：进度仍然不在模型脑子里，但它现在是一个可以被读、被存的字段，下一次请求把它拼回上下文。
+`write_todos` 是一个工具，模型自己往里写清单，`todos` 落在 state 里。这是把第 7 章进度只存在于调用方代码里这件事翻了个面：进度仍然不在模型脑子里，但它现在是一个可以被读、被存的字段，下一次请求把它拼回上下文。
 
 ### 4.3 敏感信息
 
-`PIIMiddleware` 只有两个动作：改或拦。
+`PIIMiddleware` 只有两个动作：改或拦，两种都在 `code/knowledge/ch12_lc_agent/builtin_context.py` 里跑过：
 
 ```text
 === PIIMiddleware('email', strategy='redact')
@@ -501,11 +501,11 @@ def test_summarization() -> None:
   PIIDetectionError: Detected 1 instance(s) of email in text content
 ```
 
-注意 `redact` 与上一节的 `[cleared]` 相反：它改的是 state 里的原文，不只是请求。脱敏的要求是原文不再留在系统里，压缩的要求是这次少发一点。`strategy` 还有 `mask`、`hash`，三个 `apply_to_*` 开关决定管哪一段。`HumanInTheLoopMiddleware` 属于同一组，但它是本章唯一会真的把执行停下来的中间件，放到第六节讲。
+注意 `redact` 与上一节的 `[cleared]` 相反：它改的是 state 里的原文，不只是请求。脱敏的要求是原文不再留在系统里，压缩的要求是这次少发一点。`strategy` 还有 `mask`、`hash`，三个 `apply_to_*` 参数类开关决定管哪一段。`HumanInTheLoopMiddleware` 属于同一组，但它是本章唯一会真的把执行停下来的中间件，放到第六节讲。
 
 ### 4.4 工具收窄
 
-工具一多，请求里的 schema 就占掉大量 token，模型挑错的概率也上升。两个中间件方向相反：一个在发请求前砍工具表，一个在执行时不真跑。
+工具一多，请求里的 schema 就占掉大量 token，模型挑错的概率也上升。两个中间件方向相反：一个在发请求前砍工具表，一个在执行时不真跑，两者都在 `code/knowledge/ch12_lc_agent/builtin_tools.py` 里跑过：
 
 ```text
 === LLMToolSelectorMiddleware(max_tools=2, always_include=['refund'])
@@ -531,11 +531,11 @@ agent = create_agent(model=scripted_chat(respond), tools=[refund2],
   真实工具函数被调用次数: 0
 ```
 
-它需要一个 `model=`，默认是 `anthropic:claude-sonnet-4-5`，本机没装 `langchain_anthropic`，不传就 `ModuleNotFoundError`。用途是评测：真实工具执行既慢又有副作用，模拟器把这一步换成一次生成。这两个中间件改的都是模型看到什么，不是系统做了什么：真实工具表与真实副作用都没变。所以它们适合压在评测与调试路径上，生产路径上少一个工具就是少一个能力。
+它需要一个 `model=`，默认是 `anthropic:claude-sonnet-4-5`，`langchain_anthropic` 是 Anthropic 的适配包，本机没装，不传就 `ModuleNotFoundError`。用途是评测：真实工具执行既慢又有副作用，模拟器把这一步换成一次生成。这两个中间件改的都是模型看到什么，不是系统做了什么：真实工具表与真实副作用都没变。所以它们适合压在评测与调试路径上，生产路径上少一个工具就是少一个能力。
 
 ### 4.5 执行环境
 
-`FilesystemFileSearchMiddleware` 直接给两个工具：
+`FilesystemFileSearchMiddleware` 直接给两个工具，见 `code/knowledge/ch12_lc_agent/builtin_tools.py`：
 
 ```text
 === FilesystemFileSearchMiddleware
@@ -546,7 +546,7 @@ agent = create_agent(model=scripted_chat(respond), tools=[refund2],
   grep_search: 'No matches found'
 ```
 
-`path` 参数要传目录，传单个文件名匹配不到任何东西，报错是 `No matches found`，看起来像文件里没有这个词。`use_ripgrep=False` 时走纯 Python 兜底，本机没装 `rg`，于是含中文的文件整篇匹配不到：兜底按非 UTF-8 解码，一条也搜不出来，失败不报错、只返回空结果。
+`path` 参数要传目录，传单个文件名匹配不到任何东西，报错是 `No matches found`，看起来像文件里没有这个词。`use_ripgrep` 就是控制走不走 `rg` 的开关，`False` 时走纯 Python 兜底，本机没装 `rg`，于是含中文的文件整篇匹配不到：兜底按非 UTF-8 解码，一条也搜不出来，失败不报错、只返回空结果。
 
 `ShellToolMiddleware` 在本机三次都没跑起来，按规矩贴失败输出，不编成功的样子：
 
@@ -570,7 +570,7 @@ agent = create_agent(model=scripted_chat(respond), tools=[refund2],
 
 ## 五、状态与检查点
 
-第 7 章说状态只存在于 messages 里，第 8 章说丢消息就丢进度。四个参数处理这件事，各管一段：
+第 7 章说状态只存在于 messages 里，第 8 章说丢消息就丢进度。四个参数处理这件事，各管一段，见 `code/knowledge/ch12_lc_agent/state_persist.py`：
 
 | 参数 | 存什么 | 生命周期 | 进不进 checkpoint |
 |---|---|---|---|
@@ -602,7 +602,7 @@ agent = create_agent(model=scripted_chat(respond), tools=[refund2],
   user_tier = gold | tool_calls_made = 1
 ```
 
-`user_tier` 从输入里带进来，`tool_calls_made` 由中间件在 `after_model` 里算。`CountCalls` 自己声明了 `state_schema`，所以即使 `create_agent` 不传，字段也在，但那时输入里传 `user_tier` 会被丢掉。
+`user_tier` 从输入里带进来，`tool_calls_made` 由中间件在 `after_model` 里算。`CountCalls` 类自己声明了 `state_schema`，所以即使 `create_agent` 不传字段也在，但那时输入里传 `user_tier` 会被丢掉。
 
 `context_schema` 给的字段不进 state，只在钩子里通过 `runtime.context` 读：
 
@@ -630,7 +630,7 @@ agent = create_agent(model=scripted_chat(respond), tools=[refund2],
 
 第 8 章的失控里有一类只能靠人：工具要执行、但执行不可逆。框架给了两种停法，名字像，作用完全不同。
 
-静态断点 `interrupt_before` / `interrupt_after` 写的是节点名，停的时候不给载荷：
+静态断点 `interrupt_before` / `interrupt_after` 写的是节点名，停的时候不给载荷，见 `code/knowledge/ch12_lc_agent/interrupt_demo.py`：
 
 ```text
 === interrupt_before=['tools']
@@ -739,9 +739,9 @@ resumed = agent.invoke(Command(resume={"decisions": [{"type": "approve"}]}), con
   AIMessage     '退款已提交'
 ```
 
-`edit` 那条消息值得读两遍。金额从 99 变成 50，工具体收到的参数也跟着变，而模型收到的那段 `edit_notice` 明确写了三件事：原来那条调用被替换了、替换是有意的、不要重发。这段文字是给模型看的指令，没有它，模型很可能再发一次，把改过的金额覆盖回去。
+`edit` 那条消息值得读两遍。金额从 99 变成 50，工具体收到的参数也跟着变，而模型收到的那段 `edit_notice` 是一个字段，写了三件事：原来那条调用被替换了、替换是有意的、不要重发。这段文字是给模型看的指令，没有它，模型很可能再发一次，把改过的金额覆盖回去。
 
-`respond` 走另一条路：工具体完全没执行，模型直接拿到审阅者写的那句话，`status` 是 `success`，适合这件事线下已经办完了的场景。两者都必须显式传 `edited_action` 或 `message`，少传时框架在恢复时按决策 `type` 逐项校验并指出缺哪个字段。
+`respond` 走另一条路：工具体完全没执行，模型直接拿到审阅者写的那句话，`status` 是 `success`，适合这件事线下已经办完了的场景。两者都必须显式传 `edited_action` 参数或 `message`，少传时框架在恢复时按决策 `type` 逐项校验并指出缺哪个字段。
 
 两种中断的分工可以这样记：
 
@@ -755,11 +755,11 @@ resumed = agent.invoke(Command(resume={"decisions": [{"type": "approve"}]}), con
 
 第五行是最容易漏的：不给 `checkpointer`，两种中断都用不了，因为停下来之后没有地方存停在哪。中断的实现是停下、把当前状态写进 checkpoint、让 invoke 返回，恢复是读回那份 checkpoint 从断点继续。本章用的是 `InMemorySaver`，所以两次 `invoke` 必须跑在同一个进程里；换成写磁盘的 checkpointer，审批就能跨进程，人稍后点同意，第二个请求带着同一个 `thread_id` 调 `Command(resume=...)` 仍然接得上。
 
-两个参数改了载荷的呈现方式，不改变分工：`description_prefix` 改文案，`interrupt_mode` 决定多个待审动作是合成一个中断还是分成多个。审批一章会把这个形状展开成队列与超时。
+两个参数改了载荷的呈现方式，不改变分工：`description_prefix` 参数改文案，`interrupt_mode` 决定多个待审动作是合成一个中断还是分成多个。审批一章会把这个形状展开成队列与超时。
 
 ## 七、逐项对照
 
-把第 7 章那份循环与 `create_agent` 摆在一起，同一份三步剧本：
+把第 7 章那份循环与 `create_agent` 摆在一起，同一份三步剧本，见 `code/knowledge/ch12_lc_agent/handwritten_vs_framework.py`：
 
 ```text
 === 手写循环 ===
@@ -801,13 +801,13 @@ resumed = agent.invoke(Command(resume={"decisions": [{"type": "approve"}]}), con
 
 ## 八、代价
 
-三条，都是我在这一章里真实撞到的。
+三条，都是这一章里真实撞到的：
 
 第一，参数多，而且参数之间会互相影响。十五个参数里终止散在四个地方：图结构、`ModelCallLimit`、`ToolCallLimit`、剧本自己收尾。想让一个任务最多五步就停，得先回答步是模型调用还是工具调用，手写版的 `max_steps` 只有一种含义。
 
 第二，版本升级会改这些名字与默认值。本章所有签名都是 `inspect.signature` 打出来的，锁在 1.4.7；大纲写 19 个内置中间件，本机实际 16 个；`LLMToolEmulator` 的默认模型本机装不上。把 `inspect.signature` 那一段留在仓库里，跑一遍就知道十五个参数有没有变，比读发布说明直接。
 
-第三，调试层级变深。手写循环出错看 trace 就知道第几步，框架里一次 `before_model` 可能被三个中间件包住，日志顺序要按洋葱推。`debug=True` 打的是节点级信息：
+调试层级变深。手写循环出错看 trace 就知道第几步，框架里一次 `before_model` 可能被三个中间件包住，日志顺序要按洋葱推。`debug=True` 打的是节点级信息，长这样：
 
 ```text
 [values] {'messages': [HumanMessage(content='hi', ...)]}
@@ -828,7 +828,7 @@ resumed = agent.invoke(Command(resume={"decisions": [{"type": "approve"}]}), con
 
 ### 8.2 真实服务的接法
 
-本章每个脚本的第一处都写着这句注释，抄在这里：
+本章每个脚本的第一处都写着这句注释，抄在这里，脚本都在 `code/knowledge/ch12_lc_agent/` 目录下：
 
 ```python
 import os
@@ -839,13 +839,13 @@ model = ChatOpenAI(model="gpt-4.1", api_key=os.environ["OPENAI_API_KEY"],
                    base_url="https://api.openai.com/v1")
 ```
 
-把 `scripted_chat(respond)` 换成这个实例，其余代码不动，但换过去之后有四件事会变，需要提前知道。
+换成这个实例，其余代码不动，但换过去之后有四件事会变。
 
-剧本消失：`respond` 里那张按序号回放的表没有对应物了，模型真的会自己决定调几次工具，本章那些三次模型调用的数字不再成立。`usage_metadata` 有了真实值：脚本化后端给的 token 数写在 `usage=(110, 20)` 里，只能演示字段存在，不能用来算钱，第 42 章讲计量时要用真值。重试与退避的参数要按真实延迟调，脚本化后端的失败是手动抛的。`ProviderToolSearchMiddleware` 才能跑，它需要 provider 侧的工具搜索能力。前三条都会让本章某些输出不再可复现，这正是脚本化后端证明控制流、不证明模型行为的具体含义。
+剧本消失：`respond` 里那张按序号回放的表没有对应物了，模型真的会自己决定调几次工具，本章那些三次模型调用的数字不再成立。`usage_metadata` 字段有了真实值：脚本化后端给的 token 数写在 `usage=(110, 20)` 里，只能演示字段存在，不能用来算钱，第 42 章讲计量时要用真值。重试与退避的参数要按真实延迟调，脚本化后端的失败是手动抛的。`ProviderToolSearchMiddleware` 才能跑，它需要 provider 侧的工具搜索能力。前三条都会让本章某些输出不再可复现。
 
 ## 九、覆盖清单
 
-本章对 1.4.7 这套 API 的覆盖逐项交代，没跑的不算讲过：
+本章对 1.4.7 这套 API 逐项交代，没跑的不算讲过：
 
 | 中间件 | 本章在哪 | 跑到什么程度 |
 |---|---|---|
@@ -866,9 +866,9 @@ model = ChatOpenAI(model="gpt-4.1", api_key=os.environ["OPENAI_API_KEY"],
 | `ShellToolMiddleware` | 4.5 | **未跑通**，Windows 会话协议 |
 | `ProviderToolSearchMiddleware` | 4.5 | **未跑通**，需要真实 provider |
 
-十六个里跑通十四个，两个受环境限制。没讲的也列清楚：`create_agent` 的 `transformers` 只说了顺序，没有跑，要流式消费才看得到效果；`DockerExecutionPolicy` 与 `CodexSandboxExecutionPolicy` 只提了名字，本机没有 Docker，且沙箱是第 27 章的主题；`interrupt_mode="batched"` 与 `description_prefix` 只改载荷文案与暂停粒度，没有展开。
+十六个里跑通十四个，两个受环境限制。没讲的也列清楚：`create_agent` 的 `transformers` 只说了顺序，没有跑，要流式消费才看得到效果；`DockerExecutionPolicy` 这个名字与 `CodexSandboxExecutionPolicy` 那个名字都只提了一下，本机没有 Docker，且沙箱是第 27 章的主题；`interrupt_mode="batched"` 与 `description_prefix` 只改载荷文案与暂停粒度，没有展开。
 
-这份清单的用法是改代码之前先看它跑通过没有：每个跑通都对应本目录一个脚本的一行输出，重跑能复现；两个未跑通的也各自贴了失败原文。
+改代码之前先看它跑通过没有：每个跑通都对应本目录一个脚本的一行输出，重跑能复现；两个未跑通的也各自贴了失败原文。
 
 ## 这一章建立的 6 件事
 
