@@ -57,6 +57,11 @@ git show 627ddd9:NN-*.md > .trim/NN.base.md     # 只读，不要 git add
 
 ## 五、验收（六项）
 
+> **两个工具约定（已修好，按此执行）**
+> 1. `trim_verify` 在基线提交里**按章号查找文件**，第 02/06/23/24 章改过名也能找到基线（会打印"基线文件名已变更"）。
+> 2. 章首引用块与章末导航行**允许与基线不同**：它们由 `book.json` 与 `gen_book.py build` 管，链接必须指向现名文件（不能抄基线的死链）。对应两个开关：`--allow-head`（章首）与 `--allow-tail`（章末措辞/导航）。`trim_all.py` 会自动尝试这些组合。
+> 3. 因此 verify 的判据是：**代码块/输出块/表格逐字一致、标题集合一致（改过结构时带 `--restructure`）、`第 N 章` 与 `code/` 引用数不减、知识点名词仍在**。章首和章末本身不参与比对。
+
 ```bash
 python docs/lint_prose.py    NN-*.md      # 风格（现行口径 2800–4400 散文，见下）
 python docs/check_chapters.py NN-*.md     # 结构

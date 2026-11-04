@@ -54,8 +54,10 @@ def main() -> int:
         c4 = 0
         if c3:
             # 改过小节结构的章（合并 / 重编号）允许 --restructure 再判一次
-            for extra in (["--restructure"], ["--allow-tail"],
-                          ["--restructure", "--allow-tail"]):
+            for extra in (["--restructure"], ["--allow-tail"], ["--allow-head"],
+                          ["--allow-tail", "--allow-head"],
+                          ["--restructure", "--allow-tail"],
+                          ["--restructure", "--allow-tail", "--allow-head"]):
                 c4, o4 = run([sys.executable, "docs/trim_verify.py", stem,
                               "--base", BASE] + extra)
                 if c4 == 0:
