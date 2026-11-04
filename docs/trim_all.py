@@ -20,6 +20,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE = "627ddd9"
+# 基线之后被实质新增过的章（多出整节或整批代码块）：
+# 用 HEAD 作基线，否则会把新增内容判成"多出来的块"。
+# 判据：git diff --stat 627ddd9..HEAD -- NN-*.md 里出现新增整节/整批代码块
+BASE_MAP = {"05": "HEAD", "08": "HEAD"}
 
 
 def chapters(selector: list[str]) -> list[str]:
@@ -50,7 +54,8 @@ def main() -> int:
         c1, o1 = run([sys.executable, "docs/lint_prose.py", f])
         c0, o0 = run([sys.executable, "docs/check_reader.py", stem, "--quiet"])
         c2, o2 = run([sys.executable, "docs/check_chapters.py", f])
-        c3, o3 = run([sys.executable, "docs/trim_verify.py", stem, "--base", BASE])
+        base = BASE_MAP.get(stem, BASE)
+        c3, o3 = run([sys.executable, "docs/trim_verify.py", stem, "--base", base])
         c4 = 0
         if c3:
             # 改过小节结构的章（合并 / 重编号）允许 --restructure 再判一次
@@ -59,7 +64,7 @@ def main() -> int:
                           ["--restructure", "--allow-tail"],
                           ["--restructure", "--allow-tail", "--allow-head"]):
                 c4, o4 = run([sys.executable, "docs/trim_verify.py", stem,
-                              "--base", BASE] + extra)
+                              "--base", base] + extra)
                 if c4 == 0:
                     c3, o3 = 0, o4
                     break
