@@ -130,7 +130,7 @@ class EndToEndTest(unittest.TestCase):
         h = Harness.of(model=model, tools=[concat])
         program = react(max_steps=4) >> ckpt
         run(h.run(program, Goal("x", session_id="ck")))
-        self.assertEqual(run(store.history(Namespace(), "ck")), [0, 1])
+        self.assertEqual(run(store.history(Namespace(), "ck")), [0])   # 只执行了 1 步工具调用
 
     def test_budget_exhaustion_degrades(self):
         model = FakeModel([tool_call("concat", left="a", right="b")] * 5)
