@@ -273,7 +273,7 @@ L0 内核     kernel/      循环 · 四段 · 链 · 作用域
 | `parts` | `contracts` `parts`（同层） |
 | `impl` | `contracts` `impl`（同层） |
 | `assembly` | `contracts` `kernel` `parts` `impl`（同层） |
-| `fp` | `contracts` `parts` `assembly` |
+| `fp` | `contracts` `kernel` `parts` `assembly`（门面要驱动内核循环） |
 | `adapters` | 全部（只被 `assembly` 懒加载） |
 
 禁令：禁止向上依赖（`parts` ↛ `kernel`）；禁止层间成环（`kernel → parts` 与 `parts → kernel` 不能同时存在）；`__init__.py` 只做导出不做初始化。

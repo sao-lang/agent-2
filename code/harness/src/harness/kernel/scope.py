@@ -25,6 +25,19 @@ class RunScope:
     tracer: Any = None
     delivery: Any = None
     guard: Any = None
+    #: 执行原语与数据视图（P5 接入；缺省为 None 时策略会明确报错）
+    actor: Any = None
+    framer: Any = None
+    encoder: Any = None
+    #: 能力（按需注入；层声明 needs 后由装配期校验）
+    model: Any = None
+    fs: Any = None
+    sandbox: Any = None
+    artifacts: Any = None
+    secrets: Any = None
+    index: Any = None
+    memory: Any = None
+    guardrails: tuple[Any, ...] = ()
     pipes: tuple[Any, ...] = ()
     layers: tuple[Any, ...] = ()
     filter: Any = None

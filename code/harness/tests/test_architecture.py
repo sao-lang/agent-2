@@ -24,7 +24,7 @@ ALLOWED: dict[str, set[str]] = {
     "parts": {"contracts", "parts"},
     "impl": {"contracts", "impl"},
     "assembly": {"contracts", "kernel", "parts", "impl", "assembly"},
-    "fp": {"contracts", "parts", "assembly", "fp"},
+    "fp": {"contracts", "kernel", "parts", "assembly", "fp"},
     "adapters": {"contracts", "kernel", "parts", "impl", "assembly", "adapters"},
 }
 

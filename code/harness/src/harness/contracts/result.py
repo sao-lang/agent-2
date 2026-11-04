@@ -19,6 +19,7 @@ class RunResult:
     pending: ApprovalRequest | None = None
     error: str | None = None
     trace_id: str = ""
+    rev: int = 0                      # 指向最终检查点，供 resume / 时间旅行
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
