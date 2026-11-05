@@ -42,4 +42,5 @@ _sql_demo.db
 .tools/
 .dl-tmp/
 .trim/
+.workbuddy/
 .dsh_progress

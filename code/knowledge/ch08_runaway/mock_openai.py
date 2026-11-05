@@ -2,10 +2,12 @@
 
 它实现的是真实协议：POST /v1/chat/completions，返回 choices[].message 与 usage，
 参数与真实厂商一致（model、messages、tools、temperature、max_tokens）。
-所以 mini_agent.py 的代码不需要为它改一行：把 --base-url 指到这里即可。
+所以主线不需要为它改一行：把 --base-url 指到这里即可。
 
     python code/knowledge/ch08_runaway/mock_openai.py --port 8899
-    python code/knowledge/ch08_runaway/mini_agent.py --base-url http://127.0.0.1:8899/v1 --api-key sk-mock
+    python learn/mini_agent/run.py --base-url http://127.0.0.1:8899/v1 --api-key sk-mock --model mock
+    # 或不用起服务，一键跑完五种基线 + 四个开关：
+    python learn/mini_agent/regression.py
 """
 
 from __future__ import annotations

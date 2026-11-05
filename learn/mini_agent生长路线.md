@@ -5,7 +5,10 @@
 
 ## 一、这条线是什么
 
-- **主线**：`mini_agent` 从"一个循环"长到"可替换的 15 个部件"（对应卷 1–11 + 12）。
+- **主线**：`mini_agent` 从"一个循环"长到"可替换的 15 个部件"（对应卷 1–11 + 12）。代码在 `learn/mini_agent/`：装配入口 `run.py`、干净核心 `core/`、示例集合 `demo/`（当前 `orders/`）、离线验收 `regression.py`。
+  - `run.py` 管"怎么跑一次"：可改常量、`build()`、CLI。agent 本身在 `core/loop.py`。
+  - `regression.py` 不是运行时的东西，是**改完就跑**的验收：基线数字对不上，说明这一轮改了旧行为。
+  - 新场景放 `demo/<场景>/`，不动 `orders/`、`core/` 和 `run.py`（只换一行 import）。
 - **对照台**：卷 3（LangChain）、卷 8/9（LangGraph 与其他框架）。它们不加功能，验收是"两版行为一致"。
 - **旁台**：RAG 台（卷 4）、拓扑台（卷 7）。独立验收，只把接口递给主线。
 
@@ -15,7 +18,7 @@
 
 | 轮 | 章 | 类型 | 往 mini_agent 加什么 | 开关 | 验收数字 |
 |---|---|---|---|---|---|
-| v0.1 | 1–8 | 加功能 | 循环 + 工具 + 结构化输出 + 四种拦截（现有 mini_agent） | `--no-dedupe` `--no-trim` `--no-budget` | 6 题答对 5 题；四种失控各拦一次 |
+| v0.1 | 1–8 | 加功能 | 循环 + 工具 + 结构化输出 + 四种拦截（已按第 6 节拆到 `learn/mini_agent/`） | `--no-dedupe` `--no-result-dedupe` `--no-trim` `--no-budget` | 6 题答对 5 题；四种失控各拦一次；`regression.py` 55 项全过 |
 | v0.2 | 9–12 | 开对照台 | 不加功能。LangChain 重写同一段循环，独立目录 | `--use-lc` | 同题同结论；token 差多少 |
 | v0.3 | 13–21 | 开旁台 | `Knowledge` 召回接口（只返回候选，不直接塞 prompt） | `--no-knowledge` | recall@3 达标 + 4 个无答案问题拒答 |
 | v0.4 | 22–23 | 改结构 | 拆成三层（分派/主体/校验）；加 `Reflector`（外部裁判） | `--no-reflect` | 一次错误被裁判拦下 |
@@ -42,15 +45,19 @@
 
 | 开关 | 关掉后应当只有这件事消失 |
 |---|---|
-| `--no-dedupe` | 重复调用不再被拦 |
-| `--no-trim` | 上下文爆炸 |
-| `--no-budget` | 成本击穿 |
+| `--no-dedupe` | 重复调用不再被拦（另一种指纹会接管，见下） |
+| `--no-result-dedupe` | 换参数打转不再被结果指纹认出 |
+| `--no-trim` | 上下文爆炸（长文本不再被裁） |
+| `--no-budget` | 成本击穿（预算闸门不再拦） |
 | `--no-knowledge` | 查资料消失，退化成纯对话 |
 | `--no-reflect` | 自我纠错消失 |
 | `--no-skills` | 流程性知识消失，只剩裸工具 |
 | `--no-guard` | 越权放行 |
 | `--no-trace` | 出事之后查不出第几步 |
 
+> 两个指纹是互补的：只关 `--no-dedupe`，结果指纹会接管同一个失控，状态仍是 `STALLED` 但停止原因变了；
+> 两个一起关才跑到 `MAX_STEPS`。所以验收看的是**对应计数归零**，不是"状态一定变"。
+>
 > 用开关逼出来的结构，就是 harness 的结构。
 
 ## 五、时间不够时砍哪些轮
@@ -67,8 +74,8 @@
 ## 六、三条保命习惯
 
 1. **每轮打完 tag，留一个能跑的版本**（v0.1 … v0.14）。
-2. **回归必须能离线跑**（复用 `code/knowledge/ch08_runaway/mock_openai.py`），不花 key、不联网。
-3. **单文件 > 400 行，或一次改动牵动 3 处以上，就拆**：`loop.py` / `tools.py` / `guards.py` / `state.py`。拆分点自然就是插点。
+2. **回归必须能离线跑**：`python learn/mini_agent/regression.py`，复用 `code/knowledge/ch08_runaway/mock_openai.py` 的剧本，不花 key、不联网。
+3. **单文件 > 400 行，或一次改动牵动 3 处以上，就拆**：`loop.py` / `tools.py` / `guards.py` / `state.py`。拆分点自然就是插点。v0.1 已按此落地：`core/loop.py`（调度）、`core/handlers.py`（`finish_reason` 分派表）、`core/executor.py`（工具管道）、`core/guards.py`（四个可开关守卫）、`core/state.py`（记账）、`core/contracts.py`（契约）；`demo/orders/` 装示例数据，`run.py` 只做装配。
 
 ## 七、每轮结束写三行（进 失效清单）
 
