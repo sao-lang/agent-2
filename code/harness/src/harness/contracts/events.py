@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-#: 13 种事件名（SPEC M10.1）
+#: 事件名（SPEC M10.1 的观测面 + v3 解释器插点，PROPOSAL §6）
 EVENT_NAMES = (
     "run.start",
     "run.end",
@@ -23,6 +23,11 @@ EVENT_NAMES = (
     "error",
     "hook.error",
     "guardrail_error",
+    # v3：解释器与效应系统的新插点
+    "transition",
+    "effect",
+    "commit",
+    "node",
 )
 
 

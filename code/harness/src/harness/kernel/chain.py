@@ -9,7 +9,12 @@ from typing import Any, Sequence
 
 from harness.contracts.errors import ConfigError
 
-POINTS = ("run", "step", "model_call", "tool_call")
+#: 插点集合可扩展（PROPOSAL §9.2）：旧四点保留，新增解释器事件插点。
+#: ``status.Point`` 枚举仍是旧四点，供 v1/v2 契约使用，二者互不干扰。
+POINTS = (
+    "run", "step", "model_call", "tool_call",
+    "transition", "effect", "commit", "node",
+)
 
 
 def _points_of(layer: Any) -> frozenset[str]:

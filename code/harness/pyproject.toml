@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-harness"
-version = "0.1.0"
-description = "A composable agent harness: dispatch + body + verify + topology"
+version = "0.3.0"
+description = "A universal interpreter + effect system for agent architectures (v3)"
 requires-python = ">=3.11"
 dependencies = []
 

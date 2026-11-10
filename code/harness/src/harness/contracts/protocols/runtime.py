@@ -63,4 +63,18 @@ class Topology(Runnable, Protocol):
     children: tuple["Runnable", ...]
 
 
-__all__ = ["Handler", "Middleware", "Hook", "Pipe", "Filter", "Runnable", "Topology"]
+@runtime_checkable
+class Program(Protocol):
+    """v3 唯一契约：``transition(state) -> Decision | Halt``（PROPOSAL §4）。
+
+    架构是运行在解释器上的**程序**，框架不认识任何具体架构。
+    返回类型用 Any 以避免契约层内部循环导入；具体判定在
+    ``kernel.interpret`` 用 ``isinstance`` 完成。
+    """
+
+    name: str
+
+    def transition(self, state: "State") -> Any: ...
+
+
+__all__ = ["Handler", "Middleware", "Hook", "Pipe", "Filter", "Runnable", "Topology", "Program"]

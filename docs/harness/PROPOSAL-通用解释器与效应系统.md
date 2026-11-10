@@ -1,6 +1,6 @@
 # 通用解释器与效应系统：agent-harness v3 方案
 
-> 状态：提案（已带可运行样张） · 日期：2026-11-09 · 目标版本：0.3 / contracts_version 3  
+> 状态：提案（已带可运行样张） · **实施状态：已落地，见附录 C** · 日期：2026-11-09 · 目标版本：0.3 / contracts_version 3  
 > 配套代码：`code/harness/proposals/`（独立样张，不接入 `src/harness`）  
 > 运行验收：`cd code/harness && PYTHONPATH=. python -m proposals.demo`  
 > 实测：10 种内置范式 + 4 种"框架作者没想过的架构"全部通过；带环 DAG 被装配期拦截；治理分级、dry_run、横切观测均通过。
@@ -1055,3 +1055,56 @@ PYTHONPATH=. python -m proposals.demo
 | 内置范式        | 十种主流架构的参考实现，与用户自写架构同层，可删                             |
 | 治理分级        | 程序声明 `describe/to_spec/static_check`，框架据此提供不同强度的静态能力 |
 | 回滚粒度        | 业务状态可回滚，观测与计量（`journal/usage`）不回滚                    |
+
+---
+
+## 附录 C：实施记录（v3 落地）
+
+> 落地版本 `__version__ = 0.3.0` / `contracts_version = 3`。
+> 全量回归 **304 个测试全绿**（既有 263 + 新增 41），`proposals.demo` 14 案例仍全绿。
+
+### C.1 文件清单
+
+| 类别 | 文件 |
+|---|---|
+| 新增契约 | `contracts/decision.py`（Decision / Halt / Program 协议 / FnProgram / 治理分级） |
+| 新增内核 | `kernel/interpret.py`（唯一循环 + Limits + Outcome + 单一提交点 + 检查点）、`kernel/effects.py`（四段链 + Effect→Step 适配 + 并发 + 幂等 + dry_run + Hook 落点）、`kernel/legacy.py`（v2 前端适配） |
+| 新增前端 | `fp/frontends.py`（十种范式 + GraphSpec / JSON Spec 编译） |
+| 新增示例 | `examples/interpret_minimal.py`、`examples/unknown_architectures.py` |
+| 新增验收 | `tests/test_interpret.py`、`test_unknown_architectures.py`、`test_compat.py` |
+| 只增不改 | `contracts/types.py`（`Effect` 加 `key/args/child/idem_key/index`，`kind` 放宽为 `str`）、`contracts/state.py`（`results/journal` + `snapshot/restore`）、`contracts/errors.py`、`contracts/protocols/runtime.py`（`Program` 协议）、`kernel/chain.py`（POINTS 扩到 8 个） |
+| 接线 | `assembly/config.py`（`max_transitions` + 全插点校验）、`assembly/registry.py`（`PROGRAMS` + `register_program`）、`assembly/harness.py`（`interpret()` / `new_runtime()` / `dry_run_program()`）、`fp/__init__.py`（`Program.transition()` + `name` + `from_spec` 走注册表）、`assembly/agent.py`、`kernel/loop.py`、`parts/topology.py`、`__init__.py` |
+| 收敛 | `kernel/loop.py` 与 `assembly/agent.py` 的循环体**已删除**，降为 `interpret()` 的前端薄壳；AST 检查确认全库只有一个运行循环 |
+| 文档 | `code/harness/README.md` 重写；根 `README.md` 卷 12 条目更新（48–53 六篇此前已删） |
+
+### C.2 与提案的三处偏差（均有意，且已在测试中钉死）
+
+1. **顶层 `Decision` 不能覆盖。** 现网 `harness.Decision` 是「人工审批结果」，被
+   `ApprovalChannel` 协议、`Agent.resume` 与 `tests/test_core.py` 依赖；直接换成
+   「转移决策」会破坏审批链。故新契约在 `harness.contracts.decision.Decision`，
+   顶层以 **`Transition`** 别名导出，旧名保留。`test_compat.py` 对此有断言。
+2. **`Effect` / `State` 复用现网类型，不另起一套。** 按 §9.2 的「只增不改」纪律
+   扩字段，使效应系统能直接接到既有 `RunResult` / `CheckpointStore` / `RunScope` 上；
+   样张里的简化 `State`/`Effect` 只留在 `proposals/` 作规格对照。
+3. **`PROGRAMS` 采用前端自注册。** `assembly` 层不允许反向 import `fp`
+   （`tests/test_architecture.py` 的层间无环约束）。故 `registry.py` 只放 v2 body
+   工厂与 `register_program()`，十种前端在 `fp/frontends.py` 加载时自行注册；
+   依赖方向仍是 `fp → assembly`。
+
+### C.3 阶段 2 的收敛范围
+
+删除了两个并列循环（v1 `_loop_inner`、v2 `run_loop` 循环体）与
+`topology._call` 的 `try/except TypeError` 双签名兜底（改为按签名显式分流，
+不再吞子节点内部的 TypeError）。**未物理删除** v1 组件、v2 `parts/`、
+`RunContext` 与第二份 `Budget`：它们仍是 263 个既有测试的实际调用者，
+按 §10 步骤 3「无调用者后删除才是零风险动作」，保留为兼容壳更稳妥。
+`Harness.dry_run()` 兼容期保留旧语义（模型照调、只干跑工具效应），
+新增 `Harness.dry_run_program()` 使用 `record_only=True` 的全效应记账。
+
+### C.4 仍待处理（不阻塞验收）
+
+- `commit` 原子性：批量效应部分成功时的事务式提交与跨运行幂等（第 25 章内容），
+  当前实现提供 per-run 幂等键，未接 `IdempotencyStore`。
+- 跨运行检查点恢复 / 时间旅行：不透明程序仍显式降级为 `<opaque>`。
+- v1 组件与双份 `Budget`/`RunContext` 的物理删除，待外部使用者完成一轮 deprecation。
+

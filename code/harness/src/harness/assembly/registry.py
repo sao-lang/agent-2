@@ -214,6 +214,38 @@ def _detector(name: str) -> Any:
     return builtin_detectors([name])[0]
 
 
+# ------------------------------------------------------------------ v3 程序注册表
+
+
+def _body_factory(name: str) -> Callable[..., Any]:
+    """v2 body 策略（``fp.Program.from_spec`` 用）；局部 import 避免装配期成环。"""
+
+    def factory(arg: str = "", **kwargs: Any) -> Any:
+        from harness.parts.policy import ReactPolicy, WorkflowPolicy
+
+        if name == "react":
+            return ReactPolicy()
+        return WorkflowPolicy(steps=list(kwargs.get("steps", ())))
+
+    return factory
+
+
+#: 具名注册的程序工厂（PROPOSAL §9.2）。``fp.from_spec`` 的白名单改走这里；
+#: v3 内置范式由 ``fp.frontends`` 在模块加载时调 ``register_program`` 自注册，
+#: 这样新增前端只加一行注册，且 assembly 不依赖 fp（层间不成环）。
+PROGRAMS: dict[str, Callable[..., Any]] = {
+    "react": _body_factory("react"),
+    "workflow": _body_factory("workflow"),
+}
+
+
+def register_program(name: str, factory: Callable[..., Any]) -> None:
+    """注册一个具名前端程序；重名直接报错，不静默覆盖。"""
+    if name in PROGRAMS:
+        raise ConfigError(f"程序名重复注册：{name}")
+    PROGRAMS[name] = factory
+
+
 __all__ = [
     "parse_spec",
     "resolve",
@@ -222,4 +254,6 @@ __all__ = [
     "STORE_SLOTS",
     "BACKENDS",
     "GUARDRAILS",
+    "PROGRAMS",
+    "register_program",
 ]

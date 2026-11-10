@@ -529,12 +529,26 @@ class StreamState:
 
 @dataclass(frozen=True)
 class Effect:
-    """`dry_run` 的产物：效果即数据（SPEC M1.10）。"""
+    """效应请求：想对外部世界做的一件事的**描述**，不是立刻做。
 
-    kind: Literal["model", "tool"] = "tool"
+    v1 里它只是 ``dry_run`` 的产物；v3 起它是解释器的唯一 I/O 载体
+    （PROPOSAL §9.2）。遵守文件头「只增不改」纪律：旧字段与位置不变，
+    ``spec`` 放宽为 Any，新增字段全部带默认值，``kind`` 由字面量放宽为
+    ``str`` —— 新增 kind 只需注册一个 handler，不改内核。
+
+    旧写法 ``Effect(kind="tool", step=step)`` 保持有效；
+    新写法 ``Effect("tool", args={"name": "echo", "args": {...}}, key="last")``。
+    """
+
+    kind: str = "tool"
     step: Step | None = None
-    spec: ToolSpec | None = None
+    spec: Any = None
     est_tokens: int = 0
+    key: str = ""
+    args: dict[str, Any] = field(default_factory=dict)
+    child: Any = None                 # child 效应携带的子程序
+    idem_key: str = ""               # 幂等键：同键同结果（PROPOSAL §12）
+    index: int = 0                   # 批内序号，供事件与日志定位
 
 
 @dataclass(frozen=True)

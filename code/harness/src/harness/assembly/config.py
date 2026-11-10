@@ -54,6 +54,8 @@ class HarnessConfig:
     system: str = ""
     max_depth: int = 2
     namespace_tenant: str = "default"
+    #: v3 全局终止护栏（PROPOSAL §5.1）：任何程序都必须能停下来。
+    max_transitions: int = 64
 
 
 #: 层声明 → 工厂（装配期用；未知名 → ConfigError）
@@ -114,6 +116,9 @@ def validate(config: HarnessConfig) -> None:
     # 8 命名空间非空
     if not config.namespace_tenant:
         raise ConfigError("namespace_tenant 不能为空")
+    # 9 解释器全局终止护栏必须为正
+    if config.max_transitions <= 0:
+        raise ConfigError("max_transitions 必须为正数")
 
 
 def _store_items(stores: StoreSpec) -> Iterable[tuple[str, Any]]:
@@ -166,6 +171,7 @@ def build_harness(config: HarnessConfig) -> Any:
         guardrails=guardrails,
         stores=stores,
         backends=backends,
+        max_transitions=config.max_transitions,
     )
     harness.namespace = _namespace(config, harness)
     harness.auto_layers = _auto_layers(config, harness, guardrails, stores)
@@ -196,8 +202,8 @@ def _namespace(config: HarnessConfig, harness: Any) -> Any:
 
 
 def validate_layers(layers: Sequence[Any]) -> None:
-    """层顺序无环（装配期预检，不等运行时）。"""
-    for point in ("run", "step", "model_call", "tool_call"):
+    """层顺序无环（装配期预检，不等运行时）。遍历全部插点，含 v3 新增插点。"""
+    for point in chain.POINTS:
         chain.resolve(layers, point)
 
 

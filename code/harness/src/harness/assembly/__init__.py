@@ -14,8 +14,10 @@ from harness.assembly.registry import (
     BACKENDS,
     GUARDRAILS,
     MODELS,
+    PROGRAMS,
     STORE_SLOTS,
     parse_spec,
+    register_program,
     resolve,
 )
 
@@ -34,4 +36,6 @@ __all__ = [
     "BACKENDS",
     "STORE_SLOTS",
     "GUARDRAILS",
+    "PROGRAMS",
+    "register_program",
 ]

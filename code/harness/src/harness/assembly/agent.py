@@ -1,6 +1,12 @@
-"""Agent：装配产物（内核件的组合）。
+"""Agent：v1 兼容壳（PROPOSAL §9.3 / §10）。
 
-它只做四件事：取下一步、过 Guard、执行、记账；策略与组件都不在这里实现。
+**这里不再有循环。** 名字、构造参数、``run / run_sync / resume / resume_sync``
+签名与 ``RunResult`` 语义全部保留；循环体已删除，改由
+``kernel.interpret.Runtime.interpret`` 驱动 —— 全框架唯一循环。
+
+旧路径的逐步语义（Guard 审批、Actor 执行、消息回灌、Reflector 重试、
+Durability 存档、Tracer 事件）由注入的 ``CallbackRunner`` 与
+``after_commit`` 钩子复现，解释器本身不认识任何 v1 概念。
 """
 
 from __future__ import annotations
@@ -11,25 +17,29 @@ import uuid
 from dataclasses import asdict
 from typing import Any
 
-from harness.parts.actor import Actor
-from harness.parts.budget import Budget
+from harness.contracts.decision import Decision, Halt
+from harness.contracts.errors import ApprovalExpired, ContractError, HarnessError
+from harness.contracts.result import RunResult
+from harness.contracts.state import State
+from harness.contracts.status import RunStatus
 from harness.contracts.types import (
     ApprovalRequest,
-    Decision,
+    Decision as ApprovalDecision,
     Done,
+    Effect,
     GuardDecision,
     RunContext,
-    RunStatus,
     SessionRef,
     Step,
 )
+from harness.kernel.effects import CallbackRunner
+from harness.kernel.interpret import Limits, Runtime, Outcome
+from harness.parts.actor import Actor
+from harness.parts.budget import Budget
 from harness.parts.delivery import DefaultDelivery
 from harness.parts.durability import NullDurability
-from harness.contracts.errors import ApprovalExpired, ContractError, HarnessError
 from harness.parts.guard import AllowAllGuard
 from harness.parts.reflector import NullReflector
-from harness.contracts.result import RunResult
-from harness.contracts.state import State
 from harness.parts.tracer import NullTracer, new_event
 
 
@@ -97,7 +107,7 @@ class Agent:
                 state.goal, self.knowledge, tenant=state.session.tenant
             )
 
-    async def resume(self, session_id: str, decision: Decision) -> RunResult:
+    async def resume(self, session_id: str, decision: ApprovalDecision) -> RunResult:
         state = await self.durability.load(session_id)
         if state is None:
             raise HarnessError(f"没有可恢复的 session：{session_id}")
@@ -134,8 +144,10 @@ class Agent:
         state.data["_approved_by"] = decision.by
         return await self._loop(state)
 
-    def resume_sync(self, session_id: str, decision: Decision) -> RunResult:
+    def resume_sync(self, session_id: str, decision: ApprovalDecision) -> RunResult:
         return asyncio.run(self.resume(session_id, decision))
+
+    # ---------------------------------------------------------------- 兼容壳
 
     async def _loop(self, state: State) -> RunResult:
         start = int(time.time() * 1000)
@@ -144,7 +156,7 @@ class Agent:
             "goal": state.goal.text,
         }))
         try:
-            result = await self._loop_inner(state)
+            result = await self._interpret(state)
         except Exception as exc:  # noqa: BLE001 - 运行边界
             state.status = RunStatus.FAILED
             state.last_error = str(exc)
@@ -156,45 +168,20 @@ class Agent:
         ))
         return result
 
-    async def _loop_inner(self, state: State) -> RunResult:
+    async def _interpret(self, state: State) -> RunResult:
+        """v1 语义编译成 ``transition``，交给唯一解释器。"""
         ctx = RunContext(
-            state=state,
-            actor=self.actor,
-            context=self.context,
-            budget=self.budget,
-            tracer=self.tracer,
-            config=None,
+            state=state, actor=self.actor, context=self.context, budget=self.budget,
+            tracer=self.tracer, config=None,
         )
 
-        while state.step_index < self.max_steps:
-            if self.budget is not None and self.budget.exhausted:
-                return await self.delivery.finish(
-                    state, RunStatus.DEGRADED,
-                    answer=state.data.get("last_output", ""),
-                    error="budget exhausted",
-                )
-
-            approved = state.data.pop("_approved_step", None)
-            if approved:
-                step = Step(**approved)
-                skip_guard = True
-            else:
-                decision = await self.policy.next_step(state, ctx)
-                if isinstance(decision, Done):
-                    return await self.delivery.finish(
-                        state, RunStatus.COMPLETED, answer=decision.answer
-                    )
-                if not isinstance(decision, Step):
-                    raise ContractError(f"BodyPolicy 返回了非法类型：{type(decision)!r}")
-                step = decision
-                skip_guard = False
-
+        async def run_one(effect: Effect, st: State) -> dict[str, Any]:
+            step = effect.step
+            skip_guard = bool(effect.args.get("skip_guard", False))
             if not skip_guard:
-                verdict: GuardDecision = await self.guard.check(step, state)
+                verdict: GuardDecision = await self.guard.check(step, st)
                 if verdict.action == "deny":
-                    return await self.delivery.finish(
-                        state, RunStatus.REFUSED, error=verdict.reason
-                    )
+                    return _halt_result("refused", "", reason=verdict.reason)
                 if verdict.action == "ask":
                     pending = ApprovalRequest(
                         id=uuid.uuid4().hex[:12],
@@ -202,58 +189,86 @@ class Agent:
                         reason=verdict.reason,
                         card=verdict.card,
                         expires_at=_expires_at(verdict.expires_in),
-                        session_id=state.session.session_id,
+                        session_id=st.session.session_id,
                     )
-                    state.data["pending"] = asdict(pending)
-                    await self.durability.save(state)
-                    return await self.delivery.finish(
-                        state, RunStatus.NEEDS_APPROVAL, pending=pending
-                    )
+                    st.data["pending"] = asdict(pending)
+                    await self.durability.save(st)
+                    return _halt_result("needs_approval", "", pending=pending)
 
             await self.tracer.emit(new_event(
-                state.trace_id, "step.start", fields={
-                    "step": step.id,
-                    "tool": step.tool_name or "",
-                    "step_index": state.step_index,
+                st.trace_id, "step.start", fields={
+                    "step": step.id, "tool": step.tool_name or "",
+                    "step_index": st.step_index,
                 },
             ))
-            result = await self.actor.execute(step, state)
-            state.add_usage(tokens=result.tokens, calls=1)
-            state.step_index += 1
-            state.data["last_output"] = result.output
-
+            result = await self.actor.execute(step, st)
+            st.data["last_output"] = result.output
             if result.tool_name:
-                self._append_tool_messages(state, step, result.ok, result.output, result.error)
+                self._append_tool_messages(st, step, result.ok, result.output, result.error)
 
             if result.ok:
-                review = await self.reflector.review(result, state)
+                review = await self.reflector.review(result, st)
                 if review.action == "retry":
-                    state.data["_retry"] = True
-                    await self.durability.save(state)
-                    continue
+                    st.data["_retry"] = True
+                    await self.durability.save(st)
+                    return {"ok": True, "skip_tail": True,
+                            "_usage": {"calls": 1, "tokens": 0}}
 
             if not result.ok:
-                state.last_error = result.error
-                # 工具错误回灌给模型，让下一轮有机会修正；工作流没有模型时直接失败。
-                if isinstance(self.policy, object) and self.policy.__class__.__name__ == "WorkflowPolicy":
-                    return await self.delivery.finish(
-                        state, RunStatus.FAILED, error=result.error
-                    )
+                st.last_error = result.error
+                # 工具错误回灌给模型；工作流没有模型时直接失败。
+                if self.policy.__class__.__name__ == "WorkflowPolicy":
+                    return _halt_result("failed", "", reason=result.error)
 
-            await self.durability.save(state)
+            return {
+                "ok": result.ok, "output": result.output, "raw": result,
+                "tokens": int(getattr(result, "tokens", 0) or 0),
+                "_usage": {"calls": 1, "tokens": 0},
+                "skip_tail": False,
+                "tool_name": result.tool_name,
+                "error": result.error,
+            }
+
+        async def after_commit(st: State, decision: Decision, results: list) -> None:
+            if not results or not isinstance(results[0], dict):
+                return
+            info = results[0]
+            if info.get("skip_tail"):
+                return
+            await self.durability.save(st)
+            step = decision.effects[0].step if decision.effects else None
             await self.tracer.emit(new_event(
-                state.trace_id, "step.end", fields={
-                    "step": step.id,
-                    "ok": result.ok,
-                    "tokens": result.tokens,
-                    "step_index": state.step_index,
+                st.trace_id, "step.end", fields={
+                    "step": getattr(step, "id", ""),
+                    "ok": bool(info.get("ok", False)),
+                    "tokens": int(info.get("tokens", 0) or 0),
+                    "step_index": st.step_index,
                 },
             ))
 
+        runtime = Runtime(
+            limits=Limits(max_transitions=self.max_steps + 2,
+                          max_calls=10 ** 9, max_tokens=10 ** 9, wall_seconds=300.0),
+            runner=CallbackRunner(run_one),
+            after_commit=after_commit,
+            emit=None,
+        )
+        out = await runtime.interpret(_V1Program(self, ctx), state)
+        return await self._finish(out, state)
+
+    async def _finish(self, out: Outcome, state: State) -> RunResult:
+        try:
+            status = RunStatus(out.status)
+        except ValueError:
+            status = RunStatus.FAILED
+        state.status = status
+        extra = out.extra
+        reason = extra.get("reason")
         return await self.delivery.finish(
-            state, RunStatus.DEGRADED,
-            answer=state.data.get("last_output", ""),
-            error="max steps exceeded",
+            state, status,
+            answer=out.answer,
+            error=(str(reason) if reason and status is not RunStatus.COMPLETED else None),
+            pending=extra.get("pending"),
         )
 
     def _append_tool_messages(self, state: State, step: Step, ok: bool,
@@ -288,6 +303,54 @@ class Agent:
         )
 
 
+class _V1Program:
+    """v1 ``BodyPolicy.next_step`` → 唯一协议 ``transition``。"""
+
+    name = "agent_v1"
+
+    def __init__(self, agent: Agent, ctx: RunContext) -> None:
+        self.agent = agent
+        self.ctx = ctx
+
+    async def transition(self, state: State) -> Decision | Halt:
+        agent = self.agent
+        if agent.budget is not None and agent.budget.exhausted:
+            return Halt(state.data.get("last_output", ""), "degraded",
+                        {"reason": "budget exhausted"})
+        if state.step_index >= agent.max_steps:
+            return Halt(state.data.get("last_output", ""), "degraded",
+                        {"reason": "max steps exceeded"})
+
+        approved = state.data.pop("_approved_step", None)
+        if approved:
+            step, skip_guard = Step(**approved), True
+        else:
+            decision = await agent.policy.next_step(state, self.ctx)
+            if isinstance(decision, Done):
+                return Halt(decision.answer, "completed")
+            if not isinstance(decision, Step):
+                raise ContractError(f"BodyPolicy 返回了非法类型：{type(decision)!r}")
+            step, skip_guard = decision, False
+
+        return Decision(
+            effects=(Effect(kind="tool", step=step, key=step.id,
+                            args={"skip_guard": skip_guard}),),
+            program=self,
+            meta={"bump_step": True},
+            note=step.id,
+        )
+
+
+def _halt_result(status: str, answer: str = "", **extra: Any) -> dict[str, Any]:
+    """Guard/失败分支：让解释器在唯一提交点之后终止，不产生副作用计量。"""
+    return {
+        "ok": False,
+        "_halt": {"status": status, "answer": answer, "extra": extra},
+        "_usage": {"calls": 0, "tokens": 0},
+        "skip_tail": True,
+    }
+
+
 def _expires_at(seconds: int | None) -> str:
     if not seconds:
         return ""
@@ -302,3 +365,6 @@ def _json_dumps(value: Any) -> str:
     import json
 
     return json.dumps(value, ensure_ascii=False, default=str)
+
+
+__all__ = ["Agent"]

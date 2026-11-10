@@ -88,7 +88,7 @@ class ExportTest(unittest.TestCase):
             self.assertIn(name, C.__all__)
 
     def test_contracts_version(self):
-        self.assertEqual(C.contracts_version, "2")
+        self.assertEqual(C.contracts_version, "3")
 
 
 class StateTest(unittest.TestCase):

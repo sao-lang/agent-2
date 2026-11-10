@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
-from harness.contracts.errors import ConfigError
+from harness.contracts.errors import ConfigError, NotSerializable
 from harness.contracts.result import RunResult
 from harness.contracts.state import State
 from harness.contracts.types import (
@@ -32,10 +32,6 @@ from harness.parts.framing import ChatEncoder, ModelFramer
 from harness.parts.middleware.base import Layer, layer
 from harness.parts.policy import PlanExecutePolicy, ReactPolicy, WorkflowPolicy
 from harness.parts.tools import ToolRegistry
-
-
-class NotSerializable(ConfigError):
-    """闭包层无法序列化——不假装可以。"""
 
 
 # ------------------------------------------------------------------ 组合
@@ -107,9 +103,28 @@ class Program:
     body: Any
     max_steps: int = 24
     layers: tuple[Layer, ...] = ()
+    #: v3：RunScope 由装配期注入；Program 本身仍不持有任何能力实例。
+    scope: Any = None
+
+    @property
+    def name(self) -> str:
+        """v3 Program 协议的 ``name``；由 body 决定，不新增字段。"""
+        return str(getattr(self.body, "name", "react"))
 
     def __rshift__(self, lay: Layer) -> "Program":
         return replace(self, layers=self.layers + (lay,))
+
+    async def transition(self, state: "State"):
+        """鸭子类型满足 v3 ``Program`` 协议（PROPOSAL §9.2，不重命名）。
+
+        控制流仍由 ``body.next_step`` 决定；这里只把旧契约翻译成
+        ``Decision | Halt``，唯一循环在 ``kernel.interpret``。
+        """
+        from harness.kernel.legacy import LegacyProgram
+
+        if self.scope is None:
+            raise ConfigError("Program.transition 需要装配期注入 scope（请用 Harness.run）")
+        return await LegacyProgram(self, self.scope).transition(state)
 
     def to_spec(self) -> ProgramSpec:
         specs: list[LayerSpec] = []
@@ -127,16 +142,16 @@ class Program:
     @classmethod
     def from_spec(cls, spec: ProgramSpec, *, factories: dict[str, Any]) -> "Program":
         """由声明形态重建；未知层名 → ConfigError（不静默跳过）。"""
+        from harness.assembly import registry
+
         layers = []
         for layer_spec in spec.layers:
             factory = factories.get(layer_spec.name)
             if factory is None:
                 raise ConfigError(f"未知层：{layer_spec.name}；可用：{sorted(factories)}")
             layers.append(factory(**layer_spec.config))
-        body = {"react": ReactPolicy, "workflow": WorkflowPolicy}.get(spec.body)
-        if body is None:
-            raise ConfigError(f"未知 body：{spec.body}")
-        return cls(body=body(), max_steps=spec.max_steps, layers=tuple(layers))
+        body = registry.resolve("program", spec.body, registry.PROGRAMS)
+        return cls(body=body, max_steps=spec.max_steps, layers=tuple(layers))
 
 
 # ------------------------------------------------------------------ 工厂
@@ -158,6 +173,7 @@ def pe(planner, *, max_steps: int = 24) -> Program:
 
 
 from harness.assembly.harness import Harness  # noqa: E402  （能力容器属装配层）
+from harness.fp import frontends as _frontends  # noqa: E402,F401  （触发前端自注册）
 
 
 __all__ = [

@@ -34,6 +34,7 @@ from harness.contracts.protocols.runtime import (
     Hook,
     Middleware,
     Pipe,
+    Program,
     Runnable,
     Topology,
 )
@@ -80,6 +81,7 @@ __all__ = [
     "Model",
     "Pipe",
     "Planner",
+    "Program",
     "Queue",
     "Reflector",
     "Router",

@@ -62,6 +62,24 @@ class PolicyError(HarnessError):
     """准入或护栏拒绝。"""
 
 
+# ---- v3：通用解释器（PROPOSAL §9.2），纯新增 ----
+
+
+class DecisionError(ContractError):
+    """``transition`` 返回了不符合契约的东西。"""
+
+
+class EffectError(HarnessError):
+    """效应请求无法执行（未注册 kind、参数缺失等）。"""
+
+
+class NotSerializable(ConfigError, TypeError):
+    """闭包程序/层不提供 ``to_spec()``：显式降级，不假装可序列化。
+
+    同时继承 ``TypeError`` 以兼容「to_spec 抛 NotSerializable」的旧调用点。
+    """
+
+
 #: SPEC 里叫 BudgetError；保留旧名以兼容 v1 代码。
 BudgetError = BudgetExceeded
 
@@ -80,4 +98,7 @@ __all__ = [
     "ConcurrencyError",
     "TransientError",
     "PolicyError",
+    "DecisionError",
+    "EffectError",
+    "NotSerializable",
 ]

@@ -27,6 +27,38 @@ class State:
     last_error: str | None = None
     rev: int = 0                      # 最近一次落盘的版本号（不变量 1）
 
+    # ---- v3 通用解释器（PROPOSAL §4.1）：只增字段，全部带默认值 ----
+    results: dict[str, Any] = field(default_factory=dict)   # 效应结果；__batch__ = 本批新结果
+    journal: dict[str, Any] = field(default_factory=dict)   # 观测/消费进度，不随回溯回滚
+
+    def snapshot(self) -> dict[str, Any]:
+        """只备份**可回滚的业务状态**。
+
+        ``journal``（观测进度）与 ``usage``（计量）是既成事实，不随回溯
+        回滚 —— 否则回溯会把"已经问过模型"这件事也撤销，脚本会被重复消费。
+        """
+        import copy
+
+        return copy.deepcopy({
+            "goal": self.goal,
+            "data": self.data,
+            "results": self.results,
+            "messages": self.messages,
+            "step_index": self.step_index,
+            "status": self.status,
+            "last_error": self.last_error,
+            "rev": self.rev,
+        })
+
+    def restore(self, snap: dict[str, Any]) -> None:
+        """由解释器在 ``Decision.restore`` 时调用；不碰 journal/usage。"""
+        import copy
+
+        for key in ("goal", "data", "results", "messages", "step_index",
+                    "status", "last_error", "rev"):
+            if key in snap:
+                setattr(self, key, copy.deepcopy(snap[key]))
+
     def section(self, name: str) -> dict[str, Any]:
         """取一个策略自己的命名空间，不存在就建。"""
         value = self.data.get(name)

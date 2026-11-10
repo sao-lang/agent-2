@@ -15,9 +15,12 @@ from harness.contracts.errors import (
     ConcurrencyError,
     ConfigError,
     ContractError,
+    DecisionError,
+    EffectError,
     GuardDenied,
     HarnessError,
     MaxStepsExceeded,
+    NotSerializable,
     PolicyError,
     ReflectorReject,
     ToolError,
@@ -31,7 +34,7 @@ from harness.contracts.state import State
 from harness.contracts.status import *  # noqa: F401,F403
 from harness.contracts.types import *  # noqa: F401,F403
 
-contracts_version = "2"
+contracts_version = "3"
 
 _ERRORS = [
     "HarnessError",
@@ -48,6 +51,9 @@ _ERRORS = [
     "ConcurrencyError",
     "TransientError",
     "PolicyError",
+    "DecisionError",
+    "EffectError",
+    "NotSerializable",
     "ApprovalRequired",
 ]
 
