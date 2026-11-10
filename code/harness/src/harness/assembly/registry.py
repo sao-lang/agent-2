@@ -105,6 +105,18 @@ def _memory_idem(arg: str = "", **kwargs: Any) -> Any:
     return MemoryIdempotency()
 
 
+def _vector_index(arg: str = "", **kwargs: Any) -> Any:
+    """v3.1（SUPPLEMENT B3）：向量检索槽位——零依赖 InMemoryVectorIndex
+    （HashingEmbedder）。真 Qdrant/pgvector 仍走 extras 占位。"""
+    from harness.impl.backends.vector import InMemoryVectorIndex
+
+    return InMemoryVectorIndex()
+
+
+# v3.1（SUPPLEMENT B2）：openai 槽位保持占位默认；真工厂由
+# adapters/openai.py 在模块加载时**自注册**覆盖（adapters → assembly
+# 是合法方向，assembly → adapters 越界）。用户 import 适配器模块即可接线。
+
 MODELS: dict[str, Callable[..., Any]] = {
     "fake": _fake_model,
     "openai": _adapter("openai", "openai"),
@@ -193,7 +205,8 @@ BACKENDS: dict[str, dict[str, Callable[..., Any]]] = {
     "artifacts": {"memory": _memory_artifacts, "local": _memory_artifacts,
                   "s3": _adapter("s3", "s3")},
     "secrets": {"env": _env_secrets, "memory": _env_secrets, "vault": _adapter("vault", "vault")},
-    "index": {"memory": _memory_index, "qdrant": _adapter("qdrant", "qdrant"),
+    "index": {"memory": _memory_index, "vector": _vector_index,
+              "qdrant": _adapter("qdrant", "qdrant"),
               "pgvector": _adapter("pgvector", "postgres")},
     "queue": {"memory": _memory_queue, "redis": _adapter("redis", "redis")},
     "approval": {"memory": _memory_approval, "callback": _memory_approval,

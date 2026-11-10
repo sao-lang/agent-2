@@ -39,7 +39,8 @@ from harness.kernel.effects import (
     maybe_await,
 )
 
-__all__ = ["Limits", "Outcome", "Runtime", "ValidationFailed", "interpret"]
+__all__ = ["Limits", "Outcome", "Runtime", "ValidationFailed", "interpret",
+            "resume_from_checkpoint"]
 
 
 class ValidationFailed(Exception):
@@ -98,7 +99,12 @@ class Runtime:
         checks: Sequence[Any] = (),
         classify: Any = None,
         after_commit: Callable[..., Awaitable[None]] | None = None,
+        checkpoint_store: Any = None,
     ) -> None:
+        # v3.1（SUPPLEMENT A2）：可插拔检查点落盘——实现 CheckpointStore 协议
+        # （put(ns, sid, state, expect_rev) / get(ns, sid, rev)），复用既有
+        # 存储实现（impl.stores.MemoryCheckpointStore 等）。
+        self.checkpoint_store = checkpoint_store
         self.layers = tuple(layers)
         self.limits = limits or Limits()
         self.record_only = record_only
@@ -180,6 +186,16 @@ class Runtime:
                 "program": spec,
                 "state": state.snapshot(),
             })
+            if self.checkpoint_store is not None:
+                # v3.1（SUPPLEMENT A2）：落盘失败不静默——检查点是恢复的凭据，
+                # 坏了必须让人知道（与观测不同：观测失败吞掉，持久化失败上抛）。
+                from harness.contracts.types import Namespace
+
+                ns = Namespace(tenant=state.session.tenant,
+                               user=getattr(state.goal, "user_id", "anonymous") or "anonymous",
+                               session=state.session.session_id)
+                await self.checkpoint_store.put(
+                    ns, state.session.session_id, state, expect_rev=state.rev - 1)
             await self.emit("checkpoint", rev=state.rev, serializable=spec != "<opaque>")
             trace.append(
                 f"{n}:{getattr(program, 'name', '?')}:[{kinds}]"
@@ -275,3 +291,23 @@ async def interpret(program: Any, state: State, **kwargs: Any) -> Outcome:
 def _goal_text(state: State) -> str:
     goal = getattr(state, "goal", "")
     return goal if isinstance(goal, str) else str(getattr(goal, "text", goal))
+
+
+async def resume_from_checkpoint(store, program, session_id: str, *, ns: Any = None,
+                                 rev: int | None = None, **runtime_kwargs: Any) -> Outcome:
+    """从检查点续跑（SUPPLEMENT A2 / SPEC M11）。
+
+    恢复是**重放结论不是重新推理**：状态取自检查点，已生效的副作用靠
+    幂等键（Effect.idem_key）保证不重复。闭包程序不可序列化，program
+    由调用方重供给（声明式程序可用 program_from_spec 重建）。
+    """
+    from harness.contracts.types import Namespace
+
+    ns = ns or Namespace()
+    checkpoint = await store.get(ns, session_id, rev)
+    if checkpoint is None:
+        raise ValidationFailed(f"没有可恢复的检查点：{session_id}" + (f"@rev{rev}" if rev else ""))
+    state = checkpoint.state
+    if not isinstance(state, State):
+        raise ValidationFailed("检查点里的 state 形状不合法")
+    return await Runtime(**runtime_kwargs).interpret(program, state)

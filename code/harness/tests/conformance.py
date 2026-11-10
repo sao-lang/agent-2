@@ -12,7 +12,7 @@ from datetime import datetime
 
 from harness.contracts.errors import ConcurrencyError
 from harness.contracts.state import State
-from harness.contracts.types import Goal, Namespace, Recalled, SessionRef
+from harness.contracts.types import Document, Goal, Namespace, Recalled, SessionRef
 
 
 def _state(text: str = "t") -> State:
@@ -215,6 +215,68 @@ class SessionStoreConformance:
 
         self.run_(self.store.create(NS_B, SessionMeta(id="s1")))
         self.assertIsNone(self.run_(self.store.get(NS_A, "s1")))
+
+
+
+
+class IndexBackendConformance:
+    """检索后端一致性（SUPPLEMENT B1/B3）：过滤下推 + Namespace 隔离 + top-k。
+
+    MemoryIndex（二元组打分）与 InMemoryVectorIndex（向量余弦）都必须
+    通过同一场景；真 Qdrant/pgvector 接入后同样跑这组用例。
+    """
+
+    def factory(self):  # pragma: no cover - 子类实现
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self.index = self.factory()
+
+    def run_(self, coro):
+        return asyncio.run(coro)
+
+    def _seed(self, index=None):
+        docs = [
+            Document(id="d1", text="退款政策：七天无理由退款",
+                     metadata={"tenant": "acme", "route": "refund"}),
+            Document(id="d2", text="物流查询：订单可在个人中心查看物流",
+                     metadata={"tenant": "acme", "route": "logistics"}),
+            Document(id="d3", text="会员体系：积分兑换规则说明",
+                     metadata={"tenant": "other", "route": "vip"}),
+        ]
+        self.run_((index or self.index).upsert(NS_A, docs))
+
+    def test_upsert_then_search(self):
+        self._seed()
+        hits = self.run_(self.index.search(NS_A, "退款", k=2))
+        self.assertGreaterEqual(len(hits), 1)
+        self.assertIn("退款", hits[0].text)
+
+    def test_filters_pushed_down(self):
+        self._seed()
+        hits = self.run_(self.index.search(NS_A, "退款", k=5,
+                                           filters={"tenant": "other"}))
+        for hit in hits:
+            self.assertNotIn("退款", hit.text)      # acme 的退款文档被过滤掉
+
+    def test_namespace_isolation(self):
+        self._seed()
+        self.assertEqual(self.run_(self.index.search(NS_B, "退款", k=5)), [])
+
+    def test_topk_respected(self):
+        self._seed()
+        hits = self.run_(self.index.search(NS_A, "退款 退款 退款", k=1))
+        self.assertLessEqual(len(hits), 1)
+
+    def test_upsert_idempotent_by_id(self):
+        self._seed()
+        self.run_(self.index.upsert(NS_A, [Document(
+            id="d1", text="退款政策（更新版）：十五天无理由",
+            metadata={"tenant": "acme"})]) )
+        hits = self.run_(self.index.search(NS_A, "退款", k=5))
+        texts = [h.text for h in hits]
+        self.assertIn("退款政策（更新版）：十五天无理由", texts)
+        self.assertNotIn("退款政策：七天无理由退款", texts)   # 同 id 覆盖不追加
 
 
 if __name__ == "__main__":  # pragma: no cover

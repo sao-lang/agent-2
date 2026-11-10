@@ -64,8 +64,10 @@ class TestCore(unittest.TestCase):
         model = FakeModel([answer("never")])
         agent = build(AgentConfig(model=model, budget=Budget(tokens=0, calls=1)))
         result = asyncio.run(agent.run(Goal("hi")))
+        # v3.1（SUPPLEMENT A4）：预算已映射进解释器 Limits，耗尽由护栏
+        # 统一触发 degraded（reason=max_tokens），程序不再自查。
         self.assertEqual(result.status, RunStatus.DEGRADED)
-        self.assertIn("budget", result.error)
+        self.assertEqual(result.answer, "max_tokens")
 
     def test_approval_resume(self):
         model = FakeModel([tool_call("add", a=2, b=2), answer("4")])

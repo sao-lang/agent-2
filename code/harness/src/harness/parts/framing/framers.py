@@ -44,19 +44,30 @@ def _recall_texts(items: Iterable[Any]) -> list[str]:
 
 
 class ModelFramer:
-    """给模型看的帧：system + skills + memory + retrieved + history + goal。"""
+    """给模型看的帧：system + skills + memory + retrieved + history + goal。
+
+    v3.1（SUPPLEMENT A6）：计数器可注入——缺省 CharEstimator（字符估算，
+    与 est_tokens 同口径，离线测试用），生产装配 TiktokenCounter 精确计数。
+    替换实验：换计数器只变精度，不变取景决策。"""
 
     kind = FrameKind.MODEL
 
-    def __init__(self, *, system: str = "", max_history: int = 12) -> None:
+    def __init__(self, *, system: str = "", max_history: int = 12,
+                 counter: Any = None) -> None:
         self.system = system
         self.max_history = max_history
+        self.counter = counter            # TokenCounter 协议；None = 字符估算
+
+    def _est(self, text: str) -> int:
+        if self.counter is not None:
+            return int(self.counter.count(text))
+        return est_tokens(text)
 
     def _collect(self, state: State, *, cap_history: bool = True) -> tuple[list[Section], list[dict[str, Any]]]:
         sections: list[Section] = []
         if self.system:
             sections.append(Section("system", PRIORITY["system"], "config", self.system,
-                                    est_tokens(self.system)))
+                                    self._est(self.system)))
 
         # 任务清单的权威位置是 state.section("tasks")["items"]；也容忍直接给 list
         tasks_raw = state.data.get("tasks") or []
@@ -69,7 +80,7 @@ class ModelFramer:
             ]
             body = "# 任务\n" + "\n".join(lines)
             sections.append(Section("task", PRIORITY["task"], "taskboard", body,
-                                    est_tokens(body), ephemeral=True))
+                                    self._est(body), ephemeral=True))
 
         skills = state.data.get("skills") or []
         if skills:
@@ -77,13 +88,13 @@ class ModelFramer:
                 f"- {s.get('name', '?')}: {s.get('description', '')}" for s in skills
             )
             sections.append(Section("skills", PRIORITY["skills"], "skills", body,
-                                    est_tokens(body)))
+                                    self._est(body)))
 
         memory = _recall_texts(state.data.get("memory") or [])
         if memory:
             body = "# 记忆\n" + "\n".join(f"- {t}" for t in memory)
             sections.append(Section("memory", PRIORITY["memory"], "memory", body,
-                                    est_tokens(body)))
+                                    self._est(body)))
 
         retrieved = state.data.get("retrieved") or []
         texts = _recall_texts(retrieved)
@@ -92,16 +103,16 @@ class ModelFramer:
                 f"[{i + 1}] {t}" for i, t in enumerate(texts)
             )
             sections.append(Section("retrieved", PRIORITY["retrieved"], "knowledge", body,
-                                    est_tokens(body)))
+                                    self._est(body)))
 
         history = list(state.messages[-self.max_history :] if cap_history else state.messages)
         if history:
             body = "\n".join(str(m.get("content", "")) for m in history)
             sections.append(Section("history", PRIORITY["history"], "messages", body,
-                                    est_tokens(body)))
+                                    self._est(body)))
 
         sections.append(Section("goal", PRIORITY["goal"], "goal", state.goal.text,
-                                est_tokens(state.goal.text)))
+                                self._est(state.goal.text)))
         return sections, history
 
     async def frame(self, state: State, *, budget: Budget) -> Frame:
@@ -113,7 +124,7 @@ class ModelFramer:
             return sum(s.tokens_est for s in sections)
 
         # 低优先级先丢；goal 永不丢；history 全丢完再动 retrieved
-        reserve = est_tokens("已省略 99 条较早内容") if total() > limit else 0
+        reserve = self._est("已省略 99 条较早内容") if total() > limit else 0
         while total() + reserve > limit:
             candidates = [s for s in sections if s.name != "goal"]
             if not candidates:
@@ -123,12 +134,12 @@ class ModelFramer:
             dropped.append(victim.name)
             if victim.name == "history":
                 history = history[len(history) // 2 :] if history else history
-            reserve = est_tokens("已省略 99 条较早内容")
+            reserve = self._est("已省略 99 条较早内容")
 
         if dropped:
             note = f"已省略 {len(dropped)} 条较早内容：" + "、".join(sorted(set(dropped)))
             sections.append(Section("omission", PRIORITY["omission"], "framer", note,
-                                    est_tokens(note), ephemeral=True))
+                                    self._est(note), ephemeral=True))
 
         sections.sort(key=lambda s: (-s.priority, s.name))
         return Frame(

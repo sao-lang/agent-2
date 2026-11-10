@@ -37,8 +37,8 @@ class LegacyProgram:
         self.scope = scope
 
     async def transition(self, state: State) -> Decision | Halt:
-        if self.scope.budget is not None and self.scope.budget.exhausted:
-            return Halt("", "degraded", {"reason": "budget"})
+        # v3.1（SUPPLEMENT A4）：预算自查已删除——Harness.new_runtime 把
+        # Budget.calls/tokens 映射进解释器 Limits，护栏统一触发 degraded。
         if state.step_index >= self.program.max_steps:
             return Halt("", "degraded", {"reason": "max_steps"})
         try:
@@ -117,9 +117,14 @@ async def run_legacy(*, program: Any, state: State, scope: Any,
 
     await _emit(scope, state, "run.start", goal=state.goal.text)
     ceiling = min(max_transitions or program.max_steps + 2, program.max_steps + 2)
+    # v3.1（SUPPLEMENT A4）：v2 路径同样把 Budget 映射进解释器 Limits——
+    # 预算耗尽由护栏触发 degraded，程序/前端不再自查（消灭双重计数）。
+    budget = getattr(scope, "budget", None)
     runtime = Runtime(
         limits=Limits(max_transitions=ceiling,
-                      max_calls=10 ** 9, max_tokens=10 ** 9, wall_seconds=300.0),
+                      max_calls=budget.calls if budget is not None else 10 ** 9,
+                      max_tokens=budget.tokens if budget is not None else 10 ** 9,
+                      wall_seconds=300.0),
         runner=CallbackRunner(run_one),
         after_commit=after_commit,
         emit=None,   # 兼容期：新增事件记在 runtime.events，不改变旧 sink 的事件序列

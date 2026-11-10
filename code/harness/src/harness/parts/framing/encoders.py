@@ -9,10 +9,15 @@ from harness.contracts.types import Card, Frame, Pack
 
 
 class ChatEncoder:
-    """把帧编成 chat 消息：system 段合并，history 串联，goal 作最后一条 user。"""
+    """把帧编成 chat 消息：system 段合并，history 串联，goal 作最后一条 user。
 
-    def __init__(self, fmt: str = "openai") -> None:
+    v3.1（SUPPLEMENT A6）：可注入 TokenCounter 精确计数 Pack.usage 的
+    estimated_tokens；缺省沿用取景器的 tokens_est（字符估算口径）。
+    与厂商回传 usage 的偏差由此可量化（推导 §5.5 约束 5）。"""
+
+    def __init__(self, fmt: str = "openai", *, counter: Any = None) -> None:
         self.fmt = fmt
+        self.counter = counter
 
     async def encode(self, frame: Frame) -> Pack:
         system_parts = [
@@ -28,13 +33,18 @@ class ChatEncoder:
         if goal:
             messages.append({"role": "user", "content": goal})
 
+        if self.counter is not None:
+            estimated = int(self.counter.count_messages(messages))
+        else:
+            estimated = frame.tokens_est
+
         return Pack(
             messages=messages,
             usage={
                 "system_chars": sum(len(p) for p in system_parts),
                 "history_chars": sum(len(str(m.get("content", ""))) for m in history),
                 "task_chars": len(goal),
-                "estimated_tokens": frame.tokens_est,
+                "estimated_tokens": estimated,
             },
             dropped=list(frame.dropped),
             frame=frame,

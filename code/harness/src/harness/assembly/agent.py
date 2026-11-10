@@ -64,6 +64,8 @@ class Agent:
         retrieval=None,
         memory=None,
         memory_policy=None,
+        limits=None,
+        checkpoints=None,
     ) -> None:
         self.policy = policy
         self.actor = actor
@@ -76,6 +78,11 @@ class Agent:
         self.reflector = reflector or NullReflector()
         self.max_steps = max_steps
         self.name = name
+        # v3.1（SUPPLEMENT A4）：显式 limits 优先；缺省由 Budget 推导——
+        # 预算耗尽由解释器护栏触发（degraded），程序不再自查（消灭双重计数）。
+        self.limits = limits
+        # v3.1（SUPPLEMENT A2）：检查点存储（CheckpointStore 协议），供崩溃恢复。
+        self.checkpoints = checkpoints
         self.knowledge = knowledge
         self.retrieval = retrieval
         self.memory = memory
@@ -107,7 +114,18 @@ class Agent:
                 state.goal, self.knowledge, tenant=state.session.tenant
             )
 
-    async def resume(self, session_id: str, decision: ApprovalDecision) -> RunResult:
+    async def resume(self, session_id: str, decision: ApprovalDecision | None = None,
+                     *, rev: int | None = None, ns: Any = None) -> RunResult:
+        """恢复运行（SUPPLEMENT A2）。
+
+        decision=None 且配置了 checkpoints → 崩溃恢复：按 session_id + rev
+        取最近（或指定）检查点，重放续跑。恢复是重放结论不是重新推理；
+        已生效副作用靠幂等键保证不重复。闭包策略不可序列化，policy 由
+        本 Agent 现场重供给。ns 须与产生检查点时的租户/用户一致。
+        """
+        if decision is None:
+            return await self._resume_from_checkpoint(session_id, rev=rev, ns=ns)
+
         state = await self.durability.load(session_id)
         if state is None:
             raise HarnessError(f"没有可恢复的 session：{session_id}")
@@ -144,8 +162,26 @@ class Agent:
         state.data["_approved_by"] = decision.by
         return await self._loop(state)
 
-    def resume_sync(self, session_id: str, decision: ApprovalDecision) -> RunResult:
-        return asyncio.run(self.resume(session_id, decision))
+    async def _resume_from_checkpoint(self, session_id: str, *, rev: int | None = None,
+                                      ns: Any = None) -> RunResult:
+        """崩溃恢复路径（SUPPLEMENT A2）：从检查点重放，不重新推理。"""
+        if self.checkpoints is None:
+            raise HarnessError("Agent 未配置 checkpoints 存储，无法做崩溃恢复")
+        from harness.contracts.types import Namespace
+
+        ns = ns or Namespace()
+        checkpoint = await self.checkpoints.get(ns, session_id, rev)
+        if checkpoint is None:
+            raise HarnessError(f"没有可恢复的检查点：{session_id}"
+                               + (f"@rev{rev}" if rev is not None else ""))
+        state = checkpoint.state
+        if not isinstance(state, State):
+            raise HarnessError("检查点里的 state 形状不合法")
+        return await self._loop(state)
+
+    def resume_sync(self, session_id: str, decision: ApprovalDecision | None = None,
+                    **kwargs: Any) -> RunResult:
+        return asyncio.run(self.resume(session_id, decision, **kwargs))
 
     # ---------------------------------------------------------------- 兼容壳
 
@@ -236,6 +272,15 @@ class Agent:
             if info.get("skip_tail"):
                 return
             await self.durability.save(st)
+            if self.checkpoints is not None:
+                # v3.1（SUPPLEMENT A2）：解释器级检查点落盘（供按 rev 重放）。
+                from harness.contracts.types import Namespace
+
+                ns = Namespace(tenant=st.session.tenant,
+                               user=getattr(st.goal, "user_id", "anonymous") or "anonymous",
+                               session=st.session.session_id)
+                await self.checkpoints.put(ns, st.session.session_id, st,
+                                           expect_rev=st.rev - 1)
             step = decision.effects[0].step if decision.effects else None
             await self.tracer.emit(new_event(
                 st.trace_id, "step.end", fields={
@@ -246,9 +291,17 @@ class Agent:
                 },
             ))
 
+        # v3.1（SUPPLEMENT A4）：预算统一接线——calls/tokens 护栏直接取自
+        # Budget 口径，墙钟/转移数由 Limits 承担；程序不再自查预算。
+        if self.limits is not None:
+            limits = self.limits
+        else:
+            limits = Limits(max_transitions=self.max_steps + 2,
+                            max_calls=self.budget.calls,
+                            max_tokens=self.budget.tokens,
+                            wall_seconds=300.0)
         runtime = Runtime(
-            limits=Limits(max_transitions=self.max_steps + 2,
-                          max_calls=10 ** 9, max_tokens=10 ** 9, wall_seconds=300.0),
+            limits=limits,
             runner=CallbackRunner(run_one),
             after_commit=after_commit,
             emit=None,
@@ -314,9 +367,8 @@ class _V1Program:
 
     async def transition(self, state: State) -> Decision | Halt:
         agent = self.agent
-        if agent.budget is not None and agent.budget.exhausted:
-            return Halt(state.data.get("last_output", ""), "degraded",
-                        {"reason": "budget exhausted"})
+        # v3.1（SUPPLEMENT A4）：预算自查已删除——Budget.calls/tokens 已映射进
+        # 解释器 Limits，由 _guardrail 统一触发 degraded，这里不再双重计数。
         if state.step_index >= agent.max_steps:
             return Halt(state.data.get("last_output", ""), "degraded",
                         {"reason": "max steps exceeded"})

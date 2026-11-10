@@ -4,7 +4,8 @@
 > 开始重建一遍：先给这个文件的真实代码（逐字来自仓库，个别超长处用 `…` 标注省略），
 > 再讲它是怎么封装出来的。全文没有总览，只有施工。
 >
-> 总览见 `TUTORIAL.md`；设计规格见 `docs/harness/SPEC.md` 与 `PROPOSAL-通用解释器与效应系统.md`。
+> 总览见 `TUTORIAL.md`；设计规格见 `docs/harness/SPEC.md` 与 `PROPOSAL-通用解释器与效应系统.md`；
+> 阶段七的施工依据是 `docs/harness/SUPPLEMENT-PLAN.md`。
 
 ## 施工顺序（依赖决定，不可乱）
 
@@ -17,6 +18,9 @@
 阶段四 impl/+adapters/  stores/memory → fakes/testing → backends → openai
 阶段五 fp/+assembly/    frontends → fp 门面 → registry → build+config → harness+agent → presets
 阶段六 门面与验收       __init__ → cli → examples → tests
+阶段七 v3.1 补充       A6 tokens → A1 replan → A2 checkpoint → A4 预算接线
+                       → A5 structured → A3 路由 → B2/B3 注册表与向量检索
+                       → conformance 基类 + test_supplement 验收
 ```
 
 ---
@@ -4138,6 +4142,376 @@ cd code/harness && PYTHONPATH=. python -m proposals.demo     # 独立样张 14 �
 ```
 
 ---
+
+---
+
+# 阶段七 v3.1 补充 —— SUPPLEMENT-PLAN 的落地施工
+
+> 依据 `docs/harness/SUPPLEMENT-PLAN.md`（A 类接线 / B 类适配器）。边界纪律：
+> 内核零第三方依赖、B 类不碰 kernel/contracts、每项配替换实验 + 离线测试。
+> 本阶段完成后全量回归 338 个测试通过（含新增 34 个，`tests/test_supplement.py`）。
+
+## 7.1 契约层最小增量（A 类允许的最小改动）
+
+**`contracts/types.py`** —— `ModelReply` 新增一个带默认值的字段（只增不改）：
+
+```python
+@dataclass(frozen=True)
+class ModelReply:
+    content: str = ""
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    usage: dict[str, int] = field(default_factory=dict)
+    finish_reason: str = "stop"
+    parsed: Any = None   # v3.1（SUPPLEMENT A5）：结构化输出校验通过后的强类型结果
+```
+
+**`contracts/state.py`** —— `to_dict()/from_dict()` 补上 `results/journal` 两个 v3 字段。
+这是 A2 的隐藏缺口：检查点经 `to_dict` 落库，缺这两个键则恢复后效应结果与
+消费进度全部丢失（模型脚本游标归零 = 重放重复消费）。旧 payload 无此键时
+缺省为空——只增不改，旧 run 仍可读：
+
+```python
+    def to_dict(self) -> dict[str, Any]:
+        return {"schema_version": SCHEMA_VERSION, …,
+                # v3.1（SUPPLEMENT A2）：results/journal 必须落库——崩溃恢复
+                # 依赖它们，否则恢复后效应结果与消费进度丢失。
+                "results": _jsonable(self.results),
+                "journal": _jsonable(self.journal), …}
+
+    @classmethod
+    def from_dict(cls, raw) -> "State":
+        return cls(…, results=raw.get("results", {}), journal=raw.get("journal", {}))
+```
+
+## 7.2 `parts/tokens.py`（A6：真实 token 计数）
+
+**【问题】** framing 按字符估算（1 token ≈ 4 字符），装配的账不可信。
+**【封装】** 计数器抽象成协议，装配期注入——同一套取景/编码，换计数器只变精度：
+
+```python
+@runtime_checkable
+class TokenCounter(Protocol):
+    """计数协议：单段文本 + 一组消息两种口径。"""
+    name: str
+    def count(self, text: str) -> int: ...
+    def count_messages(self, messages: Sequence[dict[str, Any]]) -> int: ...
+
+class CharEstimator:
+    """字符估算：1 token ≈ 4 字符。与旧 est_tokens 同口径（fake，离线测试用）。"""
+    name = "char_estimate"
+    def count(self, text): return max(1, len(text) // 4) if text else 0
+    def count_messages(self, messages):
+        return sum(self.count(str(m.get("content", ""))) for m in messages or ())
+
+class TiktokenCounter:
+    """真实现：tiktoken 精确计数。惰性 import，未装报 ConfigError 并给安装命令。"""
+    name = "tiktoken"
+    def __init__(self, model="gpt-4.1"):
+        try:
+            import tiktoken
+        except ImportError as exc:
+            raise ConfigError("tiktoken 计数器需要安装依赖：pip install agent-harness[tiktoken]") from exc
+        self._enc = tiktoken.encoding_for_model(model)  # KeyError 则退 o200k_base
+
+def make_counter(precision="chars", *, model="gpt-4.1") -> TokenCounter:
+    """装配期便捷入口：precision="chars"（默认，离线）| "tiktoken"（真实现）。"""
+```
+
+**【接线】** `ModelFramer(system=…, counter=…)` 内部 `_est()` 优先走 counter、
+缺省退回 `est_tokens`——替换实验：换计数器只变 tokens_est 数值，槽位集合
+（取景决策）不变。`ChatEncoder(counter=…)` 让 `Pack.usage["estimated_tokens"]`
+走精确口径，与厂商回传 usage 的偏差由此可量化。pyproject 新增 extras `tiktoken`。
+
+## 7.3 `parts/body/pe.py` 重写（A1：重规划）
+
+**【问题】** `Verdict.action` 定义了 `replan_all`、Budget 有 `replans` 计数器，
+但全库无人消费——契约承诺落空。
+**【封装】** PlanExecutePolicy 增加 `reflector/max_replans/budget` 三参；
+每轮取下一步前只查**上一轮**的结果（`state.data["last_result"]`）：
+
+```python
+    async def next_step(self, state, ctx) -> Step | Done:
+        section = state.section("pe")
+        if "plan" not in section:
+            plan = await self.planner.plan(state.goal, state)   # 首次规划
+            section["plan"] = asdict(plan); section["index"] = 0; section["replans"] = 0
+
+        # ---- A1：重规划检查（只查上一轮的结果；首步之前无结果可查）----
+        if self.reflector is not None and section.get("index", 0) > 0:
+            last_result = state.data.get("last_result")
+            if last_result is not None:
+                verdict = await self.reflector.review(last_result, state)
+                if getattr(verdict, "action", "accept") == "replan_all":
+                    return await self._replan(state, section,
+                                              reason=str(getattr(verdict, "reason", "")))
+        …  # 原有游标推进不变
+
+    async def _replan(self, state, section, *, reason) -> Step | Done:
+        """回到 Planner 重出计划；次数受上限约束，超限降级交付。"""
+        replans = int(section.get("replans", 0))
+        if replans >= self.max_replans:
+            return Done(answer=state.data.get("last_output", ""),
+                        reason=f"replan_limit({replans})")
+        section["replan_context"] = {              # 重规划上下文写进自己的命名空间：
+            "reason": reason,                      # Planner 可读，其余组件不感知
+            "completed": self._completed_steps(section),   # 已完成步骤 = 原始依据
+            "last_error": state.last_error or "",
+        }
+        plan = await self.planner.plan(state.goal, state)
+        …  # 换新计划 + rev 递增 + index 归零
+        if self.budget is not None and hasattr(self.budget, "replans"):
+            self.budget.replans = max(self.budget.replans, replans)   # 镜像，不回滚
+        return await self.next_step(state, None)   # 立即取新计划的第一个步骤
+```
+
+**封装手法**：重规划上下文放 `section("pe")`（自己的命名空间）；`completed`
+取原计划 index 之前的步骤（Brief 语义：必须带原始依据）；超限走 Done 降级
+而不是异常——**重规划是正常业务结局**；reflector=None 时该路径在代码里
+根本不存在（DoD 可验证）。
+
+## 7.4 `kernel/interpret.py` 增量（A2：检查点落盘 + 通用崩溃恢复）
+
+```python
+class Runtime:
+    def __init__(self, *, …, checkpoint_store=None) -> None:
+        # v3.1（SUPPLEMENT A2）：可插拔检查点落盘——实现 CheckpointStore 协议
+        # （put(ns, sid, state, expect_rev) / get(ns, sid, rev)），复用既有存储。
+        self.checkpoint_store = checkpoint_store
+        …
+
+    async def interpret(self, program, state) -> Outcome:
+        …
+            self.checkpoints.append({…内存列表…})
+            if self.checkpoint_store is not None:
+                # 落盘失败不静默：检查点是恢复的凭据，坏了必须让人知道
+                # （与观测不同——观测失败吞掉，持久化失败上抛）。
+                from harness.contracts.types import Namespace
+
+                ns = Namespace(tenant=state.session.tenant,
+                               user=getattr(state.goal, "user_id", "anonymous") or "anonymous",
+                               session=state.session.session_id)
+                await self.checkpoint_store.put(
+                    ns, state.session.session_id, state, expect_rev=state.rev - 1)
+            await self.emit("checkpoint", …)
+
+
+async def resume_from_checkpoint(store, program, session_id, *, ns=None,
+                                 rev=None, **runtime_kwargs) -> Outcome:
+    """从检查点续跑（SPEC M11）。恢复是重放结论不是重新推理：状态取自
+    检查点，已生效的副作用靠幂等键保证不重复。闭包程序不可序列化，
+    program 由调用方重供给（声明式程序可用 program_from_spec 重建）。"""
+    ns = ns or Namespace()
+    checkpoint = await store.get(ns, session_id, rev)
+    if checkpoint is None:
+        raise ValidationFailed(f"没有可恢复的检查点：{session_id}…")
+    return await Runtime(**runtime_kwargs).interpret(program, checkpoint.state)
+```
+
+**expect_rev 的算术要算清楚**：store 每次 put 会把 `state.rev` 重置为
+`len(versions)-1`，下一次 put 的期望值恰好是 `state.rev - 1`——两套 rev
+（解释器提交计数 / store 版本号）靠这个偏移保持一致。首次 put 无旧版本，
+乐观锁天然不触发。
+
+## 7.5 `assembly/agent.py` + `build.py` 增量（A4 预算接线 + A2 Agent 恢复入口）
+
+```python
+# build.py：AgentConfig 新增两个透传槽位
+class AgentConfig(…):
+    limits: Any = None       # 显式 Limits；缺省由 Budget 推导
+    checkpoints: Any = None  # CheckpointStore，供崩溃恢复
+
+# agent.py：Agent 构造与运行
+class Agent:
+    def __init__(self, *, …, limits=None, checkpoints=None):
+        # v3.1（SUPPLEMENT A4）：显式 limits 优先；缺省由 Budget 推导——
+        # 预算耗尽由解释器护栏触发（degraded），程序不再自查（消灭双重计数）。
+        self.limits = limits
+        self.checkpoints = checkpoints
+
+    async def resume(self, session_id, decision: ApprovalDecision | None = None,
+                     *, rev=None, ns=None) -> RunResult:
+        """decision=None 且配置了 checkpoints → 崩溃恢复：按 session_id + rev
+        取最近（或指定）检查点，重放续跑。ns 须与产生检查点时一致。"""
+        if decision is None:
+            return await self._resume_from_checkpoint(session_id, rev=rev, ns=ns)
+        …  # 原审批恢复路径不变
+
+    async def _resume_from_checkpoint(self, session_id, *, rev=None, ns=None):
+        checkpoint = await self.checkpoints.get(ns or Namespace(), session_id, rev)
+        if checkpoint is None:
+            raise HarnessError(f"没有可恢复的检查点：{session_id}…")
+        return await self._loop(checkpoint.state)   # policy 现场重供给，跳过 _prepare
+
+# agent.py：_interpret 里的两处
+#   ① after_commit：durability.save 之后追加 checkpoints.put（A2）
+#   ② limits 构造：预算统一接线（A4）
+        if self.limits is not None:
+            limits = self.limits
+        else:
+            limits = Limits(max_transitions=self.max_steps + 2,
+                            max_calls=self.budget.calls,      # ← Budget 口径
+                            max_tokens=self.budget.tokens,
+                            wall_seconds=300.0)
+
+# _V1Program.transition：预算自查整段删除（替换为注释）
+#   旧：if agent.budget is not None and agent.budget.exhausted: return Halt(…)
+#   v3.1：Budget.calls/tokens 已映射进解释器 Limits，护栏统一触发。
+```
+
+**`kernel/legacy.py` 同样处理**（v2 路径的同款缺口）：删掉
+`LegacyProgram.transition` 开头的 `budget.exhausted` 自查，`run_legacy` 把
+`scope.budget.calls/tokens` 映射进 Runtime 的 Limits。替换实验
+（`test_replacement.test_budget_replacement_only_changes_status`）证明：
+紧预算 → degraded、松预算 → completed，且结论一致——预算只变状态不变形。
+
+## 7.6 `parts/structured.py`（A5：结构化输出闭环，全文见仓库）
+
+**【问题】** 适配器支持 `response_format: json_schema` 透传，但没有
+"校验失败自动重试"回路；且内核零依赖纪律禁止 pydantic 进核心。
+**【封装】** 三层：
+
+```python
+def validate_json(text, schema) -> tuple[Any, list[str]]:
+    """内置零依赖校验器：JSON Schema 常用子集
+    （type/required/properties/enum/nullable/items/additionalProperties）。"""
+    # integer 槽位排除 bool（bool 是 int 子类）；未知一律报错，不猜
+
+class StructuredModel:      # 实现 Model 协议的包装器
+    def __init__(self, model, schema, *, validator=None, max_retries=2, …):
+        # 内置校验器绑定 schema；自定义 validator 收 text 返回 (value, errors)
+        # —— 要 pydantic 级强类型时传自定义 validator（依赖留在用户侧）
+    async def complete(self, messages, tools=None, *, response_format=None):
+        # 按签名显式分流 response_format（同 topology._call 的教训：
+        # 不用 try/except TypeError 兜底——会把模型内部的 TypeError
+        # 伪装成签名不匹配；FakeModel 等旧模型不支持该参数）
+        for attempt in range(self.max_retries + 1):
+            reply = await self.model.complete(…)
+            value, errors = self.validator(reply.content)
+            if not errors:
+                object.__setattr__(reply, "parsed", value)   # frozen 注入
+                return reply
+            working.append({"role": "user",
+                            "content": retry_instruction + "
+校验错误：
+- …"})
+        raise ContractError(f"结构化输出在 {max_retries+1} 次尝试后仍未通过校验：{errors}")
+
+def structured(model, schema, **kwargs) -> StructuredModel:
+    """便捷入口：structured(model, {"type":"object", …}) -> 带校验的 Model。"""
+```
+
+**封装手法**：校验失败走**数据回灌**（错误文本进下一条 user 消息）而不是
+异常重试——模型自愈需要看到错误；最终失败抛 `ContractError`（明确失败，
+不静默给坏数据）；`reply.parsed` 携带强类型对象（契约新字段）；换底层模型
+只改一行（只依赖 Model 协议）。
+
+## 7.7 `parts/dispatch.py` 增量（A3：LLMRouter / VectorRouter）
+
+```python
+@dataclass
+class LLMRouter:
+    """小模型意图分类：把候选路线列进 prompt，模型回 JSON {"route": name}。
+    离线测试注入 FakeModel；解析失败或未知路线 → fallback 并计数。"""
+    routes: list[Route] = field(default_factory=list)
+    model: Any = None
+    default: str = "general"
+    fallback_count: int = 0; total_count: int = 0
+    fallback_rate = property(lambda self: self.fallback_count / self.total_count
+                             if self.total_count else 0.0)   # 兜底率统一口径
+    # _prompt：列路线 + 用户输入 + 输出格式约定
+    # _parse：json.loads → {"route": name}；坏 JSON/未知名 → None
+
+@dataclass
+class VectorRouter:
+    """嵌入检索路由：goal 文本查向量库，top1 文档的 source 标注决定路线。
+    入库时把 source 写成 "route=<name>" 即完成标注；低于置信阈值或
+    空结果 → fallback。依赖 IndexBackend 协议（不依赖具体实现）。"""
+    index: Any = None
+    namespace: Any = None
+    k: int = 1; min_score: float = 0.0
+    default: str = "general"
+    fallback_count: int = 0; total_count: int = 0
+```
+
+**封装手法**：两路都实现 `Router` 协议（`route(goal) -> Route`），与
+RuleRouter/AlwaysRoute 可互换；兜底率统计字段名统一（`fallback_count/
+total_count/fallback_rate`），替换实验可直接对比分流质量。
+
+## 7.8 `impl/backends/vector.py`（B3 嵌入抽象 + B1 的 fake）
+
+```python
+class HashingEmbedder:
+    """确定性哈希嵌入：字符 2-gram + 3-gram 哈希累加，L2 归一化。
+    同文本永远同向量（可回放）；语义弱但排序特征够用——
+    它是"真 embedding 的 fake"（R6：每个真实现必须配 fake）。"""
+    def embed(self, text) -> list[float]: …          # md5 分桶 → 256 维 → 归一化
+    def embed_documents(self, docs) -> list[Document]:
+        """给文档补 vector 字段（contracts Document.vector 此前无人写入）。"""
+
+def _cosine(a, b): …
+def _match_filters(metadata, filters):
+    """过滤下推：先按 filters 筛，再算相似度（SPEC M12.2，防租户泄漏）。"""
+
+class InMemoryVectorIndex:
+    """IndexBackend 协议的内存向量实现（C3：跨 ns 读取视为不存在）。"""
+    async def upsert(self, ns, docs) -> int: …       # 同 id 覆盖不追加
+    async def search(self, ns, query, *, k, filters=None) -> list[Recalled]:
+        # query 可传向量或文本；无 vector 的文档现场补嵌
+```
+
+**封装手法**：协议（IndexBackend）不变，`HashingEmbedder` 是 fake、
+真 bge/openai 嵌入按同协议走 extras——嵌入→入库→检索全链路离线可跑；
+注册表新增 `BACKENDS["index"]["vector"]` 槽位（`"memory"` 二元组打分 ↔
+`"vector"` 向量余弦互换，召回质量变化、下游行为一致）。
+
+## 7.9 B2：openai 槽位的自注册接线
+
+**坑位**：最初把 `from harness.adapters.openai import OpenAIModel` 写进了
+registry——被 `test_architecture.test_dependency_direction` 当场拦下
+（assembly → adapters 越界）。正确做法是**前端库式自注册**：
+
+```python
+# adapters/openai.py 末尾
+def _registry_factory(arg: str = "", **kwargs: Any) -> Any:
+    return OpenAIModel(arg or "gpt-4.1", **kwargs)
+
+try:
+    from harness.assembly import registry as _registry
+
+    _registry.MODELS["openai"] = _registry_factory     # 覆盖占位工厂
+except Exception:
+    pass                                               # 独立使用适配器时注册表可选
+```
+
+adapters → assembly 是合法方向（见 test_architecture 的 ALLOWED 表）；
+registry 的 "openai" 槽位默认仍是占位（报带安装命令的 ConfigError），
+用户 `import harness.adapters.openai` 一行即完成接线。
+
+## 7.10 验收：conformance 基类 + test_supplement.py
+
+**`tests/conformance.py` 新增 `IndexBackendConformance`**（检索后端一致性）：
+MemoryIndex 与 InMemoryVectorIndex 走同一场景——upsert/search、过滤下推、
+Namespace 隔离、top-k、同 id 幂等覆盖。真 Qdrant/pgvector 接入后同样跑这组。
+
+**`tests/test_supplement.py`（34 个用例）** 验收矩阵：
+
+| 补充项 | 测试 | 替换实验 |
+|---|---|---|
+| A1 重规划 | replan 触发新计划、replans 递增、超限降级 | reflector=None 时路径不存在 |
+| A2 检查点 | Runtime 落盘、resume_from_checkpoint 续跑、Agent.resume(decision=None) | 检查点缺失显式报错 |
+| A3 路由 | LLM/Vector 路由 + 兜底计数 | RuleRouter↔VectorRouter 返回形状一致 |
+| A4 预算 | 预算耗尽 → 护栏 degraded（answer=max_calls/max_tokens） | 显式 limits 覆盖推导 |
+| A5 结构化 | 校验失败回灌重试、parsed 注入、超限 ContractError | 换底层模型只改一行 |
+| A6 计数 | 默认=字符口径、注入只变精度不变决策 | CharEstimator↔Tiktoken |
+| B2 注册表 | openai 槽位报带安装命令的 ConfigError | fake 槽位照常 |
+| B3 向量 | conformance 双实现 + VectorRouter 真链路 | MemoryIndex↔VectorIndex |
+
+## 7.11 未尽事项（按计划顺序继续）
+
+- **B1 真实现**：QdrantIndex / PGVectorIndex（extras `qdrant`/`pgvector`，
+  槽位占位已就绪，接 conformance 基类验收）
+- **B4** OTel/Langfuse Tracer、**B5** Docker Sandbox、**B6** MCP bridge
+- **C 类**（评测体系/A2A/服务化/框架对照）：按计划在项目层，不进框架包
 
 # 收尾：全部封装手法一张表
 

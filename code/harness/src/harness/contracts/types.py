@@ -143,6 +143,7 @@ class ModelReply:
     tool_calls: list[ToolCall] = field(default_factory=list)
     usage: dict[str, int] = field(default_factory=dict)
     finish_reason: str = "stop"
+    parsed: Any = None   # v3.1（SUPPLEMENT A5）：结构化输出校验通过后的强类型结果
 
 
 @dataclass(frozen=True)

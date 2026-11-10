@@ -88,6 +88,11 @@ class State:
             "trace_id": self.trace_id,
             "data": _jsonable(self.data),
             "messages": _jsonable(self.messages),
+            # v3.1（SUPPLEMENT A2）：results/journal 必须落库——崩溃恢复
+            # （resume_from_checkpoint）依赖它们，否则恢复后效应结果与
+            # 消费进度丢失。旧 payload 无这两个键时缺省为空（只增不改）。
+            "results": _jsonable(self.results),
+            "journal": _jsonable(self.journal),
             "step_index": self.step_index,
             "status": str(self.status),
             "usage": dict(self.usage),
@@ -109,6 +114,8 @@ class State:
             usage=raw.get("usage", {"tokens": 0, "calls": 0}),
             last_error=raw.get("last_error"),
             rev=int(raw.get("rev", 0)),
+            results=raw.get("results", {}),
+            journal=raw.get("journal", {}),
         )
 
 

@@ -121,3 +121,18 @@ class OpenAIModel:
 
 
 __all__ = ["OpenAIModel", "normalize_usage", "to_reply"]
+
+
+# v3.1（SUPPLEMENT B2）：适配器自注册（同 fp.frontends 的手法）。
+# adapters → assembly 是合法依赖方向；registry 的 "openai" 槽位默认是
+# 占位工厂，import 本模块后即被真工厂覆盖——用户接线只需一行 import。
+def _registry_factory(arg: str = "", **kwargs: Any) -> Any:
+    return OpenAIModel(arg or "gpt-4.1", **kwargs)
+
+
+try:
+    from harness.assembly import registry as _registry
+
+    _registry.MODELS["openai"] = _registry_factory
+except Exception:  # noqa: BLE001 - 独立使用适配器时注册表可选
+    pass

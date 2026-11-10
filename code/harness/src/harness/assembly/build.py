@@ -42,6 +42,10 @@ class AgentConfig:
     memory: Any = None
     memory_policy: dict[str, Any] | None = None
     name: str = "agent"
+    #: v3.1（SUPPLEMENT A4）：显式 Limits 透传；缺省由 Budget 推导护栏口径。
+    limits: Any = None
+    #: v3.1（SUPPLEMENT A2）：检查点存储（CheckpointStore 协议），供崩溃恢复。
+    checkpoints: Any = None
 
 
 def build(config: AgentConfig) -> Agent:
@@ -86,4 +90,6 @@ def build(config: AgentConfig) -> Agent:
         retrieval=config.retrieval,
         memory=config.memory,
         memory_policy=config.memory_policy,
+        limits=config.limits,
+        checkpoints=config.checkpoints,
     )
