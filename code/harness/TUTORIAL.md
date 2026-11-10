@@ -1,806 +1,619 @@
-# Harness 部件封装手册 —— 每个部件是怎么封装出来的
+# Harness 框架封装教程
 
-> 面向对象：想自己动手写部件（或写一个同类框架）的人。
-> 每个部件统一按五段讲：**【问题】它回答什么问题 → 【签名】Protocol 怎么定、
-> 为什么这么签 → 【最小实现】真实代码 → 【接线】挂在链路哪个位置、谁调用它
-> → 【自制】自己写一个要满足什么**。
+> 面向对象：想真正理解这个框架怎么"想"的人。读完你应该能回答三个问题：
+> 框架守什么、程序管什么、一条 Effect 从产生到落盘走了哪些路。
 >
-> 所有代码逐字来自 `code/harness/src/harness/`，标注了文件位置，可对照阅读。
+> 配套阅读：`README.md`（一页纸总览）、`../../docs/harness/PROPOSAL-通用解释器与效应系统.md`（设计规格）。
 
 ---
 
-## 0. 先掌握一个总配方：本框架所有部件共用同一套封装手法
+## 0. 一句话定位
 
-读完后你会发现，每个部件都是同一配方的实例化：
+**框架不提供任何架构，只提供一套完备的最小执行契约与效应系统；架构是运行其上的程序。**
 
-```text
-① Protocol 定签名（contracts/protocols/）     —— 接口与实现分离，签名里编码失败语义
-② 声明是值，行为是纯函数（frozen dataclass）    —— 层/程序可比较、可复制、可进检查点
-③ 最小实现 + Function 包装器（parts/）         —— AllowAll/Null 必须显式存在，不许"没有=放行"
-④ 装配期接线（assembly/ + kernel/chain.py）    —— needs 缺失报错、顺序拓扑排序、环拒绝
-⑤ fail-closed 兜底                             —— 未知异常归类 FAILED，观测异常一律吞掉
-⑥ 每个部件配 Fake（impl/fakes.py, testing.py） —— 无模型无网络可测
-```
-
-先记住链路骨架（细节在后文逐一展开）：
+传统 Agent 框架（LangGraph 的图、各种 workflow 引擎）把架构写死在框架里：
+换一种编排方式 = 换框架或改框架源码。Harness 反过来 —— 它把**控制流全部还给用户程序**，
+自己只守住一组"无论你怎么编排都不许破坏"的不变量。
 
 ```text
-                 ①Gate        ②Check        ③Wrap(洋葱)      ④Classify
-一条效应/一步 → [Guard 准入] → [Pipe 校验转换] → [Middleware 包裹] → 终端执行 → [Filter 归类异常]
-                     │                                                    ↑
-                     └── deny/ask 短路 ────────────── 异常统一送进 ──────────┘
-
-插点（链挂在哪）：run · step · model_call · tool_call · transition · effect · commit · node
+┌────────────────────────────────────────────────────┐
+│  你的架构（seq / ReAct / 图 / 回溯 / 没想过的任何）    │  ← fp/frontends.py 只是示例库
+│  Program.transition(state) -> Decision | Halt       │
+├────────────────────────────────────────────────────┤
+│  内核（全框架唯一的 while 循环）                      │
+│  问程序 → 批量执行效应 → 单一提交点 → 事件/检查点       │
+├────────────────────────────────────────────────────┤
+│  不变量：状态单一所有者 · 能力作用域 · 预算 · 四段链    │
+│  审批 · 事件 · 检查点 · 全局终止护栏                  │
+└────────────────────────────────────────────────────┘
 ```
 
-四段的失败语义不同，**这是不能合并成一条洋葱链的根本原因**：
+框架守 / 框架不管的分界线，是整个设计的灵魂：
 
-| 段 | 部件 | 失败行为 | 为什么不能改成抛异常 |
-|---|---|---|---|
-| ① Gate | Guard | **返回判定** allow/deny/ask | 拒绝不是错误，是正常业务结局，不该走异常通道 |
-| ② Check | Pipe | 抛 `ValidationError` | 参数错是程序 bug，必须炸出来统一归类 |
-| ③ Wrap | Middleware | 异常原样穿透 | 中间件不该理解异常，只负责包裹 |
-| ④ Classify | Filter | 唯一映射点，不吞异常 | 全框架只有这里允许"翻译"异常 |
+| 框架守（不变量）         | 框架不管（控制流）           |
+|-------------------------|---------------------------|
+| 状态单一所有者           | 顺序、分支、循环            |
+| 能力作用域（RunScope）   | 并行、回溯、图              |
+| 预算（Budget/Limits）    | 谁持有控制权                |
+| 四段链（Gate→Check→Wrap→Classify） | 自定义终端动作        |
+| 审批、事件、检查点       | 自定义状态结构（只要可序列化）|
+| 全局终止护栏             | 自定义终止状态码            |
+
+`seq / branch / loop / parallel / nest / graph / backtrack` 都**不是**框架算子，
+只是 `Decision.program` 的取值和 `Decision.effects` 的数量（见 §6 映射表）。
 
 ---
 
-# A. 四段链上的部件
+## 1. 分层架构与依赖方向
 
-## A1. Gate = Guard（准入）
-
-**【问题】** 这个动作能不能做？做之前要不要人点头？
-
-**【签名】** `contracts/protocols/guards.py`：
-
-```python
-@runtime_checkable
-class Guard(Protocol):
-    """段 Gate。返回判定、**不抛异常**、可短路。"""
-    async def check_identity(self, goal: Any, ns: Any) -> "GuardDecision": ...
-    async def check(self, step: "Step", state: "State") -> "GuardDecision": ...
+```text
+src/harness/
+├── contracts/    ⑤ 底座：类型、协议、事件、错误（零依赖，人人可用）
+├── kernel/       ① 内核：解释器 + 效应系统 + 四段链 + 作用域
+├── fp/           ④ 前端库：十种内置范式（可整体删除）
+├── assembly/     ③ 装配层：Harness 容器、注册表、兼容壳
+├── parts/        ② 组件库：Layer/Middleware/Hook/Guard/Pipe/Budget/工具/护栏…
+├── impl/         存储与后端的可替换实现（memory store、fs backend、fakes）
+└── adapters/     外部模型适配器（openai）
 ```
 
-签名里的三个设计决策：
+依赖纪律（为什么这样排）：
 
-1. **返回判定而非抛异常** —— `GuardDecision` 是 `allow / deny / ask` 三态
-   值对象（`contracts/types.py`）。deny=拒绝（业务结局 refused），ask=转审批
-   （needs_approval）。用异常表达"拒绝"会让调用方无法区分"拒绝"和"坏了"。
-2. **两个方法不拆成两个部件** —— `check_identity`（这个人能不能发起这次运行）
-   和 `check`（这个动作能不能执行）共享"不通过就拦"的语义，拆开会把拒绝逻辑
-   写两遍（源码头注释原话，SPEC M8.1）。
-3. **与 Guardrail 分离** —— `Guard` 管"动作能不能做"，`Guardrail` 管"内容能不能
-   进出"（提示词注入检测等，五道闸）。一个是动作准入、一个是内容检测，
-   输入形状完全不同（Step vs Content），合在一起签名就脏了。
+- **kernel 不 import fp**。内核只认识 `contracts` 里的协议 —— 这保证"删掉
+  `fp/frontends.py` 整个文件，框架照样跑任意架构"。
+- **前端自注册**：`fp/frontends.py` 末尾的 `_register_frontends()` 主动把自己
+  注册进 `assembly.registry.PROGRAMS`，装配层不反向 import fp，分层不破。
+- **contracts 零依赖**：任何一层都可以 import 它，它不 import 任何人。
+  所有跨层通信的数据形状（State/Effect/Decision/事件）都在这里定死。
 
-**【最小实现】** `parts/guard.py`：
+一句话记住：**依赖只能向下，注册代替反向引用。**
 
-```python
-class AllowAllGuard:
-    async def check_identity(self, goal, ns=None): return GuardDecision.allow()
-    async def check(self, step, state): return GuardDecision.allow()
+---
 
-class FunctionGuard:
-    """把一个函数包成 Guard——大多数业务护栏只需要一个 if。"""
-    def __init__(self, fn, identity_fn=None): ...
-    async def check(self, step, state):
-        decision = self.fn(step, state)
-        if hasattr(decision, "__await__"):   # 同步异步函数都接受
-            decision = await decision
-        return decision
-```
+## 2. 唯一契约：`Program.transition(state) -> Decision | Halt`
 
-注意 `AllowAllGuard` **显式存在**：源码注释强调"不要用'没有 Guard'表示放行"——
-缺省对象缺失会让"忘了配护栏"和"决定放行"不可区分。
+位置：`contracts/decision.py` + `contracts/protocols/runtime.py`。这是全框架
+**唯一**的执行契约，你的架构只需要实现这一个方法。
 
-**【接线】** 两处：
-- v1/v2 四段链：`kernel/stage.py` 的 `run_stages(step, state, terminal=…, gate=…)`，
-  第 ① 段 `await gate.check(step, state)`，deny/ask 直接短路返回 `StageResult(failure=…)`；
-- v3 效应系统：`kernel/effects.py` 的 `_stages()`，先走各 `EffectLayer.gate`，
-  再走注入的 `guard.check(step, state)`，效果相同。
+### 2.1 `Transition`（源码里叫 `Decision`，注意区分！）
 
-**【自制清单】** 实现 `check(step, state) -> GuardDecision`（同步异步均可，
-经 `FunctionGuard` 包装更省事）；绝不抛异常；deny 必须带 reason。
-
-## A2. Check = Pipe（参数校验与转换）
-
-**【问题】** 这一步的参数合法吗？要不要先规范化（trim、类型转换、默认值）？
-
-**【签名】** `contracts/protocols/runtime.py`：
-
-```python
-@runtime_checkable
-class Pipe(Protocol):
-    """段 Check：参数校验与转换，失败抛 ValidationError。"""
-    async def transform(self, step: "Step", state: "State") -> "Step": ...
-```
-
-签名设计：**输入 Step、返回 Step**（转换后的新 Step），失败唯一出口是
-`ValidationError`。它和 Guard 最关键的区别：Guard 返回值、Pipe 抛异常——
-参数错是调用方 bug，必须进入异常通道被 Classify 归一，而不是静默变成
-一个业务结局。
-
-**【最小实现】** 框架自带恒等件（`kernel/stage.py`）：
-
-```python
-class IdentityCheck:
-    async def transform(self, step, state): return step
-```
-
-业务侧典型 Pipe（裁剪超长参数、注入 idem_key、单位换算）都是 10 行以内。
-
-**【接线】** 四段链第 ② 段。v1 路径在 `run_stages`：
-
-```python
-try:
-    for check in checks:
-        step = await check.transform(step, state)
-except Exception as exc:
-    return StageResult(step, failure=await classify.classify(exc, phase="check", state=state))
-```
-
-注意这里 Check 的异常**当场**交给 Classify（phase="check"），不进 Wrap——
-校验失败没有资格到达终端。
-
-**【自制清单】** 实现 `transform`；失败抛 `ValidationError(field=…)`；
-**返回新 Step 而不是原地改**（Step 是 frozen 值，用 `dataclasses.replace`）。
-
-## A3. Wrap = Middleware / Layer（洋葱包裹）
-
-**【问题】** 重试、超时、审计、记账、上下文装配……这些横切逻辑怎么不写死在循环里？
-
-这是本框架封装密度最高的部件，分三层看。
-
-### 3.1 协议层：Middleware
-
-**【签名】** `contracts/protocols/runtime.py`：
-
-```python
-Handler = Callable[[Any], Awaitable[Any]]
-"""(Request) -> Response。层签名统一为 (req, nxt) -> Response。"""
-
-@runtime_checkable
-class Middleware(Protocol):
-    name: str
-    points: frozenset[str]     # 在哪些插点生效
-    needs: frozenset[str]      # 依赖哪些能力（缺则装配期报错，不降级）
-    after: frozenset[str]      # 相对顺序声明
-    before: frozenset[str]
-    async def __call__(self, req: Any, nxt: Handler) -> Any: ...
-```
-
-四个声明字段各自回答一个问题：
-
-| 字段 | 回答的问题 | 谁消费它 |
-|---|---|---|
-| `points` | 我挂在哪些插点上 | `kernel/chain.resolve` 筛选 |
-| `needs` | 我需要哪些能力注入 | 装配期校验，缺失**报错**而非静默降级 |
-| `after`/`before` | 我和谁谁先谁后 | `resolve` 做拓扑排序 |
-| `__call__(req, nxt)` | 我怎么包裹 | `chain.execute` 洋葱组装 |
-
-### 3.2 值层：Layer（layers.py 的核心封装决策）
-
-**【签名】** `parts/middleware/base.py`：
+`Decision` 是一次"转移决策"，六个字段：
 
 ```python
 @dataclass(frozen=True)
-class Layer:
-    name: str
-    points: frozenset[str]
-    build: Callable[[Handler], Handler] = field(compare=False, repr=False)
-    needs: frozenset[str] = frozenset()
-    after: frozenset[str] = frozenset()
-    before: frozenset[str] = frozenset()
-
-    def wrap(self, nxt: Handler) -> Handler:
-        return self.build(nxt)
+class Decision:
+    effects: tuple[Effect, ...] = ()   # 一批效应请求：0 个 = 纯决策步，多个 = 并行
+    program: Any = None                # 下一个程序；None = 保持当前
+    patch: dict[str, Any] = {}         # 显式状态增量，由解释器在唯一提交点写入
+    restore: dict[str, Any] | None = None  # 回溯：先恢复历史快照再执行
+    note: str = ""                     # 人类可读的备注，进 trace
+    meta: dict[str, Any] = {}          # 透传给效应运行时的附加信息，内核不解释
 ```
 
-**封装手法：层是值，不是对象。** 源码头注释原话："状态放在闭包里或作用域里，
-不放在层实例上——否则层无法复用与比较。" `build` 是一个纯函数
-`handler -> handler`，配置（如 budget 实例、sink）通过闭包捕获：
+设计意义，逐字段看：
 
-```python
-def budget_layer(*, budget: Budget) -> Layer:      # 工厂函数 = 部件的惯用构造形态
-    def build(nxt):
-        async def handler(req):
-            if budget.exhausted:
-                raise BudgetExceeded(f"预算耗尽：{budget.snapshot()}")
-            response = await nxt(req)
-            if isinstance(response, ModelResponse):
-                budget.spend(tokens=int(response.usage.get("total", 0)), calls=1)
-            return response
-        return handler
-    return layer("budget", ["run", "model_call"], build, after=["tenancy"])
-```
+- **`program=None` 表示"保持当前程序"** —— 这就是循环。ReAct 的"loop"不过是
+  `program=self`，框架里根本没有 loop 算子。
+- **`program=新实例`** —— 不可变 dataclass 的 `replace(self, step=...)` 派生
+  新程序，这是状态机转移：程序的"步数/阶段"存在程序自身字段里，不偷写 State。
+- **`patch` 是程序唯一合法的写状态通道**。程序绝不能 `state.data[...] = x`
+  （程序只读 State），想写就放进 patch，由解释器在唯一提交点统一写入。
+- **`restore` 是回溯**：把某次检查点里的快照还回去，再继续执行。
+- **`effects` 一批多个** = 并行。框架不提供 parallel 算子，批量就是并行
+  （内核用 `asyncio.gather` 并发执行，见 §5.2）。
 
-这就是"怎么封装一个中间件"的完整模板：**工厂函数收配置 → 内层 `build(nxt)`
-闭包捕获配置 → 返回 `layer(name, points, build, needs=…, after=…)`**。
-`layer()` 语法糖免得到处写 `frozenset`。
-
-洋葱语义：`chain.execute(layers, request, terminal)` 从最内层（终端）向外
-逐层包，**第一层最外**——即列表里第一个声明的层最后才碰到终端、最先看到请求。
-
-### 3.3 内置层范例（挑四个代表，其余同理）
-
-都在 `parts/middleware/builtin.py`，每个都值得当模板抄：
-
-| 层 | 插点 | 包裹逻辑 |
-|---|---|---|
-| `trace_layer` | 全部 | `try: await nxt(req) finally: sink.emit(span.end)`——观测异常吞掉 |
-| `budget_layer` | run + model_call | 前置检查 `exhausted` 抛 `BudgetExceeded`；后置按响应记账 |
-| `checkpoint_layer` | step | **后置**：`store.put(ns, sid, state, expect_rev=state.rev)`（乐观锁，见 D3） |
-| `approval_layer` | tool_call | 看 `spec.side_effects` 元数据（**不猜工具名**）决定是否走审批通道 |
-
-`parts/layers.py` 还有五个薄层（tenancy/audit/retrieval/memory_recall/memory_write），
-每个 20~40 行，是学习"业务横切怎么写成层"的最好教材。例：`retrieval_layer`
-挂在 `model_call`，首轮把候选写进 `state.data["retrieved"]`，然后
-`before=["context"]` 保证它排在取景层之前。
-
-### 3.4 v3 的收拢：EffectLayer
-
-v3 效应系统把四段打包成一个值对象（`kernel/effects.py`）：
+### 2.2 `Halt`
 
 ```python
 @dataclass(frozen=True)
-class EffectLayer:
-    name: str
-    gate: Callable[[Effect, State], str] = _allow          # ① 返回判定
-    check: Callable[[Effect, State], None] = _noop_check   # ② 抛异常
-    wrap: Callable[[Effect, Callable], Callable] = _identity_wrap  # ③ 洋葱
-    observe: Callable[[Effect, Any, State], None] = _noop_observe  # 只读观察
-    points: frozenset[str] = frozenset({"effect", "commit"})
+class Halt:
+    answer: str = ""
+    status: str = "completed"   # completed / degraded / refused / failed / …自定义
+    extra: dict[str, Any] = {}
 ```
 
-一个 `EffectLayer` 可同时提供四段中的任意几段，缺省段是恒等实现——
-这样"只想加一个观察"的人不用理解整个洋葱。
+`status` 故意用字符串而不是枚举 —— 前端可以自定义终止状态而不改内核。
 
-**【自制清单】** 业务横切一律写工厂函数返回 `layer(...)`；
-不改请求、只改响应时把 `await nxt(req)` 的结果加工后返回；
-失败要么抛指定异常（走 Classify）要么返回值短路，**不要在层里吞业务异常**。
+### 2.3 命名空间隔离（一个容易踩的坑）
 
-## A4. Classify = Filter（异常归类）
+`harness.contracts.decision.Decision` 是"转移决策"；而顶层导出的
+`harness.Decision`（来自 `contracts/types.py`）是**人工审批结果**，语义完全不同，
+被 `ApprovalChannel` / `Agent.resume` 依赖。所以：
 
-**【问题】** 全框架那么多部件都可能抛异常，谁来把它们统一"翻译"成调用方能
-处理的六态结局？
+- 顶层 `harness.Decision` = 审批类型（保持兼容）
+- 转移决策用 `harness.contracts.decision.Decision`，顶层别名为 **`Transition`**
 
-**【签名】** `contracts/protocols/runtime.py`：
+教程和示例代码里写 `Decision` 时，指的都是转移决策（从 `contracts.decision` 导入）。
+
+### 2.4 `FnProgram`：零封装入口
 
 ```python
-@runtime_checkable
-class Filter(Protocol):
-    """段 Classify：异常 → Failure 的唯一映射点。"""
-    async def classify(self, exc: BaseException, *, phase: str, state: "State") -> "Failure": ...
+class FnProgram:
+    def __init__(self, fn: Callable[[State], Decision | Halt], name: str = "fn"): ...
+    def transition(self, state): return self.fn(state)
 ```
 
-`Failure` 是三字段值对象：`status: RunStatus / reason: str / retryable: bool`。
+把一个裸函数包成 Program。它的存在证明了一件事：**一个裸函数就是架构**。
+框架没有任何必须继承的基类、必须填的配置 —— 只要对象有 `transition()`。
 
-**【最小实现】** `kernel/stage.py` 的 `DefaultClassify` 是一张异常→结局映射表，
-值得整段背下来，因为它的排布就是 fail-closed 原则的落地：
+### 2.5 治理分级：`CAPABILITIES = ("describe", "to_spec", "static_check")`
 
-```python
-async def classify(self, exc, *, phase, state):
-    if isinstance(exc, asyncio.CancelledError): return Failure(CANCELLED, "cancelled", False)
-    if isinstance(exc, ApprovalRequired):       return Failure(NEEDS_APPROVAL, …, False)
-    if isinstance(exc, (GuardDenied, PolicyError)): return Failure(REFUSED, f"policy:{exc}", False)
-    if isinstance(exc, ValidationError):        return Failure(REFUSED, f"invalid_args:{…}", False)
-    if isinstance(exc, TransientError):         return Failure(DEGRADED, "transient_exhausted", True)  # 可重试
-    if isinstance(exc, BudgetExceeded):         return Failure(DEGRADED, "budget", False)
-    if isinstance(exc, ToolError):              return Failure(DEGRADED, "tool", True)
-    return Failure(FAILED, type(exc).__name__, False)   # 未知异常 fail-closed
-```
+程序**可选**实现三个静态能力，框架"不假装全能"：
 
-要点：可重试的只有 `retryable=True` 的（Transient/Tool），拒绝和降级分得清清楚楚；
-最后一行没有"猜"——**未知一律 FAILED**，宁可失败不可误放。
+| 能力 | 作用 | 不实现时的降级 |
+|---|---|---|
+| `describe()` | 人类可读描述，进 trace | 显示 `<opaque:类名>` |
+| `to_spec()` | 检查点序列化，支撑时间旅行 | 抛 `NotSerializable`，检查点写 `<opaque>` |
+| `static_check()` | 装配期静态检查（如 Graph 查环） | 返回空列表（运行时治理） |
 
-**【接线】** 四段链第 ④ 段 + 兜底双重身份：`run_stages` 里 Check 段和 Wrap 段的
-异常都送进它；v3 效应系统里 `EffectRuntime._failed()` 调它，且连归类器自己
-抛异常都防了（退化成 `status="failed", reason=str(exc)`）。
-
-**【自制清单】** 实现一个 `classify`；先抄 DefaultClassify 再改映射；
-永远给未知异常留 FAILED 出口。
-
-## A5. Guardrail（内容检测，动作检测的姊妹件）
-
-**【签名】** `contracts/protocols/guards.py`：
-
-```python
-@runtime_checkable
-class Guardrail(Protocol):
-    """五道闸的内容检测；检测与动作分离（SPEC M9.2）。"""
-    name: str
-    gates: frozenset[str]                                   # 挂在哪几道闸上
-    async def check(self, content: "Content", scope: Any) -> "GuardrailVerdict": ...
-
-@runtime_checkable
-class GuardrailStream(Guardrail, Protocol):
-    """流式增量检测：窗口缓冲 + 结尾 flush。"""
-    async def feed(self, delta: str, st: "StreamState") -> "GuardrailVerdict": ...
-    async def flush(self, st: "StreamState") -> "GuardrailVerdict": ...
-```
-
-封装要点：`gates` 声明自己检查哪几道闸（输入/输出/工具结果……），框架按闸
-分发；流式版用 `feed/flush` 两段式——增量内容先攒窗口，流结束 flush 兜底，
-因为敏感词可能被切成两个 delta。实现见 `parts/guardrail/`
-（detectors/layer/streaming 三件）。
+闭包程序永远无法被序列化 —— 框架不骗你，明确降级而不是假装支持。
 
 ---
 
-# B. 链本身的封装
+## 3. `State`：状态单一所有者的物质基础
 
-部件只解决"单件怎么写"，链解决"多件怎么排"。
+位置：`contracts/state.py`。
 
-## B1. 插点（POINTS）：链的坐标系
-
-**【问题】** 层说"我挂在 model_call"，框架怎么知道有哪些合法位置？
-
-**【实现】** `kernel/chain.py`：
-
-```python
-POINTS = (
-    "run", "step", "model_call", "tool_call",     # v1/v2 四点：运行/步/问模型/调工具
-    "transition", "effect", "commit", "node",     # v3 新增：解释器/效应/提交/图节点
-)
-```
-
-封装手法：**插点是字符串常量集，不是枚举类**——为了可扩展（PROPOSAL §9.2：
-新增插点不动旧契约），`resolve()` 只校验"在集合里"，未知插点抛 `ConfigError`。
-
-## B2. 顺序解析：拓扑排序
-
-**【问题】** 十个层都挂在 model_call，谁先谁后？写死顺序则加层要改内核。
-
-**【实现】** `kernel/chain.py` 的 `resolve(layers, point)`：
-
-```python
-def resolve(layers, point):
-    picked = [lay for lay in layers if point in _points_of(lay)]   # 按插点筛选
-    # after/before 声明 → 边 → Kahn 拓扑排序
-    ready = [n for n in names if n in pending and not pending[n]]
-    if not ready:
-        raise ConfigError(f"插点 {point} 的层顺序成环：{sorted(pending)}")
-```
-
-三个封装决策：
-1. **声明式顺序**（`after={"trace"}`）而非列表顺序——层之间不 import 对方也能表达依赖；
-2. **环 = 装配期失败**（ConfigError），绝不带病运行；
-3. **无约束层保持注册顺序**（稳定排序），保证行为可复现。
-重名层同样装配期报错——层按名字排序，重名即排序歧义。
-
-## B3. 四段编排：run_stages
-
-**【实现】** `kernel/stage.py`：
-
-```python
-async def run_stages(step, state, *, terminal, gate=None, checks=(), layers=(), classify=None):
-    gate = gate or AllowAllGate()          # 缺省件显式构造
-    classify = classify or DefaultClassify()
-    # ① Gate：返回判定，不抛异常 → deny/ask 直接构造失败结局短路
-    # ② Check：逐个 transform，异常当场 classify(phase="check")
-    # ③ Wrap：reversed 遍历逐层包 terminal（第一层最外）
-    # ④ Classify：wrap 段异常 classify(phase="wrap")
-    return StageResult(step, result=result)   # 要么 result 要么 failure，二选一
-```
-
-源码注释一句硬话："**按固定顺序走四段；顺序不可调、不可合并、不可省略**。"
-封装成"不可配置的固定管线"是有意的——四段失败语义不同（见 §0 表），
-允许用户调顺序就等于允许他们破坏语义。
-
-`StageResult` 是出口的值形状：`step + (result | failure)`，调用方用
-`result.ok` 属性判断，失败不再需要 try/except。
-
-## B4. v3 收拢：EffectRuntime._stages
-
-v3 把效应的执行也编排成同样的四段（`kernel/effects.py`），新增了两个封装点：
-
-- **幂等前置**：进四段链之前先查 `effect.idem_key in self.seen`，命中直接回放
-  缓存结果且 `_usage={"calls":0,"tokens":0}`（不重复计量）；
-- **Hook 后置**：四段走完统一 `_fire_hooks(effect, result, state)`。
-
-`Effect → Step` 的对接是薄适配器 `to_step()`：按 `_KIND_TO_STEP` 映射表
-把效应翻译成旧四段链认识的 Step——**适配而不是重写**，让 v1 的治理资产
-零改动复用。
-
----
-
-# C. 观测部件
-
-## C1. Hook（纯观察）
-
-**【问题】** 有些逻辑只想"看"不想"改"——指标、日志、告警。用 Middleware 写
-太重（要理解 req/nxt）。
-
-**【签名】** `contracts/protocols/runtime.py`：
-
-```python
-@runtime_checkable
-class Hook(Protocol):
-    """纯观察：只读事件，返回值被忽略（= 不调 nxt 的层）。"""
-    point: str
-    async def __call__(self, event: "HookEvent") -> None: ...
-```
-
-**封装手法一句话：Hook 就是不调 `nxt` 的层。** 这一行注释把两个部件的关系
-讲透了——Middleware 的权力是"改写或短路"，Hook 自愿放弃这个权力，换取
-签名更简单（收一个事件、不返回任何东西）。
-
-`HookEvent`（`contracts/events.py`）是只读载荷：`point / state_id / fields`。
-v3 的落点在 `EffectRuntime._fire_hooks`：point 格式 `effect.<kind>`，
-hook 用**前缀匹配**订阅（`point in getattr(hook, "point", point)`），
-`effect.` 前缀 = 订阅所有效应。hook 抛异常只发 `hook.error` 事件，绝不影响运行。
-
-**【接线】** `Runtime(hooks=…)` → `EffectRuntime._fire_hooks`（每条效应结束后）。
-
-**【自制清单】** 一个带 `point` 属性的可调用对象即可；
-把它当只读的，别指望它改流程——要改流程请写 Layer。
-
-## C2. Tracer（事件出口）
-
-**【签名】** `contracts/protocols/governance.py`：
-
-```python
-@runtime_checkable
-class Tracer(Protocol):
-    """带 span 语义的事件出口；异常不得影响请求（SPEC M10.1）。"""
-    async def emit(self, event: "RunEvent") -> None: ...
-```
-
-**【最小实现】** `parts/tracer.py` 三件套，展示了同一协议的三档实现成本：
-
-```python
-class NullTracer:      # 测试：什么都不做
-    async def emit(self, event): return None
-class MemoryTracer:    # 测试/断言：收进列表
-    async def emit(self, event): self.events.append(event)
-class JsonlTracer:     # 生产：追加一行 JSON
-    async def emit(self, event): …fh.write(json.dumps(row, …) + "\n")
-```
-
-封装要点：协议只有一个方法 `emit`，且**"异常不得影响请求"写进了协议文档**——
-实现方可以自己吞，框架侧调用处也会兜（`Runtime.emit` 里 `try/except: pass`）。
-事件统一是 `RunEvent` 值对象（name/trace_id/span_id/parent_id/ts_ms/fields），
-`parent_id` 必须真实填写才能串出跨 agent 的 trace 树。
-
-## C3. 事件名表
-
-`contracts/events.py` 的 `EVENT_NAMES` 元组是全框架的观测面清单：
-`run.start/end、step.start/end、model.start/delta/end、tool.start/end、
-guardrail、approval.required/resolved、checkpoint、error、hook.error、
-transition、effect、commit、node`。封装手法：**事件名即契约**——名字进
-EVENT_NAMES 才算稳定 API，消费方按名字过滤，加事件不破坏旧消费者。
-
----
-
-# D. 治理部件
-
-## D1. Budget（预算）
-
-**【实现】** `parts/budget.py`：
+### 3.1 字段一览
 
 ```python
 @dataclass
-class Budget:
-    tokens: int = 60_000
-    calls: int = 30
-    used_tokens: int = 0
-    used_calls: int = 0
-    @property
-    def exhausted(self) -> bool: …
-    def spend(self, tokens=0, calls=1) -> None: …
-    def snapshot(self) -> dict[str, int]: …   # 异常信息里的弹药
+class State:
+    goal: Goal              # 这次要干什么（文本 + 用户/会话元信息）
+    session: SessionRef     # 会话引用（session_id、tenant）
+    trace_id: str           # 全链路追踪 id
+    data: dict              # 业务状态命名空间（你的架构的工作内存）
+    messages: list[dict]    # 对话消息
+    step_index: int         # 步号
+    status: RunStatus       # running / completed / failed / …
+    usage: dict             # {"tokens": n, "calls": n} 计量
+    last_error: str | None
+    rev: int                # 落盘版本号（不变量 1）
+    results: dict           # v3：效应结果；__batch__ = 本批新结果
+    journal: dict           # v3：观测/消费进度，不随回溯回滚
 ```
 
-封装决策：
-- **预算是共享资源**（头注释原话），所以它是独立值对象、由层/内核引用记账，
-  不藏在模型适配器里；
-- 记账分两处：`budget_layer`（v1 路径，模型响应后按 usage 扣）与
-  `State.add_usage`（v3 路径，提交点统一扣）；
-- **子代理切分**：`RunScope.child(name, budget_fraction=0.3)` 调
-  `budget.split(0.3)`——父作用域预算的 30% 划给子作用域，资源"单一所有者、
-  单向继承"；
-- `NullBudget`（上限设成天文数字）让测试不用关心预算。
+### 3.2 三条关键语义
 
-## D2. Limits（全局终止护栏）
+1. **只存可序列化数据**：`to_dict()` 走 `_jsonable()`，JSON 表达不了的东西
+   （对象、句柄、函数）进 State 会直接 TypeError。这是检查点/恢复/跨机迁移的前提。
+2. **回滚粒度是有意设计过的**：`snapshot()` 只备份
+   `goal/data/results/messages/step_index/status/last_error/rev`；
+   `journal`（"已经消费到模型脚本第几条"）和 `usage`（"已经花了多少 token"）
+   是**外部世界的既成事实**，不随回溯回滚 —— 否则回溯会把"已经问过模型"
+   这件事也撤销，脚本被重复消费。
+3. **谁有权写**：程序只读；效应 handler 只返回结果（终端只记账不写业务状态）；
+   唯一的写入口是解释器的 `Runtime._commit`（见 §5.1）。
 
-**【实现】** `kernel/interpret.py`：
+### 3.3 `results` 与 `__batch__`
 
-```python
-@dataclass(frozen=True)
-class Limits:
-    max_transitions: int = 64
-    max_calls: int = 100
-    max_tokens: int = 200_000
-    wall_seconds: float = 30.0
-```
-
-封装决策：这是 v3 框架**新增的唯一不变量**——"任何程序都必须能停下来"。
-控制流交给程序后，程序可以无限返回自己空转，所以上限必须收拢到框架。
-四个维度（转移数/调用数/token 数/墙钟）每轮循环开头检查，超限返回
-`Halt(..., "degraded")`——**护栏触发也是正常结局（degraded），不是异常**。
-注意它和 Budget 的分工：Budget 是消费侧记账（部件级），Limits 是运行侧
-硬停（框架级），v3 里 `Harness.new_runtime` 把 `Budget.calls/tokens` 映射进
-`Limits`，两个概念一处汇合。
-
-## D3. Durability / CheckpointStore（持久化）
-
-**【签名】** `contracts/protocols/stores.py`，两代并存、各有深意：
-
-```python
-@runtime_checkable
-class Durability(Protocol):
-    """v1 检查点：save/load。违反"历史不可变"，P3 迁移到 CheckpointStore。"""
-    async def save(self, state: "State") -> None: ...
-    async def load(self, session_id: str) -> "State | None": ...
-
-@runtime_checkable
-class CheckpointStore(Protocol):
-    """v2 多版本快照：追加新 rev，旧版本永不修改（不变量 1）。"""
-    async def put(self, ns, sid, state, *, expect_rev: int | None) -> int: ...
-    async def get(self, ns, sid, rev=None) -> "Checkpoint | None": ...
-    async def history(self, ns, sid, *, limit=50) -> list[int]: ...
-```
-
-对比读出封装手法的演进：v1 `save/load` 是"覆盖式存档"，会把历史改掉；
-v2 改成 `put/get/history`——**put 带 `expect_rev`（乐观锁：期望的旧版本号，
-不匹配即冲突拒绝）**，每次落盘追加新 rev，回溯才能"读历史快照"而不是
-"恢复被覆盖的存档"。这个签名差异就是"检查点 vs 存档"的语义差别。
-另外所有 v2 存储协议第一个参数都是 `Namespace`——多租户隔离在**签名里**强制，
-实现想忘都忘不掉。
-
-**【最小实现】** `parts/durability.py` 的 `SQLiteDurability`：标准库 sqlite3、
-UPSERT 语句、单文件，约 40 行——"生产可用"的最小成本示范。
-
-## D4. Idempotency（幂等）
-
-**【签名】** `stores.py`：
-
-```python
-@runtime_checkable
-class Idempotency(Protocol):
-    async def begin(self, ns: "Namespace", key: str) -> Any: ...
-    async def commit(self, ns: "Namespace", key: str, value: Any) -> None: ...
-```
-
-两段式（begin 占位 → commit 落值）而非单方法，因为副作用执行是异步的：
-begin 拿到占位符，别的并发请求撞同一个 key 时能识别"已在执行"。
-v3 进程内的简化版是 `EffectRuntime.seen: dict[str, Any]` + `Effect.idem_key`：
-命中即回放结果且零计量。场景：审批通过后重放、断点续跑重执行——
-**审批通过不等于副作用只发生一次**（DEV-SESSION §8 原话），幂等键是唯一的保险。
+每轮效应执行完，`_commit` 把结果按 `effect.key` 写进 `state.results[key]`，
+并把本批结果整体放进 `state.results["__batch__"]`（每轮覆盖）。
+前端范式统一用 `_batch(state)` 读"本批新结果"，这是程序与效应结果之间的标准接口。
 
 ---
 
-# E. 执行部件
+## 4. `Effect`：I/O 的唯一载体
 
-## E1. Tool（唯一有副作用的执行原语）
-
-**【签名】** `contracts/protocols/tools.py`：
+位置：`contracts/types.py`。
 
 ```python
-@runtime_checkable
-class Tool(Protocol):
-    spec: "ToolSpec"                                   # 元数据：名字/schema/side_effects
-    async def invoke(self, args: dict, ctx: "ToolContext") -> "ToolResult": ...
+Effect(
+    kind="tool",              # 效应类型（str，可扩展）
+    args={"name": "echo", "args": {"text": "hi"}},
+    key="last",               # 结果写入 state.results 的键
+    child=None,               # kind="child" 时携带的子程序
+    idem_key="…",             # 幂等键：同键同结果
+    est_tokens=0, index=0, step=None, spec=None,
+)
 ```
 
-两个签名决策：
-1. **spec 与 invoke 分离**——模型需要的元数据（schema、副作用级别）和执行体
-   分开，approval_layer 才能只看元数据判审批，不用真调工具；
-2. **invoke 收 `ToolContext`**——文件系统、沙箱、密钥、取消信号都是**注入**的
-   （来自 RunScope），工具自己不 import 全局资源。能力最小权限落在这里。
+### 4.1 概念：描述，不是执行
 
-**【封装最精彩的一段：schema 推导定死不许猜】** `parts/tools.py` 头注释：
+> Effect 是"想对外部世界做的一件事的**描述**"，不是立刻做。
 
-> 推导规则（定死，不许猜）：无标注一律报 `ConfigError`，不默认 `string`——
-> 否则 `amount: int` 会被当成字符串传给下游，错误发生在最远的地方。
+这就是"效应系统"（Effect System）的核心思想，借自函数式编程：
+把 I/O 从计算里剥离成**值**。程序产出的是一批"请求"（纯数据），
+执行权完全在框架手里 —— 于是框架才有资格在执行前后插桩：
+准入（Gate）、校验（Check）、包裹（Wrap）、归类（Classify）、记账（dry_run）、
+幂等去重、审批拦截。如果程序自己直接 `open()` / `await model(...)`,
+这些治理全部失效。
 
-```python
-def schema_for_type(annotation, *, name="") -> dict:
-    if annotation in _PRIMITIVES: return {"type": _PRIMITIVES[annotation]}
-    if origin is Literal: return {"enum": list(args)}
-    if dataclasses.is_dataclass(annotation): …递归展开字段…
-    if annotation is Any:
-        raise ConfigError(f"参数 {name} 标注为 Any，无法推导 schema；请给出具体类型")
-    raise ConfigError(f"参数 {name} 的类型不受支持：{annotation!r}")
-```
+### 4.2 内置效应类型（`EffectRuntime.handlers` 注册表）
 
-**宁可在装配期报错，不在运行期猜类型**——这是整份代码库里最值得学的封装
-态度。配合 `_docstring_parts()` 拆 docstring（首段=工具描述，`Args:` 段=
-逐参数说明），`@tool` 装饰器就能从"带类型标注的普通函数"零成本生成
-ToolSpec。`ToolRegistry` 负责 add/get/schemas 的集中管理。
+| kind | 语义 | handler 做什么 |
+|---|---|---|
+| `model` | 调模型 | 有 `state.data["script"]` 时按游标回放脚本（测试）；否则调注入的 `model.complete()` |
+| `tool` | 调工具 | 按 `args["name"]` 查工具表（注入的 registry 或 `state.data["tools"]`）执行 |
+| `skill` | 技能渐进披露 | `part=catalog/body/resource` 三段：目录常驻，正文与资源按需 |
+| `ask` | 人工审批 | 返回审批结果（可接入 ApprovalChannel） |
+| `wait` | 交给外部 | 从 `state.data["external_queue"]` 异步取消息，控制权交给外部系统 |
+| `compute` | 纯计算 | concat/upper/sum/join 等演示算子 |
+| `child` | 子运行 | 用新 State（深拷贝 data）递归跑 `interpret()`，预算由父护栏统一管 |
 
-## E2. Actor（决策 + 执行）
+### 4.3 扩展点：新增 kind 不改内核
 
-**【签名】** `contracts/protocols/governance.py`：
-
-```python
-@runtime_checkable
-class Actor(Protocol):
-    """插点 ④ 决策 + ⑥ 执行。只做执行，不做评估（SPEC M3.1）。"""
-    async def propose(self, state, scope) -> Any: ...    # 产出 Step | Done
-    async def step(self, step, state, scope) -> "ActionResult": ...
-```
-
-**【最小实现】** `parts/actor_v2.py` 的 `LlmActor.propose`，演示了"部件怎么
-在不知道链存在的情况下被治理"：
-
-```python
-frame = await scope.framer.frame(state, budget=scope.budget)   # 取景：选哪些内容
-pack = await scope.encoder.encode(frame)                       # 编码：Frame → 载荷
-request = ModelRequest(state=state, messages=…, tools=…, budget=…, frame=frame)
-model_call = getattr(scope, "model_call", None)                # ← 关键
-if model_call is not None:
-    reply = (await model_call(request)).reply                  # 经链调用（护栏/记账/重试全在里面）
-else:
-    reply = await self.model.complete(pack.messages, schemas)  # 直连（仅测试兜底）
-```
-
-封装要点：**Actor 不 import kernel、不知道层存在，它只调 `scope.model_call`**
-——链是内核注入 scope 的能力。这是"部件与链解耦"的标准手法。
-职责边界同样值得抄：propose 只解析 tool_call 产出 Step（一轮只取第一个，
-不支持并行工具——ADR 12 明说）；step 失败**不重试不评估**，包装成
-`ok=False` 的 ActionResult 回灌模型，由下一轮修正——评估是 Reflector 的事。
-
-## E3. Model（模型后端）
-
-**【签名】** `contracts/protocols/model.py`：
-
-```python
-@runtime_checkable
-class Model(Protocol):
-    """一次补全 + 一次流式补全。usage 必须归一化成 {input, output, total}。"""
-    async def complete(self, messages, tools=None, *, response_format) -> "ModelReply": ...
-    def stream(self, messages, tools=None) -> AsyncIterator["ModelDelta"]: ...
-```
-
-协议只有两个方法，但文档把 **usage 归一化**写成义务——各家 SDK 的 token
-统计五花八门，归一化责任压给适配器（`adapters/openai.py`），内核只认
-`{input, output, total}`。封装手法：**格式噪音挡在协议边界外**。
-
-## E4. Framer / Encoder（数据视图两段分离）
-
-**【签名】** `contracts/protocols/framing.py`：
-
-```python
-@runtime_checkable
-class Framer(Protocol):
-    """取景：选哪些、怎么排、超预算丢谁。不拼字符串、不决定格式。"""
-    kind: str
-    async def frame(self, state, *, budget) -> "Frame": ...
-
-@runtime_checkable
-class Encoder(Protocol):
-    """编码：Frame → 载荷。不决定留哪条。"""
-    fmt: str
-    async def encode(self, frame) -> Any: ...
-```
-
-这是"一个职责拆成两个部件"的教科书案例，两个 Protocol 文档各有一句
-"不做对方的事"：Framer 不拼字符串（决定**留什么**），Encoder 不决定留哪条
-（决定**长什么样**）。上下文策略 = 任选 Framer × 任选 Encoder，2×3 组合
-零新代码。v1 的 `Context.assemble(state, budget)` 把两件事捏在一起，
-v2 拆开——拆的动机写在协议注释里（"v1 形状保留兼容；v2 由 Framer+Encoder
-取代"）。
+`EffectRuntime.__post_init__` 先装内置 handler，再 `update(extra_handlers)`。
+**内核里没有 `if kind == ...`** —— 新效应类型 = 注册一个 `async fn(effect, state) -> dict`。
 
 ---
 
-# F. 组装部件
+## 5. 内核：`kernel/`（教程重点）
 
-## F1. RunScope（能力作用域）
+### 5.1 `interpret.py` —— 全框架唯一的循环
 
-**【实现】** `kernel/scope.py`：
+源码头部的伪代码就是全部真相：
+
+```python
+program = 初始程序
+while True:
+    d = await program.transition(state)      # 架构在这里，框架不问
+    if d is Halt: return Outcome
+    results = await runner.execute(d.effects, state)   # 批量 → 四段链
+    commit(state, d.patch, results)          # 唯一提交点
+    emit(state); checkpoint(state, program)  # 事件 + 检查点
+    program = d.program or program           # 自=循环 / 历史=回溯 / 新组合=改图
+```
+
+**设计意义**：架构的"全部自由度"被压缩到 `transition()` 的返回值里，
+内核的"全部职责"被压缩到这五行循环里。这意味着：
+
+- 内核里没有 `if kind == ...`、没有对任何具体范式的偏袒；
+- 换架构、加效应类型，内核一行不改（这是验收判据："框架作者没想过的架构，
+  框架 diff = 0"）。
+
+#### 四个内核级对象
+
+- **`Limits`**（全局终止护栏）：`max_transitions / max_calls / max_tokens /
+  wall_seconds`。设计动机：新程序可以无限返回自己或发空效应空转 —— 控制流
+  交给了用户，"必须能停下来"就成了框架唯一的硬责任。护栏在每轮循环开头检查，
+  超限返回 `Halt(..., "degraded")`。
+- **`Outcome`**：一次运行的产物：`answer / status / transitions / usage /
+  checkpoints / trace / state / extra`。
+- **`Runtime`**：解释器本体 = 一个循环 + 一个效应运行时（`EffectRunner`）。
+  runner 可整体替换：默认走 v3 效应系统；旧路径注入 `CallbackRunner`
+  把效应喂给既有 `kernel.stage.run_stages` —— 内核一行不改。
+- **`_commit`（唯一提交点）**：框架里**唯一**写 State 的地方。它做的事：
+  1. 把每个结果按 `effect.key` 写入 `state.results`，`output` 同步到
+     `data["last_output"]`；
+  2. 计量入账（`_usage`，缺省 calls=1）；
+  3. `_messages` 追加进对话；
+  4. 本批结果整体放 `results["__batch__"]`；
+  5. 应用 `decision.patch`；
+  6. `rev += 1`（版本号推进）。
+
+#### 循环里的两次"明确降级"
+
+- `restore is not None` → 先 `state.restore(快照)`（journal/usage 不回滚）再执行效应；
+- 检查点序列化时 `to_spec()` 抛 `NotSerializable` → 检查点里写 `"<opaque>"`，
+  不假装支持时间旅行。
+
+#### 观测语义
+
+所有 `emit()` 吞掉观察侧异常 —— **观测失败不得影响运行**（SPEC M10.1）。
+事件插点：`run.start / transition / commit / checkpoint / effect / run.end`。
+
+### 5.2 `effects.py` —— 效应系统（四段链的家）
+
+#### 批量并发
+
+```python
+async def execute(self, effects, state):
+    indexed = [replace(e, index=i) for i, e in enumerate(effects)]
+    return list(await asyncio.gather(*(self._stages(e, state) for e in indexed)))
+```
+
+一批效应并发执行 —— **并行不需要框架算子，effects 里多放几个就是并行**。
+0 个效应 = 纯决策步，不落盘不记账（程序可以只做决策不发效应）。
+
+#### 四段链：`Gate → Check → Wrap → Classify`
+
+每个效应独立走一遍（`_stages`）。**为什么是四段而不是一条洋葱中间件链？**
+因为四段的**失败语义不同**（SPEC M2.2），不能合并：
+
+| 段 | 语义 | 失败行为 |
+|---|---|---|
+| ① Gate | 动作准入（护栏/审批） | **返回判定** `allow/deny/ask`，不抛异常，可短路 |
+| ② Check | 参数校验与转换（Pipe） | 抛异常 → 统一走 Classify |
+| ③ Wrap | 洋葱包裹执行（Middleware，外层在最外） | 异常原样穿透 → Classify |
+| ④ Classify | 异常 → `Failure` 的**唯一映射点** | 未知异常 fail-closed（`FAILED`） |
+
+Gate 返回 `deny` → 结果 `status=refused`；`ask` → `needs_approval`。
+Check/Wrap 的异常不会炸掉整批 —— 被 Classify 归类成结构化失败
+（`{"ok": False, "status": ..., "reason": ...}`），解释器照常提交。
+**失败也是数据**，由程序在下一轮决定怎么处理（重试/回溯/放弃）。
+
+#### 三件定死的事
+
+1. **幂等**：`effect.idem_key` 命中 `runtime.seen` 直接回放缓存结果，
+   `_usage = {calls: 0, tokens: 0}`（不重复计量）。设计意义：重试/回溯后
+   重复发同一效应，不会重复扣款、重复发邮件。
+2. **dry_run**：`record_only=True` 时四段链**照走**（门禁、校验、归类全部真实），
+   只有终端替换成记账：`{"ok": True, "output": "[dry-run:kind]"}`。
+   上线前可以完整"彩排"一次将要发生的全部 I/O。
+3. **kind 可扩展**：见 §4.3。
+
+#### Hook 落点
+
+每条效应结束后 `_fire_hooks` 触发 `effect.<kind>` 插点的 Hook（只读，
+返回值被忽略，hook 报错只发 `hook.error` 事件）。这是 v3 首次给 v2 的
+Hook 协议接上真正的执行落点。
+
+#### `EffectRunner` 协议
+
+`Runtime` 只认识 `execute(effects, state) -> list[result]` 这一个接口。
+换掉它就能把效应喂给任何执行后端（旧路径的 `CallbackRunner` 就是范例）。
+
+### 5.3 `stage.py` —— 四段链的 v1 遗产（零改动复用）
+
+v2 时代的 `run_stages(step, state, terminal=…)`，四段顺序"不可调、不可合并、
+不可省略"。v3 效应系统没有重写它，而是把 `Effect` 薄适配成 `Step`
+（`to_step()`：按 `_KIND_TO_STEP` 映射 kind），让旧四段链直接被新路径喂入。
+这是"复用治理资产"的典型手法：**适配，而不是重写**。
+
+`DefaultClassify` 是异常 → 失败分类的默认映射表，值得记住：
+`CancelledError→CANCELLED`、`ApprovalRequired→NEEDS_APPROVAL`、
+`GuardDenied/PolicyError→REFUSED`、`ValidationError→REFUSED`、
+`TransientError→DEGRADED(retryable)`、`BudgetExceeded→DEGRADED`、
+未知异常→`FAILED`（**fail-closed**）。
+
+### 5.4 `scope.py` —— `RunScope` 能力作用域
 
 ```python
 @dataclass(frozen=True)
 class RunScope:
-    namespace: Namespace          # 谁在跑（tenant/user/session/agent）
-    budget: Any
-    model / fs / sandbox / artifacts / secrets / memory / …   # 能力引用，缺省 None
+    namespace: Namespace    # 谁（agent/session）在跑
+    budget: Any             # 预算
+    model / fs / sandbox / secrets / memory / guardrails / events …  # 能力引用
     depth: int = 0
-    max_depth: int = 2
-    child_slots: Any = None       # 子 agent 并发槽位
+    max_depth: int = 2      # 子 agent 深度上限
 
-    def child(self, name, *, budget_fraction=0.3) -> "RunScope":
-        if self.depth + 1 > self.max_depth:
-            raise ConfigError(f"子 agent 深度超过上限 …")
-        child_budget = self.budget.split(budget_fraction) if self.budget …
-        return replace(self, namespace=replace(self.namespace, agent=name),
-                       budget=child_budget, depth=self.depth + 1)
+    def child(self, name, *, budget_fraction=0.3) -> "RunScope": ...
 ```
 
-三个封装决策（都有事故出处）：
-1. **frozen 值对象**：能力集合不可变，派生用 `replace()`——作用域不会被
-   运行时偷偷改权柄；
-2. **缺省 None、用时明确报错**：新字段必须带默认值（契约只增不改纪律），
-   但"缺省为 None 时策略会明确报错"（字段注释原话）——降级可以，假装可以不行；
-3. **child_slots 挂在 scope 不挂层**：源码注释记了教训——"层是值、会被复制，
-   挂在层上会导致每层各造一个信号量，总量失控（SPEC M13.7）"。
-   **有并发语义的资源必须挂在单例作用域上。**
+设计要点：
 
-## F2. Harness（能力容器）
+- **作用域只持有不可变的能力引用**，可变状态只有 `State`。程序能拿到什么能力
+  （能不能访问文件系统、密钥、子 agent）由装配期注入的作用域决定 ——
+  这是"最小权限"的落点。
+- **`child()` 派生子作用域**：新命名空间、预算 `split(0.3)` 切分、深度 +1
+  （超限抛 `ConfigError`）。资源"单一所有者、单向继承"：子作用域的能力
+  只能是父作用域的子集。
+- `child_slots`（并发槽位）挂在 scope 而不是层上：层是值、会被复制，
+  挂在层上会导致"每层各造一个信号量"，总量失控（SPEC M13.7 的教训）。
 
-**【定位】** `assembly/harness.py` 头注释："模型、工具、存储、后端。
-**不持有任何策略。**" 能力归 Harness，策略归程序与层——这句话就是容器和
-策略的分界线。核心接线方法是 `new_runtime()`：
+### 5.5 `chain.py` / `loop.py` / `legacy.py`
 
-```python
-return Runtime(
-    layers=tuple(layers),
-    limits=limits or Limits(max_transitions=self.max_transitions,
-                            max_calls=self.budget.calls,      # ← Budget 映射进 Limits
-                            max_tokens=self.budget.tokens),
-    record_only=record_only,
-    extra_handlers=extra_handlers,
-    emit=emit,                # 事件出口：scope.events 扇出，异常吞掉
-    model=self.model,
-    guard=self.guard,
-    checks=tuple(self.pipes),     # Pipe 列表 → Check 段
-    classify=self.filter,         # Filter → Classify 段
-    hooks=tuple(hooks),
-)
-```
-
-读这段代码就能看懂全部部件的汇合点：**容器持有的每一类能力，对应内核
-Runtime 的一个构造参数**。封装手法：容器只做"搬运工"，不做任何策略判断；
-流式出口 `astream()` 也只是"多挂一个队列 sink"，不是另一条执行路径。
-
-## F3. Registry（注册表）
-
-**【实现】** `assembly/registry.py` 的 `PROGRAMS` + `register_program(name, factory)`。
-配套手法见 `fp/frontends.py` 末尾的**自注册**：
-
-```python
-def _register_frontends() -> None:
-    for name, cls in {"leaf": Leaf, "graph": Graph, …}.items():
-        if name not in PROGRAMS:
-            register_program(name, _program_factory(name, cls))
-_register_frontends()     # import 即注册
-```
-
-封装决策：前端库**自己**注册，装配层不反向 import fp——既保持依赖单向，
-又实现"新增一种形态只需一行"。`program_from_spec()` 按名字查工厂编译
-JSON 声明，**无白名单**（注册即用）。这和 EffectRuntime 的
-`handlers.update(extra_handlers)` 是同一手法：**注册代替 if 分支**。
+- `chain.py`：插点拓扑排序，POINTS 扩展到 8 个 —— 决定层/hook 在哪些插点、
+  以什么顺序生效。
+- `loop.py` / `legacy.py`：v2 组合子线的**兼容壳**，转发到新内核。名字与签名
+  保留，真正的循环已经只剩 `interpret.py` 一个 —— 这就是"解释器唯一"的
+  机械检查（`tests/test_compat.py` 里有对应断言）。
 
 ---
 
-# G. 部件速查表
+## 6. `fp/frontends.py` —— 十种内置范式（可删的前端库）
 
-| 想做的事 | 该封装的部件 | Protocol 位置 | 最小实现模板 |
+**这是最容易误解的部分**：这十种类不是框架，它们与你自写的架构**同层同接口**
+（都只是实现了 `transition()` 的对象），内核不认识它们。删掉整个文件，
+框架照样能跑任意架构。它们的价值是"参考答案库"—— 每种主流 Agent 架构
+如何用 `Decision` 表达，这里各给了一份最小实现。
+
+### 6.1 控制流 → 契约的映射表（本框架最重要的一张表）
+
+| 传统算子 | 在 Harness 里等于 | 源码例证 |
+|---|---|---|
+| `seq`（顺序） | `program` 换成下一个游标 | PlanExecute：`replace(self, cursor+1)` |
+| `branch`（分支） | `program` 换成某个 arm | Router：`program=arm` |
+| `loop`（循环） | `program` 返回自己 | React：`program=self` |
+| `parallel`（并行） | `effects` 一批多个 | minimal 例子的 fan-out 2 |
+| `nest`（嵌套） | `Effect(kind="child")` | Supervisor：fan-out child |
+| `graph`（图） | `transition` 读图数据算下一批节点 | Graph：边表 + `done` 集合 |
+| `backtrack`（回溯） | `program` 换回历史 + `restore` 快照 | unknown_architectures 例 |
+
+### 6.2 十种范式速览
+
+| # | 范式 | 一句话核心 | 关键机制 |
 |---|---|---|---|
-| 拦动作（权限/审批/预算闸门） | Guard | contracts/protocols/guards.py | FunctionGuard 包一个 if |
-| 拦内容（注入检测/敏感词） | Guardrail / GuardrailStream | 同上 | parts/guardrail/ |
-| 校验转换参数 | Pipe | contracts/protocols/runtime.py | transform + ValidationError |
-| 重试/超时/审计/记账/上下文 | Layer（工厂函数） | parts/middleware/base.py | budget_layer 模板 |
-| 只看不改（指标/日志） | Hook | 同上 | point 属性 + async __call__ |
-| 异常→结局映射 | Filter | 同上 | 抄 DefaultClassify |
-| 跨会话长期记忆 | Memory / MemoryStore / MemoryPolicy | contracts/protocols/stores.py | recall + write（策略另拆） |
-| 断点续跑/检查点 | Durability / CheckpointStore | 同上 | SQLiteDurability 模板 |
-| 副作用去重 | Idempotency / Effect.idem_key | 同上 | begin/commit 两段式 |
-| 新工具 | Tool（或 @tool 装饰器） | contracts/protocols/tools.py | 带类型标注的函数即可 |
-| 换模型 | Model | contracts/protocols/model.py | complete + usage 归一化 |
-| 换上下文策略 | Framer × Encoder | contracts/protocols/framing.py | 各实现一个纯函数 |
-| 自定义执行体 | Actor | contracts/protocols/governance.py | propose + step，经 scope.model_call |
-| 事件落盘 | Tracer | 同上 | emit 一个方法；JsonlTracer 30 行 |
-| 出口加工 | Delivery | 同上 | finish(state, status) -> RunResult |
-| 新架构/新编排 | Program（transition） | contracts/protocols/runtime.py | 裸函数 + FnProgram 就行 |
-| 新效应类型 | handler 注册 | kernel/effects.py | extra_handlers={"kind": fn} |
+| ① | ToolUse | 发一批工具效应然后收结果 | `program=replace(self, fired=True)` |
+| ② | ReAct | 想→动→想→…直到模型不给 tool_calls | `program=self` 循环 |
+| ③ | PlanExecute | 先规划拿 steps，再逐个执行 | `phase` 状态机 + 游标 |
+| ④ | Reflection | 起草→批评→不过关就重写 | phase 轮换 + max_rounds |
+| ⑤ | Router | 模型分类，选一个 arm | `program=arms[name]` |
+| ⑥ | RouterSkill | 分流 + 技能按需加载正文 | `Effect("skill", part="body")` |
+| ⑦ | Supervisor | 拆任务 → 一批 child 并行 → join | 多个 `Effect("child")` |
+| ⑧ | Handoff | 角色间移交控制权 | `program=roles[target]` + hops 上限 |
+| ⑨ | Blackboard | 多 agent 轮流写同一块黑板 | 一批 child × 多轮 |
+| ⑩ | Graph/DAG | 节点+条件边的声明式执行 | `static_check()` 装配期查悬空边/环 |
+
+注意几个精妙处：
+
+- **Graph 的环**：纯 DAG 表达不了环 —— 框架的态度是"环放进节点内部"
+  （节点自己的 transition 可以循环），装配期 `static_check` 直接拒绝带环 DAG。
+- **程序是不可变值**：所有范式都是 `frozen dataclass`，"状态推进"靠
+  `replace(self, …)` 派生新实例。好处：程序本身可以进检查点、可以回溯
+  （回溯 = 换回历史程序实例）。
+- **`make_state()`**：按现网 State 信封构造初始状态的便捷函数。
+
+### 6.3 声明式编译：`GraphSpec` / `program_from_spec`
+
+`JSON Spec → 程序`：工厂查 `assembly.registry.PROGRAMS`（无白名单，
+注册即用），嵌套的 `arms/workers/roles/fallback` 递归编译。
+新增一种前端 = 写一个类 + `register_program("my_kind", factory)` 一行。
 
 ---
 
-# H. 验收你的部件：每件配一个 Fake
+## 7. `assembly/` —— 装配层
 
-封装的最后一环（DEV-SESSION §9 DoD：示例能跑 + 离线单测 + 替换实验 +
-一页文档）。框架自带假件体系（`impl/fakes.py`、`testing.py`）：
-`FakeModel`（按脚本回放回复）、`FakeTool`、`MemoryTracer`、`MemoryDurability`、
-`NullBudget`。写部件时的标准动作：
+### 7.1 `Harness`：能力容器
 
 ```python
-# 1. Protocol 先行：签名进 contracts/protocols/
-# 2. 最小实现：AllowAll/Null 显式存在，不做"没有=放行"
-# 3. Fake：MemoryTracer 风格的三行假件，让测试零网络
-# 4. 替换实验：真实现 vs Fake 跑同一用例，结果一致才算封装成功
-#    —— "换掉一个组件只消失一件事"是封装正确的唯一判据
+Harness(model=…, tools=ToolRegistry, budget=Budget, guard=…,
+        pipes=…, guardrails=…, system="system prompt", max_depth=2, …)
 ```
 
-**替换实验**是这套方法论的核心验收：把 JsonlTracer 换成 MemoryTracer、
-把真模型换成 FakeModel，运行结果应当完全一致（除观测产物外）。
-做不到，说明有部件偷偷越界了。
+**"模型、工具、存储、后端。不持有任何策略。"** —— 能力（可以做什么）
+归 Harness，策略（什么时候做、按什么规则）归程序与层。
+
+核心方法（v3 入口）：
+
+- `new_runtime(state, …)`：装配期注入能力 → 造 `Runtime`（唯一解释器）。
+  预算从 `Budget` 映射进 `Limits`，护栏、检查管道、分类器、事件出口在这里接上。
+- `harness.interpret(program, goal=…)`：**任意架构**的唯一解释器入口。
+  与旧 `Harness.run` 的区别：不假设 ReAct 循环，程序自己决定一切。
+- `dry_run_program(...)`：`record_only=True` 的完整彩排，返回
+  `(结果, 效应清单)`。
+- `astream(program, goal)`：流式出口 —— **共用同一条内核**，只是多挂一个
+  队列 sink（`_QueueSink`，溢出丢最旧并计数）。流式不是另一条执行路径，
+  是同一事件的另一个消费者。
+- `run()` / `scope_for()` / `with_auto_layers()`：v2 兼容入口，底层已转发到
+  `interpret`。
+
+### 7.2 `registry.py`：`PROGRAMS` 注册表
+
+`register_program(name, factory)` / `resolve`。前端库自注册进去，
+`program_from_spec` 按名字查工厂。**注册代替白名单**：新形态零改动接入。
+
+其他文件：`config.py`（HarnessConfig，护栏配置来源）、`build.py` /
+`presets.py` / `fpresets.py`（预设装配）、`agent.py`（v2 Agent 兼容壳）。
+
+---
+
+## 8. `parts/` —— 组件库（v1/v2 资产，v3 复用）
+
+按"四段链角色"归类理解，不要平铺记忆：
+
+| 角色 | 在四段链的位置 | 代表部件 |
+|---|---|---|
+| Gate | ①准入 | `guard.py`（GuardDecision：allow/deny/ask）、`policy/`、`guardrail/`（ detectors/layer/streaming） |
+| Check | ②校验转换 | `middleware/`、`capability.py`（能力校验） |
+| Wrap | ③洋葱包裹 | `layers.py`、`middleware/base.py`（重试/超时等 builtin） |
+| Classify | ④归类 | `resilience.py`、Filter |
+| 横切观测 | Hook/事件 | `tracer.py`、`durability.py`（检查点） |
+| 能力供给 | 注入 Scope | `tools.py`（ToolRegistry）、`memory.py`、`retrieval.py`、`knowledge.py`、`skills.py` |
+| 执行终端 | handler | `actor.py`/`actor_v2.py`（LlmActor）、`framing/`（ModelFramer/ChatEncoder）、`body/`（react/planner/workflow 等旧前端） |
+| 子代理 | child 效应 | `subagent.py`、`dispatch.py`、`topology.py` |
+| 其他 | — | `budget.py`（Budget.split）、`context.py`、`delivery.py`、`reflector.py` |
+
+初学建议：先只记住四个链上角色 + ToolRegistry + Budget，其余按需查。
+
+---
+
+## 9. `impl/` 与 `adapters/`
+
+- **`impl/`**：contracts 协议的可替换实现。`stores/memory.py`（内存态存储）、
+  `backends/`（fs 文件后端）、`fakes.py`（测试假件）。协议在 contracts、
+  实现在 impl —— 存储换 Redis/Postgres 时不碰内核。
+- **`adapters/openai.py`**：外部模型适配。核心零第三方依赖是硬纪律，
+  所有 SDK 依赖被隔离在这里。
+
+---
+
+## 10. 一条 Effect 的完整旅程（串起所有部件）
+
+以 ReAct 一轮里的 `Effect("tool", args={"name": "lookup", ...}, key="tool")` 为例：
+
+```text
+React.transition(state)
+  │  读 state.results["__batch__"]（上一批结果）
+  │  决定：调工具 lookup
+  ▼
+Decision(effects=(Effect("tool",…),), program=replace(self, step+1))
+  │  程序只读 State，产出的是"请求"，不是执行
+  ▼
+Runtime.interpret 循环体
+  │  ① 护栏检查（transitions/calls/tokens/墙钟）
+  │  ② （若有 restore）state.restore(快照) —— journal/usage 不回滚
+  ▼
+EffectRuntime.execute(effects, state)        [asyncio.gather 并发]
+  │  每个效应走四段链：
+  │  Gate   → layer.gate / guard.check → deny 拒绝 / ask 转审批
+  │  Check  → layer.check / pipes.transform（参数修正）
+  │  Wrap   → layers 洋葱包裹（重试/超时/日志…）
+  │  Terminal → handlers["tool"] → tool_registry 执行 → 返回 dict
+  │  （idem_key 命中 → 直接回放，不重复执行不重复计量）
+  │  Classify → 任何异常归类成结构化 Failure，不炸批
+  │  Hook   → effect.tool 插点；emit("effect", …)
+  ▼
+Runtime._commit（唯一提交点）
+  │  results["tool"]=结果 → last_output 更新 → 计量入账
+  │  results["__batch__"]=本批 → data.update(patch) → rev+=1
+  ▼
+emit("commit") → checkpoint(rev, program.to_spec() 或 "<opaque>", state.snapshot)
+  ▼
+program = decision.program   # replace 后的新 React（step+1）
+  ▼
+下一轮 transition：读到 __batch__ 里 lookup 的结果 → 生成回答 → Halt
+  ▼
+Outcome(answer, status, transitions, usage, trace, checkpoints)
+```
+
+---
+
+## 11. 设计不变量清单（code review 时的对照表）
+
+1. **状态单一所有者**：程序只读 State；效应只返回结果；写只发生在
+   `Runtime._commit`。
+2. **解释器唯一**：全框架唯一的 `while` 循环在 `kernel/interpret.py`
+   （有机械检查测试）。
+3. **I/O 必须表达成 Effect**：绕过效应系统直接 I/O = 绕过全部治理。
+4. **四段链顺序不可调、不可合并、不可省略**（失败语义不同）。
+5. **观测失败不得影响运行**：emit/hook/layer.observe 全部吞异常。
+6. **全局终止护栏**：控制流可以任意，但任何程序都必须能停下来。
+7. **回滚粒度**：业务状态可回滚；journal/usage 是既成事实不回滚。
+8. **治理分级**：程序可选实现 describe/to_spec/static_check，
+   不透明程序明确降级，不假装支持时间旅行。
+9. **fail-closed**：未知异常归类为 FAILED。
+10. **契约只增不改**：新增字段必须带默认值，旧调用方零破坏。
+11. **注册代替分支**：新增效应类型/前端形态，注册 handler/工厂，内核零改动。
+12. **核心零第三方依赖**：SDK 依赖只允许出现在 adapters/。
+
+---
+
+## 12. 上手路径（建议的练习顺序）
+
+```bash
+# 环境准备（PowerShell）
+$env:PYTHONPATH="$PWD\code\harness\src"
+$env:PYTHONIOENCODING='utf-8'
+
+python code/harness/examples/interpret_minimal.py       # 1. 最小解释器
+python -m unittest discover -s code/harness/tests -v    # 2. 304 个测试全绿
+cd code/harness && PYTHONPATH=. python -m proposals.demo  # 3. 独立样张 14 案例
+```
+
+1. **读 `examples/interpret_minimal.py`**（60 行）：裸函数 + 一批并行效应 +
+   FnProgram 收尾。亲手把 `effects` 改成 0 个（纯决策步）、把 `program` 改成
+   `None`（死循环，观察护栏兜底成 degraded）。
+2. **读 `fp/frontends.py` 的 React**（30 行）：理解"循环 = program=self"。
+3. **写第 11 种架构**：实现 `transition()` 即可。建议从"双 agent 辩论"开始：
+   两个 child 效应交替，一方认同对方即 Halt。
+4. **注册自定义效应**：`extra_handlers={"http": my_fetch}`，体会内核零改动。
+5. **写一个 EffectLayer**：gate 拦截带敏感词的效应（deny）、
+   observe 打印每条效应结果，装配进 `Runtime(layers=…)`。
+6. **回溯实验**：程序里保存 `state.snapshot()` 到 `state.data`，某轮决策带
+   `restore=` 回去重走，观察 rev 与 journal 的变化。
+7. **读验收测试**：`tests/test_interpret.py`（核心验收）、
+   `tests/test_unknown_architectures.py`（四种没想过的架构，框架 diff=0）、
+   `examples/unknown_architectures.py`。
+
+---
+
+## 附：常见问题
+
+**Q：`Decision` 和 `Transition` 到底用哪个？**
+同一样东西。`contracts.decision.Decision` = `Transition` 别名；顶层的
+`harness.Decision` 是审批类型，别搞混。
+
+**Q：我的架构需要"循环上限"怎么办？**
+两层：程序自己的业务上限（如 React.max_steps）+ 框架的 `Limits` 兜底
+（防失控）。前者是架构语义，后者是安全网，职责不同。
+
+**Q：怎么接入真模型？**
+两条路：给 `Harness(model=…)` / `Runtime(model=…)` 注入实现 `complete()`
+的适配器（见 `adapters/openai.py`）；或测试时用 `state.data["script"]`
+脚本回放（内置 handler 原生支持，304 个测试就是这么跑的，零网络）。
+
+**Q：并行失败一个会不会全批失败？**
+不会。每个效应独立走四段链，异常被 Classify 归类成 `{"ok": False, …}`，
+整批照常提交，由程序决定下一步。
