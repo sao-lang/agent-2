@@ -3,7 +3,7 @@
 > 面向对象：想真正理解这个框架怎么"想"的人。读完你应该能回答三个问题：
 > 框架守什么、程序管什么、一条 Effect 从产生到落盘走了哪些路。
 >
-> 配套阅读：`README.md`（一页纸总览）、`docs/harness/PROPOSAL-通用解释器与效应系统.md`（设计规格）。
+> 配套阅读：`README.md`（一页纸总览）、`docs/harness/archive/PROPOSAL-通用解释器与效应系统.md`（设计规格，历史资料）、`docs/harness/CHANGELOG.md`（演进记录）。
 
 ---
 
@@ -51,9 +51,9 @@ src/harness/
 ├── contracts/    ⑤ 底座：类型、协议、事件、错误（零依赖，人人可用）
 ├── kernel/       ① 内核：解释器 + 效应系统 + 四段链 + 作用域
 ├── fp/           ④ 前端库：十种内置范式（可整体删除）
-├── assembly/     ③ 装配层：Harness 容器、注册表、兼容壳
+├── assembly/     ③ 装配层：Harness 容器、HarnessConfig、build_harness、注册表、预设
 ├── parts/        ② 组件库：Layer/Middleware/Hook/Guard/Pipe/Budget/工具/护栏…
-├── impl/         存储与后端的可替换实现（memory store、fs backend、fakes）
+├── impl/         存储与后端的可替换实现（内存态 + 本地态；无测试替身）
 └── adapters/     外部模型适配器（openai）
 ```
 
@@ -223,7 +223,7 @@ Effect(
 
 | kind | 语义 | handler 做什么 |
 |---|---|---|
-| `model` | 调模型 | 有 `state.data["script"]` 时按游标回放脚本（测试）；否则调注入的 `model.complete()` |
+| `model` | 调模型 | 调注入的 `model.complete()`；离线剧本回放用 `extra_handlers={"model": script_model_handler}` 覆盖（`tests/support.py`） |
 | `tool` | 调工具 | 按 `args["name"]` 查工具表（注入的 registry 或 `state.data["tools"]`）执行 |
 | `skill` | 技能渐进披露 | `part=catalog/body/resource` 三段：目录常驻，正文与资源按需 |
 | `ask` | 人工审批 | 返回审批结果（可接入 ApprovalChannel） |
@@ -271,8 +271,8 @@ while True:
 - **`Outcome`**：一次运行的产物：`answer / status / transitions / usage /
   checkpoints / trace / state / extra`。
 - **`Runtime`**：解释器本体 = 一个循环 + 一个效应运行时（`EffectRunner`）。
-  runner 可整体替换：默认走 v3 效应系统；旧路径注入 `CallbackRunner`
-  把效应喂给既有 `kernel.stage.run_stages` —— 内核一行不改。
+  runner 可整体替换：默认走效应系统；body 型程序（`body.next_step`）注入
+  `CallbackRunner` 把效应喂给既有 `kernel.stage.run_stages` —— 内核一行不改。
 - **`_commit`（唯一提交点）**：框架里**唯一**写 State 的地方。它做的事：
   1. 把每个结果按 `effect.key` 写入 `state.results`，`output` 同步到
      `data["last_output"]`；
@@ -344,12 +344,12 @@ Hook 协议接上真正的执行落点。
 `Runtime` 只认识 `execute(effects, state) -> list[result]` 这一个接口。
 换掉它就能把效应喂给任何执行后端（旧路径的 `CallbackRunner` 就是范例）。
 
-### 5.3 `stage.py` —— 四段链的 v1 遗产（零改动复用）
+### 5.3 `stage.py` —— 四段链的单一实现（两条路径共用）
 
-v2 时代的 `run_stages(step, state, terminal=…)`，四段顺序"不可调、不可合并、
-不可省略"。v3 效应系统没有重写它，而是把 `Effect` 薄适配成 `Step`
-（`to_step()`：按 `_KIND_TO_STEP` 映射 kind），让旧四段链直接被新路径喂入。
-这是"复用治理资产"的典型手法：**适配，而不是重写**。
+`run_stages(step, state, terminal=…)`，四段顺序"不可调、不可合并、
+不可省略"。效应系统没有重写它，而是把 `Effect` 薄适配成 `Step`
+（`to_step()`：按 `_KIND_TO_STEP` 映射 kind），让同一条四段链被两条执行路径
+（body 型程序与效应系统）共用。这是"复用治理资产"的典型手法：**适配，而不是重写**。
 
 `DefaultClassify` 是异常 → 失败分类的默认映射表，值得记住：
 `CancelledError→CANCELLED`、`ApprovalRequired→NEEDS_APPROVAL`、
@@ -382,13 +382,13 @@ class RunScope:
 - `child_slots`（并发槽位）挂在 scope 而不是层上：层是值、会被复制，
   挂在层上会导致"每层各造一个信号量"，总量失控（SPEC M13.7 的教训）。
 
-### 5.5 `chain.py` / `loop.py` / `legacy.py`
+### 5.5 `chain.py` / `loop.py`
 
 - `chain.py`：插点拓扑排序，POINTS 扩展到 8 个 —— 决定层/hook 在哪些插点、
   以什么顺序生效。
-- `loop.py` / `legacy.py`：v2 组合子线的**兼容壳**，转发到新内核。名字与签名
-  保留，真正的循环已经只剩 `interpret.py` 一个 —— 这就是"解释器唯一"的
-  机械检查（`tests/test_compat.py` 里有对应断言）。
+- `loop.py`：**空壳**（兼容期占位，不含任何代码逻辑），保留它只是为了
+  "解释器唯一"的机械检查（`tests/test_compat.py` 断言全仓库除
+  `interpret.py` 外无 `while` 循环）。
 
 ---
 
@@ -466,20 +466,24 @@ Harness(model=…, tools=ToolRegistry, budget=Budget, guard=…,
 - `astream(program, goal)`：流式出口 —— **共用同一条内核**，只是多挂一个
   队列 sink（`_QueueSink`，溢出丢最旧并计数）。流式不是另一条执行路径，
   是同一事件的另一个消费者。
-- `run()` / `scope_for()` / `with_auto_layers()`：v2 兼容入口，底层已转发到
-  `interpret`。
+- `run(program, goal)`：**主入口**——body 型程序（`react()/workflow()/pe()`）
+  经 `Program.transition` 翻译后进入同一解释器；`with_auto_layers()` 把
+  能力派生层并入程序。
+- `resume(program, session_id, decision=None)`：审批续跑（approve/reject/modify）
+  与崩溃恢复（`decision=None` 从 CheckpointStore 重放）——挂起/恢复只有这一条路。
 
 ### 7.2 `registry.py`：`PROGRAMS` 注册表
 
 `register_program(name, factory)` / `resolve`。前端库自注册进去，
 `program_from_spec` 按名字查工厂。**注册代替白名单**：新形态零改动接入。
 
-其他文件：`config.py`（HarnessConfig，护栏配置来源）、`build.py` /
-`presets.py` / `fpresets.py`（预设装配）、`agent.py`（v2 Agent 兼容壳）。
+其他文件：`config.py`（`HarnessConfig`/`build_harness`，装配期校验）、
+`fpresets.py`（五个预设：minimal/react/workflow/pe/production）、
+`registry.py`（模型/存储/后端/程序注册表）、`harness.py`（`Harness` 能力容器）。
 
 ---
 
-## 8. `parts/` —— 组件库（v1/v2 资产，v3 复用）
+## 8. `parts/` —— 组件库
 
 按"四段链角色"归类理解，不要平铺记忆：
 
@@ -489,9 +493,9 @@ Harness(model=…, tools=ToolRegistry, budget=Budget, guard=…,
 | Check | ②校验转换 | `middleware/`、`capability.py`（能力校验） |
 | Wrap | ③洋葱包裹 | `layers.py`、`middleware/base.py`（重试/超时等 builtin） |
 | Classify | ④归类 | `resilience.py`、Filter |
-| 横切观测 | Hook/事件 | `tracer.py`、`durability.py`（检查点） |
+| 横切观测 | Hook/事件 | `sinks.py`（Null/Memory/Jsonl Sink）、`durability.py`（检查点） |
 | 能力供给 | 注入 Scope | `tools.py`（ToolRegistry）、`memory.py`、`retrieval.py`、`knowledge.py`、`skills.py` |
-| 执行终端 | handler | `actor.py`/`actor_v2.py`（LlmActor）、`framing/`（ModelFramer/ChatEncoder）、`body/`（react/planner/workflow 等旧前端） |
+| 执行终端 | handler | `actor.py`（`LlmActor`）、`policy/`（react/workflow/pe 策略 + planners）、`framing/`（ModelFramer/ChatEncoder） |
 | 子代理 | child 效应 | `subagent.py`、`dispatch.py`、`topology.py` |
 | 其他 | — | `budget.py`（Budget.split）、`context.py`、`delivery.py`、`reflector.py` |
 
@@ -502,8 +506,10 @@ Harness(model=…, tools=ToolRegistry, budget=Budget, guard=…,
 ## 9. `impl/` 与 `adapters/`
 
 - **`impl/`**：contracts 协议的可替换实现。`stores/memory.py`（内存态存储）、
-  `backends/`（fs 文件后端）、`fakes.py`（测试假件）。协议在 contracts、
-  实现在 impl —— 存储换 Redis/Postgres 时不碰内核。
+  `backends/`（沙箱/文件/工件/密钥/索引/队列/审批/时钟的内存态与本地态实现）。
+  **测试替身不在框架包里**：`FakeModel`/剧本回放 handler/剧本沙箱/可控时钟
+  在 `tests/support.py`。协议在 contracts、实现在 impl —— 存储换 Redis/Postgres
+  时不碰内核。
 - **`adapters/openai.py`**：外部模型适配。核心零第三方依赖是硬纪律，
   所有 SDK 依赖被隔离在这里。
 
@@ -577,8 +583,9 @@ Outcome(answer, status, transitions, usage, trace, checkpoints)
 $env:PYTHONPATH="$PWD\src"
 $env:PYTHONIOENCODING='utf-8'
 
+python tools/verify_harness.py             # 0. 完成线门禁（快照一致 + 341 测试 + 冒烟）
 python examples/interpret_minimal.py       # 1. 最小解释器
-python -m unittest discover -s tests -v    # 2. 304 个测试全绿
+python -m unittest discover -s tests -v    # 2. 341 个测试全绿
 PYTHONPATH="src;." python -m proposals.demo  # 3. 独立样张 14 案例
 ```
 
@@ -610,9 +617,11 @@ PYTHONPATH="src;." python -m proposals.demo  # 3. 独立样张 14 案例
 （防失控）。前者是架构语义，后者是安全网，职责不同。
 
 **Q：怎么接入真模型？**
-两条路：给 `Harness(model=…)` / `Runtime(model=…)` 注入实现 `complete()`
-的适配器（见 `adapters/openai.py`）；或测试时用 `state.data["script"]`
-脚本回放（内置 handler 原生支持，304 个测试就是这么跑的，零网络）。
+给 `HarnessConfig(model="openai")` / `Harness.of(model=…)` / `Runtime(model=…)`
+注入实现 `complete()` 的适配器（见 `adapters/openai.py`）。离线测试用
+`tests/support.py` 的 `FakeModel`（协议完整、usage 归一化）与
+`script_model_handler`（剧本回放，经 `extra_handlers` 覆盖 model 效应）——
+框架包不携带任何测试替身。
 
 **Q：并行失败一个会不会全批失败？**
 不会。每个效应独立走四段链，异常被 Classify 归类成 `{"ok": False, …}`，

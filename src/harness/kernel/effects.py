@@ -250,23 +250,15 @@ class EffectRuntime:
     async def _model(self, effect: Effect, state: State) -> dict[str, Any]:
         from harness.contracts.types import usage_total
 
-        script = state.data.get("script")
-        if script is not None:
-            cursor = int(state.journal.get("cursor", 0))
-            reply = script[cursor] if cursor < len(script) else {"content": "done"}
-            # journal 是"外部世界的既成事实"，必须即时推进；它不参与回溯。
-            state.journal["cursor"] = cursor + 1
-            usage = {"total": usage_total(reply.get("usage") if isinstance(reply, dict) else None)}
-            return {"ok": True, "output": reply,
-                    "_usage": {"calls": 1, "tokens": usage["total"]}}
-        if self.model is not None:
-            messages = list(effect.args.get("messages", ()))
-            reply = await self._complete(messages)
-            # M02：回包 usage 不再丢弃，交给 _commit 唯一记账点。
-            tokens = usage_total(getattr(reply, "usage", None))
-            return {"ok": True, "output": reply,
-                    "_usage": {"calls": 1, "tokens": tokens}}
-        raise EffectError("model 效应需要 state.data['script'] 或注入 model")
+        if self.model is None:
+            raise EffectError("model 效应需要注入 model"
+                              "（离线剧本回放见 tests/support.py 的 script_model_handler）")
+        messages = list(effect.args.get("messages", ()))
+        reply = await self._complete(messages)
+        # M02：回包 usage 不再丢弃，交给 _commit 唯一记账点。
+        tokens = usage_total(getattr(reply, "usage", None))
+        return {"ok": True, "output": reply,
+                "_usage": {"calls": 1, "tokens": tokens}}
 
     async def _complete(self, messages: list) -> Any:
         """模型调用统一入口（G07）：有 model_call 层就走插点链，否则直调。"""

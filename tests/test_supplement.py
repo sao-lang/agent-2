@@ -42,7 +42,7 @@ from harness.parts.framing.encoders import ChatEncoder
 from harness.parts.framing.framers import ModelFramer, est_tokens
 from harness.parts.structured import structured, validate_json
 from harness.parts.tokens import CharEstimator, TiktokenCounter
-from harness.testing import FakeModel, answer, tool_call
+from support import FakeModel, answer, tool_call
 
 from conformance import IndexBackendConformance, NS_A
 
@@ -426,10 +426,12 @@ class TestB2RegistryWiring(unittest.TestCase):
         except ConfigError as exc:
             self.assertIn("pip install", str(exc))
 
-    def test_fake_slot_still_works(self):
-        model = resolve("model", "fake", MODELS)
-        reply = run_(model.complete([{"role": "user", "content": "hi"}]))
-        self.assertEqual(str(getattr(reply, "content", "")), "fake")
+    def test_fake_slot_is_gone_from_registry(self):
+        """测试替身出包：registry 不再携带 fake 槽位；
+        未知名一律 ConfigError 并列出可用项（不静默）。"""
+        with self.assertRaises(ConfigError):
+            resolve("model", "fake", MODELS)
+        self.assertNotIn("fake", MODELS)
 
     def test_vector_slot_registered(self):
         factory = BACKENDS["index"]["vector"]

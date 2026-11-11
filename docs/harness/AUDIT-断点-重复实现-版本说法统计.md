@@ -62,6 +62,15 @@
 - **顺带修复的两个约定级缺陷**（多 commit 场景暴露）：`MemoryCheckpointStore.get` 对齐 `state.rev == store 版本索引`；`checkpoint_layer` 的 `expect_rev` 改为 `state.rev - 1`（与 interpret 同口径，多 commit 不再乐观并发误报）。
 - **测试迁移（零删减）**：9 个测试文件迁移至统一入口等价行为；examples 8 个脚本全部改写 v3 且端到端可运行。
 
+## 0.4 测试替身出包轮（2026-11-12，判据 1.3 → 1.4）
+
+- **动机**：框架包内不应存在"用于场景测试或实验"的代码（如 `impl/backends/core.py` 的剧本沙箱）。
+- **移出 src/harness**（新建 `tests/support.py` 为唯一住址）：`FakeModel`/`answer`/`tool_call`（原 `impl/fakes.py` + `harness/testing.py` 兼容壳，均删除）、`FakeSandbox`（剧本沙箱）、`FakeClock`（可控时钟）；examples 侧共用 `examples/demo_model.py`。
+- **kernel 剧本通路删除**：`kernel/effects.py` 的 `state.data["script"]` 回放分支移入 `tests/support.py` 的 `script_model_handler`（经 `extra_handlers={"model": ...}` 覆盖内置 model 效应）；journal cursor 语义原样保留，回溯验收断言不受影响。
+- **registry 收紧**：`fake` 三个槽位（model/sandbox/clock）删除；`HarnessConfig.model=None` 为合法装配（不注入模型的程序）；`BackendSpec.sandbox` 默认 `"local"`；`LocalSandbox` 改为**空白名单 = 全拒绝**（fail-closed）；F01/F02 假实现告警随之删除（不再存在假默认）。
+- **锚点**：`fake_model` 改指 `tests/support.py`；判据升版 1.4，锚点 44/44 通过。
+- **门禁终态**：`GATE OK` + `CHECK OK(v1.4)` + 341 tests；全部示例（含剧本驱动的四种未知架构）端到端可运行。
+
 
 ---
 
@@ -478,7 +487,7 @@ python tools/audit_harness.py --json docs/harness/audit-report.json    # 代码/
 | 决定纳入判据 | 显式升 `AUDIT_SPEC_VERSION` → 改脚本正则 / 锚点 / 条目表 → 重新生成快照 → 更新本文 → 跑门禁 |
 | 只修代码、不升判据 | 不动判据；按 `--check` 提示重生成快照一次即可 |
 
-**backlog（2026-11-12 修复轮之后遗留；单版本收敛轮（同日）已升版判据至 1.3，BL-1~BL-5、BL-7 已完成，BL-6 仍遗留）**
+**backlog（2026-11-12 两轮收敛后：判据已升版至 1.4；BL-1~BL-5、BL-7、BL-8 已完成，BL-6 仍遗留）**
 
 | # | 条目 | 状态 | 完成情况 / 剩余动作 |
 |---|---|---|---|
@@ -489,6 +498,7 @@ python tools/audit_harness.py --json docs/harness/audit-report.json    # 代码/
 | BL-5 | 代码内严格代际词清除 | ✅ 已完成 | strict/wide 口径代码 **0 行**（原 88 行/32 文件）；`name="agent_v1"`/`name="legacy"`/`LegacyProgram` 随文件退役；`_run_legacy` 改名 `_run_body` |
 | BL-6 | `SPEC.md` / `TUTORIAL.md` 单版本重写 | ⬜ 遗留 | 文档叙述口径不在代码判据内；重写工作量独立立项（文档代际词仍存在：strict 62 行 / wide 67 行 / 4 文件） |
 | BL-7 | 测试双轨断言改造（`test_replacement.py`、`test_supplement.py` A4/A6 等） | ✅ 已完成 | 随 BL-3 一并完成：`test_core/test_compat/test_governance/test_topology/test_scenarios/test_pe/test_supplement/test_assembly/test_presets` 全部迁至统一入口等价断言（净增 3 测试，零删减零放宽） |
+| BL-8 | 测试替身出包（`FakeModel`/剧本沙箱/可控时钟/kernel 剧本通路不进框架包） | ✅ 已完成 | 新建 `tests/support.py` 唯一住址；registry 删 fake 三槽；`model=None` 合法装配；`LocalSandbox` fail-closed；kernel 剧本回放移入测试支持模块（journal 语义保全）；判据 1.4 |
 
 **backlog（新发现登记处，本轮不处理）**
 

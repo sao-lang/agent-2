@@ -11,7 +11,8 @@ from typing import Literal
 from harness.contracts.errors import ConfigError
 from harness.contracts.status import SideEffect
 from harness.contracts.types import Mount, ToolContext
-from harness.impl.backends import FakeSandbox, MemoryArtifactStore, MemoryFileSystem, MemorySecretBroker
+from harness.impl.backends import MemoryArtifactStore, MemoryFileSystem, MemorySecretBroker
+from support import FakeSandbox
 from harness.parts.capability import (
     fs_tools,
     register_capabilities,

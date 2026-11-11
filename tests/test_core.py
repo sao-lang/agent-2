@@ -17,7 +17,7 @@ from harness import (
 from harness.assembly import HarnessConfig, build_harness
 from harness.fp import Harness, react, workflow
 from harness.parts.tools import tool
-from harness.testing import FakeModel, answer, tool_call
+from support import FakeModel, answer, tool_call
 
 
 @tool
@@ -98,7 +98,7 @@ class TestCore(unittest.TestCase):
         from harness.impl.stores import MemoryCheckpointStore
 
         h = build_harness(HarnessConfig(
-            model="fake", tools=(concat,),
+            tools=(concat,),
             checkpoint_store=MemoryCheckpointStore(),
         ))
         h.model = FakeModel([answer("ok")])

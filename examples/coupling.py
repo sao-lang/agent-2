@@ -14,7 +14,7 @@ import asyncio
 from harness import Budget, Goal, tool
 from harness.assembly import HarnessConfig, build_harness
 from harness.fp import react
-from harness.testing import FakeModel, answer, tool_call
+from demo_model import FakeModel, answer, tool_call
 
 
 async def get_order_data(order_id: str) -> dict:
@@ -58,7 +58,6 @@ async def after_agent() -> str:
         answer("A1001 已签收 3 天、未拆封，可以退。"),
     ])
     h = build_harness(HarnessConfig(
-        model="fake",
         tools=[get_order, check_policy],
         budget=Budget(tokens=20_000, calls=8),
     ))

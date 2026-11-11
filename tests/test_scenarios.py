@@ -10,7 +10,7 @@ from harness.fp import Harness, react
 from harness.parts.layers import memory_recall_layer, retrieval_layer
 from harness.parts.retrieval import AutoRetrieval, NoRetrieval
 from harness.parts.tools import tool
-from harness.testing import FakeModel, answer, tool_call
+from support import FakeModel, answer, tool_call
 
 
 @tool

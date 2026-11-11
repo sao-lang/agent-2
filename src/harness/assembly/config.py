@@ -8,7 +8,6 @@ program —— 不再只保存 `LayerSpec` 声明数据。
 from __future__ import annotations
 
 import inspect
-import warnings
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Sequence
 
@@ -34,7 +33,7 @@ class BackendSpec:
     """八个执行/供应后端各一个槽。"""
 
     fs: Any = "memory"
-    sandbox: Any = "fake"
+    sandbox: Any = "local"
     artifacts: Any = "memory"
     secrets: Any = "env"
     index: Any = "memory"
@@ -47,7 +46,8 @@ class BackendSpec:
 class HarnessConfig:
     """只描述意图，不构造实例。"""
 
-    model: Any = "fake"
+    #: None = 不注入模型（合法：纯计算/工作流程序；model 效应运行期显式报错）。
+    model: Any = None
     tools: tuple[Any, ...] = ()
     stores: StoreSpec = field(default_factory=StoreSpec)
     backends: BackendSpec = field(default_factory=BackendSpec)
@@ -287,18 +287,11 @@ def layers_from_specs(specs: Sequence[Any], **context: Any) -> tuple[Any, ...]:
 
 
 def build_harness(config: HarnessConfig) -> Any:
-    # F01/F02：默认假实现必须在装配期显式可见——不阻止使用（测试与
-    # 离线演示合法），但生产装配不该在不知情的情况下拿到 FakeModel /
-    # FakeSandbox。build_production 预设则直接强制必填（无默认）。
-    if config.model == "fake":
-        warnings.warn(
-            "model='fake' 是默认测试替身（恒答 'fake'）；生产装配请显式指定真实模型",
-            UserWarning, stacklevel=2)
-    if config.backends.sandbox == "fake":
-        warnings.warn(
-            "sandbox='fake' 是默认测试替身；生产装配请显式指定 sandbox='local'",
-            UserWarning, stacklevel=2)
-    """配置 → Harness。所有实例化集中在这里（R4）。"""
+    """配置 → Harness。所有实例化集中在这里（R4）。
+
+    测试替身不进框架包：离线测试请用 tests/support.py 的 FakeModel，
+    经 ``harness.model = ...`` 注入或 ``Harness.of(model=...)`` 直构。
+    """
     from harness.assembly.harness import Harness
     from harness.parts.tools import as_tool
 
@@ -314,7 +307,8 @@ def build_harness(config: HarnessConfig) -> Any:
 
     sinks = tuple(config.sinks) + ((config.sink,) if config.sink is not None else ())
     harness = Harness.of(
-        model=registry.resolve("model", config.model, registry.MODELS),
+        model=(registry.resolve("model", config.model, registry.MODELS)
+               if config.model is not None else None),
         tools=tools,
         budget=config.budget,
         system=config.system,

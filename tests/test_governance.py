@@ -20,7 +20,7 @@ from harness import (
 )
 from harness.fp import Harness, workflow
 from harness.errors import ToolError
-from harness.testing import FakeModel, answer
+from support import FakeModel, answer
 
 
 @tool

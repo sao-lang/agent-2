@@ -103,7 +103,7 @@
       },
       {
         "expect": "present",
-        "file": "src/harness/impl/fakes.py",
+        "file": "tests/support.py",
         "found": true,
         "id": "fake_model",
         "ok": true
@@ -784,10 +784,10 @@
     "total": 44
   },
   "meta": {
-    "audit_spec_version": "1.3",
+    "audit_spec_version": "1.4",
     "deterministic": true,
     "generator": "tools/audit_harness.py",
-    "generator_sha256": "7924dab940e695dd492d6191d24d21c7600a9678324247c9e5a66dd8d21d6bc0",
+    "generator_sha256": "73c461c45eb675150fa8e2bbf198cd21e1c9984bef785503f2a24335d21d3336",
     "no_timestamp_no_randomness": true,
     "regex": {
       "full": "\\b(?:v|V)[123](?:\\.\\d+)?\\b|legacy|Legacy|LEGACY|兼容|SUPPLEMENT|M15|版本|version|Version|VERSION|schema_version|SCHEMA_VERSION|contracts_version|__version__",
@@ -806,7 +806,7 @@
     "not_implemented_error": [
       {
         "file": "src/harness/kernel/effects.py",
-        "line": 386,
+        "line": 378,
         "text": "raise NotImplementedError"
       }
     ],
@@ -833,7 +833,7 @@
       },
       {
         "file": "src/harness/cli.py",
-        "line": 107
+        "line": 110
       },
       {
         "file": "src/harness/contracts/errors.py",
@@ -891,17 +891,17 @@
     "todo_like": []
   },
   "scope": {
-    "code_files": 85,
-    "code_fingerprint_sha256": "3ee04fc489ec47c0f14b209a53f83bc4cd71817da7660435d5f6c019d53f2b40",
+    "code_files": 83,
+    "code_fingerprint_sha256": "b80545ef342c6b49494debfec4b1dc38fa4665bf3558098ac8cd21b2bfcd95ce",
     "doc_files": 4,
     "doc_lines": {
-      "docs/harness/CHANGELOG.md": 89,
+      "docs/harness/CHANGELOG.md": 106,
       "docs/harness/SPEC.md": 2618,
       "docs/harness/TASKLIST-单版本收敛.md": 84,
-      "docs/harness/TUTORIAL.md": 619
+      "docs/harness/TUTORIAL.md": 628
     },
-    "doc_total_lines": 3410,
-    "test_files": 27
+    "doc_total_lines": 3436,
+    "test_files": 28
   },
   "shims": [
     {
@@ -976,14 +976,6 @@
         "docstring_mentions_compat",
         "only_imports_and_all"
       ]
-    },
-    {
-      "file": "src/harness/testing.py",
-      "lines": 5,
-      "reasons": [
-        "docstring_mentions_compat",
-        "only_imports_and_all"
-      ]
     }
   ],
   "versions": {
@@ -1011,8 +1003,8 @@
     ],
     "full": {
       "code": {
-        "files": 35,
-        "lines": 73,
+        "files": 34,
+        "lines": 72,
         "per_file": {
           "src/harness/__init__.py": 4,
           "src/harness/adapters/openai.py": 2,
@@ -1047,18 +1039,17 @@
           "src/harness/parts/structured.py": 1,
           "src/harness/parts/tokens.py": 1,
           "src/harness/result.py": 1,
-          "src/harness/state.py": 1,
-          "src/harness/testing.py": 1
+          "src/harness/state.py": 1
         }
       },
       "docs": {
         "files": 4,
-        "lines": 126,
+        "lines": 119,
         "per_file": {
-          "docs/harness/CHANGELOG.md": 18,
+          "docs/harness/CHANGELOG.md": 20,
           "docs/harness/SPEC.md": 58,
           "docs/harness/TASKLIST-单版本收敛.md": 33,
-          "docs/harness/TUTORIAL.md": 17
+          "docs/harness/TUTORIAL.md": 8
         }
       }
     },
@@ -1070,12 +1061,12 @@
       },
       "docs": {
         "files": 4,
-        "lines": 64,
+        "lines": 56,
         "per_file": {
           "docs/harness/CHANGELOG.md": 5,
           "docs/harness/SPEC.md": 23,
           "docs/harness/TASKLIST-单版本收敛.md": 24,
-          "docs/harness/TUTORIAL.md": 12
+          "docs/harness/TUTORIAL.md": 4
         }
       }
     },
@@ -1107,12 +1098,12 @@
       },
       "docs": {
         "files": 4,
-        "lines": 71,
+        "lines": 62,
         "per_file": {
           "docs/harness/CHANGELOG.md": 8,
           "docs/harness/SPEC.md": 23,
           "docs/harness/TASKLIST-单版本收敛.md": 27,
-          "docs/harness/TUTORIAL.md": 13
+          "docs/harness/TUTORIAL.md": 4
         }
       }
     }

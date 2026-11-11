@@ -1,10 +1,8 @@
-"""后端实现集合（SPEC M12）。"""
+"""后端实现集合（SPEC M12）：真实实现与内存/本地实现；测试替身在 tests/support.py。"""
 
 from harness.impl.backends.core import (
     CallbackApprovalChannel,
     EnvSecretBroker,
-    FakeClock,
-    FakeSandbox,
     LocalSandbox,
     LocalArtifactStore,
     MemoryApprovalChannel,
@@ -24,7 +22,6 @@ __all__ = [
     "require_writable",
     "MemoryFileSystem",
     "LocalFileSystem",
-    "FakeSandbox",
     "LocalSandbox",
     "MemoryArtifactStore",
     "LocalArtifactStore",
@@ -35,5 +32,4 @@ __all__ = [
     "MemoryApprovalChannel",
     "CallbackApprovalChannel",
     "SystemClock",
-    "FakeClock",
 ]

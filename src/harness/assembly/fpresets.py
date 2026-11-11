@@ -12,12 +12,12 @@ def _base(**kwargs: Any) -> HarnessConfig:
     return HarnessConfig(**kwargs)
 
 
-def minimal(*, model: Any = "fake", tools: tuple[Any, ...] = ()) -> HarnessConfig:
+def minimal(*, model: Any = None, tools: tuple[Any, ...] = ()) -> HarnessConfig:
     """冒烟测试：无任何横切层。"""
     return _base(model=model, tools=tools, layers=(), budget=Budget(tokens=8_000, calls=8))
 
 
-def react(*, model: Any = "fake", tools: tuple[Any, ...] = (), budget: Budget | None = None) -> HarnessConfig:
+def react(*, model: Any = None, tools: tuple[Any, ...] = (), budget: Budget | None = None) -> HarnessConfig:
     """普通对话/工具 agent：预算 + 任务板。"""
     return _base(
         model=model,
@@ -27,21 +27,21 @@ def react(*, model: Any = "fake", tools: tuple[Any, ...] = (), budget: Budget | 
     )
 
 
-def workflow(*, model: Any = "fake", tools: tuple[Any, ...] = ()) -> HarnessConfig:
+def workflow(*, model: Any = None, tools: tuple[Any, ...] = ()) -> HarnessConfig:
     return _base(model=model, tools=tools, budget=Budget(tokens=40_000, calls=20))
 
 
-def pe(*, model: Any = "fake", tools: tuple[Any, ...] = ()) -> HarnessConfig:
+def pe(*, model: Any = None, tools: tuple[Any, ...] = ()) -> HarnessConfig:
     return _base(model=model, tools=tools, budget=Budget(tokens=80_000, calls=30))
 
 
-def production(*, model: Any = "fake", tools: tuple[Any, ...] = ()) -> HarnessConfig:
+def production(*, model: Any = None, tools: tuple[Any, ...] = ()) -> HarnessConfig:
     """生产形态：全部能力打开。"""
     return _base(
         model=model,
         tools=tools,
         stores=StoreSpec(durability="memory", memory="memory"),
-        backends=BackendSpec(fs="memory", sandbox="fake", artifacts="memory",
+        backends=BackendSpec(fs="memory", sandbox="local", artifacts="memory",
                              secrets="env", index="memory"),
         guardrails=("injection", "pii", "secret_leak"),
         budget=Budget(tokens=400_000, calls=120),

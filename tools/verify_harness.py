@@ -75,13 +75,21 @@ def check_smoke() -> tuple[bool, str]:
     """端到端：装配入口 → 唯一解释器 → RunResult。"""
     try:
         from harness.assembly.config import HarnessConfig, build_harness
-        from harness.contracts.types import Goal
+        from harness.contracts.types import Goal, ModelReply
         from harness.fp import react
     except Exception as exc:  # noqa: BLE001 - 导入失败即门禁失败
         return False, f"import 失败：{type(exc).__name__}: {exc}"
 
+    class _SmokeModel:
+        """门禁自用的最小离线模型（测试替身不进框架包，这里就地定义）。"""
+
+        async def complete(self, messages, tools=None, *, response_format=None):
+            return ModelReply(content="gate-smoke-ok",
+                              usage={"input": 0, "output": 0, "total": 0})
+
     try:
-        harness = build_harness(HarnessConfig(model="fake"))
+        harness = build_harness(HarnessConfig())
+        harness.model = _SmokeModel()
         result = asyncio.run(
             harness.run(react(max_steps=3), Goal("gate-smoke", session_id="gate"))
         )

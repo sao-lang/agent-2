@@ -20,6 +20,7 @@ from harness.contracts.decision import Decision, FnProgram, Halt  # noqa: E402
 from harness.contracts.state import State  # noqa: E402
 from harness.contracts.types import Effect  # noqa: E402
 from harness.fp.frontends import Leaf, React, make_state  # noqa: E402
+from demo_model import script_model_handler  # noqa: E402
 from harness.kernel.interpret import interpret  # noqa: E402
 
 
@@ -45,7 +46,7 @@ async def main() -> None:
     # ② 内置前端：ReAct 只是 program=self 的循环，同样走这一个 interpret()
     out = await interpret(React(max_steps=4), make_state("查订单", data={
         "script": [{"content": "完成"}],
-    }))
+    }), extra_handlers={"model": script_model_handler})
     print(f"react:   {out.status} {out.answer!r} steps={out.transitions}")
 
     # ③ 任何叶子程序都同层：删掉整个 frontends.py，①②照样跑

@@ -24,7 +24,7 @@ from harness.contracts.types import Decision, Goal, GuardDecision
 from harness.fp import react
 from harness.fp.frontends import make_state
 from harness.impl.stores import MemoryCheckpointStore
-from harness.testing import FakeModel, answer, tool_call
+from support import FakeModel, answer, script_model_handler, tool_call
 from harness.parts.tools import tool
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -131,7 +131,8 @@ class NewEntryTest(unittest.TestCase):
 
         h = Harness.of()
         out, effects = run(h.dry_run_program(
-            React(max_steps=2), make_state("干跑", data={"script": [{"content": "done"}]})
+            React(max_steps=2), make_state("干跑", data={"script": [{"content": "done"}]}),
+            extra_handlers={"model": script_model_handler},
         ))
         self.assertEqual(out.answer, "[dry-run:model]")
         self.assertEqual([e.kind for e in effects], ["model"])

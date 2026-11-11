@@ -102,7 +102,7 @@ class BuildTest(unittest.TestCase):
         config = HarnessConfig(guardrails=("injection", "pii"))
         harness = build_harness(config)
         self.assertEqual(len(harness.guardrails), 2)
-        self.assertIsNotNone(harness.model)
+        self.assertIsNone(harness.model)   # model=None 合法：不注入模型的程序
 
     def test_store_slot_resolves_to_instance(self):
         harness = build_harness(HarnessConfig(stores=StoreSpec(durability="memory")))

@@ -17,7 +17,7 @@ from harness import Goal, HarnessConfig, RunStatus, Step
 from harness.assembly import validate
 from harness.errors import ConfigError
 from harness.fp import Harness, react
-from harness.testing import FakeModel, answer
+from demo_model import FakeModel, answer
 
 
 def show_step() -> None:

@@ -27,6 +27,7 @@ from harness.contracts.decision import Decision, FnProgram, Halt  # noqa: E402
 from harness.contracts.state import State  # noqa: E402
 from harness.contracts.types import Effect  # noqa: E402
 from harness.fp.frontends import _batch, _out, make_state, toolset  # noqa: E402
+from demo_model import script_model_handler  # noqa: E402
 from harness.kernel.interpret import Runtime, RuntimeLimits  # noqa: E402
 
 
@@ -144,7 +145,8 @@ def custom_cases() -> list[tuple[str, Any, State]]:
 
 async def main() -> None:
     for name, program, state in custom_cases():
-        out = await Runtime(limits=RuntimeLimits(max_transitions=64, max_calls=80)).interpret(
+        out = await Runtime(limits=RuntimeLimits(max_transitions=64, max_calls=80),
+                            extra_handlers={"model": script_model_handler}).interpret(
             program, state
         )
         print(f"[{out.status}] {name} steps={out.transitions} answer={out.answer!r}")

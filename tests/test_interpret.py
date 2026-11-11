@@ -20,6 +20,7 @@ from harness.contracts.decision import (
 )
 from harness.contracts.errors import NotSerializable
 from harness.contracts.types import Effect
+from support import script_model_handler
 from harness.fp.frontends import Graph, Leaf, builtin_paradigms, make_state
 from harness.kernel.effects import EffectLayer
 from harness.kernel.interpret import Runtime, RuntimeLimits, ValidationFailed, interpret
@@ -57,7 +58,8 @@ LAYERS = (
 
 
 def runtime(**kwargs) -> Runtime:
-    params = dict(layers=LAYERS, limits=RuntimeLimits(max_transitions=64, max_calls=80))
+    params = dict(layers=LAYERS, limits=RuntimeLimits(max_transitions=64, max_calls=80),
+                  extra_handlers={"model": script_model_handler})
     params.update(kwargs)
     return Runtime(**params)
 
@@ -152,7 +154,8 @@ class FourStagesTest(unittest.TestCase):
             executed.append("charge")
             return "ok"
 
-        out = run(Runtime(record_only=True, layers=LAYERS).interpret(
+        out = run(Runtime(record_only=True, layers=LAYERS,
+                          extra_handlers={"model": script_model_handler}).interpret(
             builtin_paradigms()[1][1],
             make_state("干跑", data={"script": [{"content": "done"}],
                                     "tools": {"charge": charge}}),
@@ -295,7 +298,7 @@ class RuntimeInvariantTest(unittest.TestCase):
         sup = SupervisorProgram(workers={"w": Leaf("子结果")})
         out = run(interpret(sup, make_state("x", data={
             "script": [{"tasks": [["w", "任务"]]}],
-        })))
+        }), extra_handlers={"model": script_model_handler}))
         self.assertEqual(out.status, "completed")
         self.assertEqual(out.answer, "子结果")
 

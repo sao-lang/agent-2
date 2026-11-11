@@ -1,6 +1,12 @@
 > **历史资料，非实现依据。** 本文按框架代际（v1/v2/v3/v3.1）记录当时的设计与施工过程；
 > 现行唯一权威是 `docs/harness/AUDIT-断点-重复实现-版本说法统计.md`（§6.5 完成线）与 `audit-report.json` 快照。
 > 单一版本口径见根 `CHANGELOG.md`。
+>
+> **2026-11-12 更新**：单版本收敛与测试替身出包完成后，本文描述的很多文件已不存在
+> 或换了位置——`kernel/legacy.py`、`parts/tracer.py`、`parts/body/*`、`assembly/agent.py`、
+> `assembly/build.py`、`assembly/presets.py`、`impl/fakes.py`、`harness/testing.py` 均已退役；
+> 测试替身（`FakeModel`/剧本回放 handler/剧本沙箱/可控时钟）迁至 `tests/support.py`。
+> 逐文件现状以仓库为准；现行入门教程见 `docs/harness/TUTORIAL.md`。
 
 # 从零重建 Harness —— 全框架逐文件封装实录
 

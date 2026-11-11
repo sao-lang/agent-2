@@ -1,7 +1,8 @@
-"""沙箱与其余后端的内存实现（SPEC M12）。
+"""沙箱与其余后端的真实实现（SPEC M12）。
 
-沙箱只提供两种：`FakeSandbox`（剧本，测试用）与 `LocalSandbox`（argv 白名单，
+沙箱只有一种：`LocalSandbox`（argv 白名单，**空白名单 = 全拒绝**（fail-closed），
 默认关闭网络）。**`exec` 只收 argv 列表**，不给 shell 解析留口子。
+测试用剧本沙箱在 tests/support.py，不进框架包。
 """
 
 from __future__ import annotations
@@ -31,34 +32,9 @@ from harness.contracts.types import (
 # ------------------------------------------------------------------ 沙箱
 
 
-class FakeSandbox:
-    """剧本沙箱：记录每次 argv，按预设返回。用于离线测试与干跑。"""
-
-    def __init__(self, script: dict[str, ExecResult] | None = None) -> None:
-        self.script = script or {}
-        self.calls: list[tuple[str, ...]] = []
-        self.killed: list[str] = []
-
-    async def exec(
-        self,
-        argv: Sequence[str],
-        *,
-        cwd: str = "/work",
-        env: Mapping[str, str] | None = None,
-        stdin: bytes | None = None,
-        limits: Limits | None = None,
-        timeout_s: float | None = None,
-    ) -> ExecResult:
-        key = " ".join(argv)
-        self.calls.append(tuple(argv))
-        return self.script.get(key, ExecResult(exit=0, stdout=f"fake:{key}"))
-
-    async def kill(self, exec_id: str) -> None:
-        self.killed.append(exec_id)
-
-
 class LocalSandbox:
-    """本地进程沙箱：只允许白名单可执行文件，禁网络（尽力而为），有超时与输出上限。"""
+    """本地进程沙箱：只允许白名单可执行文件（**空白名单 = 全拒绝**），
+    禁网络（尽力而为），有超时与输出上限。"""
 
     def __init__(self, *, allow: Sequence[str] = (), default_limits: Limits | None = None) -> None:
         self.allow = set(allow)
@@ -68,7 +44,7 @@ class LocalSandbox:
     def _check(self, argv: Sequence[str], limits: Limits) -> None:
         if not argv:
             raise PermissionError("argv 不能为空")
-        if self.allow and argv[0] not in self.allow:
+        if argv[0] not in self.allow:      # 空白名单 = 全拒绝（fail-closed）
             raise PermissionError(f"可执行文件不在白名单：{argv[0]}")
         if limits.network:
             raise PermissionError("本地沙箱不支持网络访问")
@@ -403,28 +379,7 @@ class SystemClock:
         return time.monotonic()
 
 
-class FakeClock:
-    """可控时钟：回放与测试必须能钉死时间（SPEC M12.2）。"""
-
-    def __init__(self, start: datetime | None = None) -> None:
-        self._now = start or datetime(2026, 1, 1, tzinfo=timezone.utc)
-        self._mono = 0.0
-
-    def now(self) -> datetime:
-        return self._now
-
-    def monotonic(self) -> float:
-        return self._mono
-
-    def advance(self, seconds: float) -> None:
-        from datetime import timedelta
-
-        self._now += timedelta(seconds=seconds)
-        self._mono += seconds
-
-
 __all__ = [
-    "FakeSandbox",
     "LocalSandbox",
     "MemoryArtifactStore",
     "LocalArtifactStore",
@@ -435,5 +390,4 @@ __all__ = [
     "MemoryApprovalChannel",
     "CallbackApprovalChannel",
     "SystemClock",
-    "FakeClock",
 ]

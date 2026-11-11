@@ -62,13 +62,6 @@ def _adapter(name: str, extra: str) -> Callable[..., Any]:
 # ------------------------------------------------------------------ 注册表
 
 
-def _fake_model(arg: str = "", **kwargs: Any) -> Any:
-    from harness.impl.fakes import FakeModel
-    from harness.impl.fakes import answer
-
-    return FakeModel([answer("fake")])
-
-
 def _memory_checkpoint(arg: str = "", **kwargs: Any) -> Any:
     from harness.impl.stores import MemoryCheckpointStore
 
@@ -118,7 +111,6 @@ def _vector_index(arg: str = "", **kwargs: Any) -> Any:
 # 是合法方向，assembly → adapters 越界）。用户 import 适配器模块即可接线。
 
 MODELS: dict[str, Callable[..., Any]] = {
-    "fake": _fake_model,
     "openai": _adapter("openai", "openai"),
     "anthropic": _adapter("anthropic", "anthropic"),
     "ollama": _adapter("ollama", "ollama"),
@@ -154,12 +146,6 @@ def _local_fs(arg: str = "", **kwargs: Any) -> Any:
 
     root = arg or "."
     return LocalFileSystem((Mount("/work", root, "rw"),))
-
-
-def _fake_sandbox(arg: str = "", **kwargs: Any) -> Any:
-    from harness.impl.backends import FakeSandbox
-
-    return FakeSandbox()
 
 
 def _local_sandbox(arg: str = "", **kwargs: Any) -> Any:
@@ -204,13 +190,6 @@ def _callback_approval(arg: str = "", **kwargs: Any) -> Any:
     return CallbackApprovalChannel(on_request)
 
 
-def _fake_clock(arg: str = "", **kwargs: Any) -> Any:
-    """fake = 可控时钟；不再回退到系统时钟（B07）。"""
-    from harness.impl.backends import FakeClock
-
-    return FakeClock()
-
-
 def _memory_index(arg: str = "", **kwargs: Any) -> Any:
     from harness.impl.backends import MemoryIndex
 
@@ -237,7 +216,7 @@ def _system_clock(arg: str = "", **kwargs: Any) -> Any:
 
 BACKENDS: dict[str, dict[str, Callable[..., Any]]] = {
     "fs": {"memory": _memory_fs, "local": _local_fs, "s3": _adapter("s3", "s3")},
-    "sandbox": {"fake": _fake_sandbox, "local": _local_sandbox,
+    "sandbox": {"local": _local_sandbox,
                 "docker": _adapter("docker", "docker")},
     "artifacts": {"memory": _memory_artifacts, "local": _local_artifacts,
                   "s3": _adapter("s3", "s3")},
@@ -249,7 +228,7 @@ BACKENDS: dict[str, dict[str, Callable[..., Any]]] = {
     "queue": {"memory": _memory_queue, "redis": _adapter("redis", "redis")},
     "approval": {"memory": _memory_approval, "callback": _callback_approval,
                  "http": _adapter("http", "http")},
-    "clock": {"system": _system_clock, "fake": _fake_clock},
+    "clock": {"system": _system_clock},
 }
 
 GUARDRAILS: dict[str, Callable[..., Any]] = {

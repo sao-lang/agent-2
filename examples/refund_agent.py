@@ -12,7 +12,7 @@ import asyncio
 from harness import Budget, Goal, MemorySink, tool
 from harness.assembly import HarnessConfig, build_harness
 from harness.fp import react
-from harness.testing import FakeModel, answer, tool_call
+from demo_model import FakeModel, answer, tool_call
 
 
 @tool
@@ -35,7 +35,6 @@ async def main() -> None:
     ])
     sink = MemorySink()
     h = build_harness(HarnessConfig(
-        model="fake",
         tools=[get_order, check_policy],
         budget=Budget(tokens=20_000, calls=8),
     ))

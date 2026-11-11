@@ -16,7 +16,7 @@ from harness.fp import workflow as wf_program
 from harness.parts.policy import ScriptedPlanner
 from harness.parts.topology import Blackboard, Handoff, Pipeline, Supervisor
 from harness.parts.tools import tool
-from harness.testing import FakeModel, answer, tool_call
+from support import FakeModel, answer, tool_call
 
 
 def run(coro):
@@ -33,32 +33,32 @@ class PresetSmokeTest(unittest.TestCase):
     """五个预设各跑一次。"""
 
     def test_minimal(self):
-        h = build_harness(minimal(model="fake", tools=(echo,)))
+        h = build_harness(minimal(tools=(echo,)))
         h.model = FakeModel([answer("ok")])
         self.assertEqual(run(h.run(react_program(max_steps=2), Goal("x", session_id="m"))).status,
                          RunStatus.COMPLETED)
 
     def test_react(self):
-        h = build_harness(react_cfg(model="fake", tools=(echo,)))
+        h = build_harness(react_cfg(tools=(echo,)))
         h.model = FakeModel([tool_call("echo", text="hi"), answer("done")])
         result = run(h.run(react_program(max_steps=3), Goal("x", session_id="r")))
         self.assertEqual(result.answer, "done")
 
     def test_workflow(self):
-        h = build_harness(wf_cfg(model="fake", tools=(echo,)))
+        h = build_harness(wf_cfg(tools=(echo,)))
         program = wf_program(Step(id="a", tool_name="echo", args={"text": "hi"}))
         self.assertEqual(run(h.run(program, Goal("x", session_id="w"))).status,
                          RunStatus.COMPLETED)
 
     def test_pe(self):
-        h = build_harness(pe(model="fake", tools=(echo,)))
+        h = build_harness(pe(tools=(echo,)))
         plan = Plan(id="p", steps=[Step(id="a", tool_name="echo", args={"text": "hi"})])
         program = pe_program(ScriptedPlanner(plan), max_steps=3)
         self.assertEqual(run(h.run(program, Goal("x", session_id="p"))).status,
                          RunStatus.COMPLETED)
 
     def test_production(self):
-        h = build_harness(production(model="fake", tools=(echo,)))
+        h = build_harness(production(tools=(echo,)))
         h.model = FakeModel([answer("ok")])
         result = run(h.run(react_program(max_steps=2), Goal("正常请求", session_id="prod")))
         self.assertEqual(result.status, RunStatus.COMPLETED)   # 干净输入不被护栏拦

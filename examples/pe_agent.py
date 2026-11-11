@@ -13,7 +13,7 @@ from harness import Goal, Plan, Step
 from harness.fp import Harness, pe as pe_program
 from harness.parts.policy import ScriptedPlanner
 from harness.parts.tools import tool
-from harness.testing import FakeModel, answer
+from demo_model import FakeModel, answer
 
 
 @tool

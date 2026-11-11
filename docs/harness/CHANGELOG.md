@@ -83,7 +83,24 @@
 - **测试与示例**：9 个测试文件迁移至统一入口等价断言（341 tests，零删减）；
   8 个示例脚本全部改写 v3 且端到端可运行。
 
+### 收敛轮 · 测试替身出包（2026-11-12，判据 1.3 → 1.4）
+
+框架包内不再存在"用于场景测试或实验"的代码：
+
+- **移出 src/harness**：`FakeModel`/`answer`/`tool_call`（删 `impl/fakes.py` 与
+  `harness/testing.py` 兼容壳）、`FakeSandbox`（剧本沙箱）、`FakeClock`——
+  统一迁入 `tests/support.py`；examples 侧共用 `examples/demo_model.py`。
+- **kernel 剧本通路删除**：`effects._model` 的 `state.data["script"]` 回放分支
+  移入 `tests/support.py` 的 `script_model_handler`（经 `extra_handlers={"model": …}`
+  覆盖内置 model 效应；journal cursor 语义原样保留）。
+- **registry 收紧**：`fake` 三个槽位（model/sandbox/clock）删除；
+  `HarnessConfig.model=None` 为合法装配（不注入模型的程序）；
+  `BackendSpec.sandbox` 默认 `"local"`，`LocalSandbox` 改为
+  **空白名单 = 全拒绝**（fail-closed）；F01/F02 假实现告警随之删除。
+- **文档**：`README.md` / `TUTORIAL.md` 按单版本口径重写更新（`TUTORIAL-BUILD.md`
+  历史资料更新文头状态）；`harness check` 探活不再要求默认装配携带模型。
+
 ### 已知遗留（见 AUDIT §6.5 backlog）
 
-- BL-6：`SPEC.md` / `TUTORIAL.md` 单版本重写（文档叙述口径，独立立项）。
-- 代码侧无遗留；判据 v1.3 锚点 44/44 通过。
+- BL-6：`SPEC.md` 单版本重写（文档叙述口径，独立立项；TUTORIAL.md 已随本轮更新）。
+- 代码侧无遗留；判据 v1.4 锚点 44/44 通过。

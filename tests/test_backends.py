@@ -9,9 +9,8 @@ import unittest
 from pathlib import Path
 
 from harness.contracts.types import ApprovalRequest, Decision, Document, ExecResult, Limits, Mount
+from support import FakeClock, FakeSandbox
 from harness.impl.backends import (
-    FakeClock,
-    FakeSandbox,
     MemoryApprovalChannel,
     MemoryArtifactStore,
     MemoryFileSystem,

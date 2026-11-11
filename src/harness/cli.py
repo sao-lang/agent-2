@@ -31,7 +31,10 @@ def hello(name: str) -> str:
 
 
 async def main() -> None:
-    harness = build_harness(HarnessConfig(model="fake", tools=(hello,)))
+    harness = build_harness(HarnessConfig(
+        model="openai",        # 模型槽位：openai / anthropic / ollama（缺依赖时装配报安装指引）
+        tools=(hello,),
+    ))
     program = react(max_steps=6) >> taskboard_layer()
     print(describe(program))
     result = await harness.run(program, Goal("打个招呼", session_id="demo"))
@@ -106,12 +109,11 @@ def check(spec: str) -> int:
     except Exception:  # noqa: BLE001
         pass
     # 默认装配探活：能构造出 Harness 才算运行时依赖齐备
+    # （model=None 是合法装配——不注入模型的程序也能跑纯计算/工作流）。
     try:
         from harness.assembly.config import HarnessConfig, build_harness
 
         default = build_harness(HarnessConfig())
-        if default.model is None or not callable(getattr(default.model, "complete", None)):
-            return 1
         return 0 if all(slot in default.backends for slot in BACKENDS) else 1
     except Exception:  # noqa: BLE001
         return 1

@@ -40,7 +40,7 @@ DOCS_DIR = ROOT / "docs" / "harness"
 TESTS_DIR = ROOT / "tests"
 SNAPSHOT_DEFAULT = DOCS_DIR / "audit-report.json"
 
-AUDIT_SPEC_VERSION = "1.3"
+AUDIT_SPEC_VERSION = "1.4"
 
 # ---------------------------------------------------------------- 口径常量
 
@@ -102,7 +102,7 @@ ANCHORS: dict[str, tuple[str, str, str]] = {
     "points": ("src/harness/kernel/chain.py", r'["\']run["\'],\s*["\']step["\'],\s*["\']model_call["\'],\s*["\']tool_call["\']', "present"),
     "sandbox_local": ("src/harness/assembly/registry.py", r'["\']local["\']\s*:\s*_local_sandbox', "present"),
     "openai_selfreg": ("src/harness/adapters/openai.py", r'_registry\.MODELS\[["\']openai["\']\]', "present"),
-    "fake_model": ("src/harness/impl/fakes.py", r"class FakeModel", "present"),
+    "fake_model": ("tests/support.py", r"class FakeModel", "present"),
     "budget_metadata": ("src/harness/parts/delivery.py", r'state\.data\.get\(["\']budget["\']', "present"),
     "schema_version": ("src/harness/contracts/state.py", r"SCHEMA_VERSION\s*=\s*2", "present"),
     "pkg_version": ("src/harness/__init__.py", r'__version__\s*=\s*["\']0\.3\.0["\']', "present"),

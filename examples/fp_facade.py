@@ -14,7 +14,7 @@ from harness.fp import Harness, describe, react, workflow
 from harness.impl.stores import MemoryCheckpointStore
 from harness.parts.middleware import budget_layer, taskboard_layer
 from harness.parts.tools import tool
-from harness.testing import FakeModel, answer, tool_call
+from demo_model import FakeModel, answer, tool_call
 
 
 @tool

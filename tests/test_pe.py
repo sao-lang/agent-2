@@ -9,7 +9,7 @@ from harness import Goal, Plan, RunStatus, Step
 from harness.fp import Harness, pe as pe_program, react as react_program
 from harness.parts.policy import ScriptedPlanner
 from harness.parts.tools import tool
-from harness.testing import FakeModel, answer
+from support import FakeModel, answer
 
 
 @tool

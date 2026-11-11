@@ -19,7 +19,7 @@ from harness.contracts.types import Budget, Goal
 from harness.fp import react
 from harness.parts.middleware import taskboard_layer
 from harness.parts.tools import tool
-from harness.testing import FakeModel, answer, tool_call
+from support import FakeModel, answer, tool_call
 
 
 def run(coro):
@@ -33,7 +33,7 @@ def echo(text: str) -> str:
 
 
 def _harness(**kw):
-    h = build_harness(HarnessConfig(model="fake", tools=(echo,), **kw))
+    h = build_harness(HarnessConfig(tools=(echo,), **kw))
     h.model = FakeModel([tool_call("echo", text="hi"), answer("完成")])
     return h
 
@@ -42,7 +42,7 @@ class ReplacementMatrixTest(unittest.TestCase):
     """每一个实验只断言"一件事变化"，其余必须相同。"""
 
     def test_guardrail_replacement_only_removes_blocking(self):
-        base = dict(model="fake", tools=(echo,))
+        base = dict(tools=(echo,))
         blocked = _harness(guardrails=("injection",))
         open_h = _harness()
 
@@ -59,7 +59,7 @@ class ReplacementMatrixTest(unittest.TestCase):
         from harness.impl.stores import MemoryCheckpointStore
 
         store = MemoryCheckpointStore()
-        harness = build_harness(HarnessConfig(model="fake", tools=(echo,), stores=StoreSpec()))
+        harness = build_harness(HarnessConfig(tools=(echo,), stores=StoreSpec()))
         harness.model = FakeModel([tool_call("echo", text="hi"), answer("ok")])
         harness.auto_layers = tuple(
             lay for lay in harness.auto_layers if lay.name != "checkpoint"
@@ -75,7 +75,7 @@ class ReplacementMatrixTest(unittest.TestCase):
                 return await nxt(req)
             return handler
 
-        with_cp = build_harness(HarnessConfig(model="fake", tools=(echo,)))
+        with_cp = build_harness(HarnessConfig(tools=(echo,)))
         with_cp.model = FakeModel([tool_call("echo", text="hi"), answer("ok")])
         with_cp.auto_layers = (checkpoint_layer(store=store),)
 
@@ -90,10 +90,10 @@ class ReplacementMatrixTest(unittest.TestCase):
         self.assertEqual(run(store.history(state_namespace(r2.state), "nocp")), [])
 
     def test_budget_replacement_only_changes_status(self):
-        tight = build_harness(HarnessConfig(model="fake", tools=(echo,),
+        tight = build_harness(HarnessConfig(tools=(echo,),
                                             budget=Budget(tokens=1, calls=1)))
         tight.model = FakeModel([tool_call("echo", text="hi"), answer("ok")])
-        loose = build_harness(HarnessConfig(model="fake", tools=(echo,),
+        loose = build_harness(HarnessConfig(tools=(echo,),
                                             budget=Budget(tokens=10_000, calls=50)))
         loose.model = FakeModel([tool_call("echo", text="hi"), answer("ok")])
 
@@ -104,9 +104,9 @@ class ReplacementMatrixTest(unittest.TestCase):
         self.assertEqual(r_loose.status, RunStatus.COMPLETED)
 
     def test_taskboard_replacement_only_removes_board(self):
-        with_board = build_harness(HarnessConfig(model="fake", tools=(echo,)))
+        with_board = build_harness(HarnessConfig(tools=(echo,)))
         with_board.model = FakeModel([tool_call("echo", text="hi"), answer("ok")])
-        without = build_harness(HarnessConfig(model="fake", tools=(echo,)))
+        without = build_harness(HarnessConfig(tools=(echo,)))
         without.model = FakeModel([tool_call("echo", text="hi"), answer("ok")])
 
         r1 = run(with_board.run(react(max_steps=3) >> taskboard_layer(),

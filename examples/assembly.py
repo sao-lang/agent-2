@@ -21,7 +21,7 @@ from harness.contracts.types import Goal, Plan, Step
 from harness.fp import pe as pe_program, react as react_program, workflow as wf_program
 from harness.parts.policy import ScriptedPlanner
 from harness.parts.tools import tool
-from harness.testing import FakeModel, answer, tool_call
+from demo_model import FakeModel, answer, tool_call
 
 
 @tool
@@ -43,20 +43,20 @@ def _with_model(h, model):
 
 async def main() -> None:
     print("=== 1. minimal ===")
-    h = build_harness(minimal(model="fake", tools=(concat,)))
+    h = build_harness(minimal(tools=(concat,)))
     r = await _with_model(h, FakeModel([answer("hello")])).run(
         react_program(max_steps=2), Goal("hi", session_id="min"))
     print(r.status, r.answer)
 
     print("=== 2. react ===")
-    h = build_harness(react_cfg(model="fake", tools=(concat,)))
+    h = build_harness(react_cfg(tools=(concat,)))
     r = await _with_model(h, FakeModel([tool_call("concat", left="a", right="b"),
                                         answer("ab")])).run(
         react_program(max_steps=3), Goal("拼接", session_id="react"))
     print(r.status, r.answer)
 
     print("=== 3. workflow ===")
-    h = build_harness(wf_cfg(model="fake", tools=(concat,)))
+    h = build_harness(wf_cfg(tools=(concat,)))
     program = wf_program(
         Step(id="a", tool_name="concat", args={"left": "a", "right": "b"}),
         Step(id="b", tool_name="concat", args={"left": "c", "right": "d"}),
@@ -66,7 +66,7 @@ async def main() -> None:
     print(r.status, r.answer)
 
     print("=== 4. pe ===")
-    h = build_harness(pe_cfg(model="fake", tools=(concat,)))
+    h = build_harness(pe_cfg(tools=(concat,)))
     plan = Plan(id="p1", steps=[
         Step(id="a", tool_name="concat", args={"left": "a", "right": "b"}),
         Step(id="b", tool_name="concat", args={"left": "c", "right": "d"}),
@@ -76,7 +76,7 @@ async def main() -> None:
     print(r.status, r.answer)
 
     print("=== 5. production ===")
-    h = build_harness(production(model="fake", tools=(get_order,)))
+    h = build_harness(production(tools=(get_order,)))
     r = await _with_model(h, FakeModel([tool_call("get_order", order_id="A1001"),
                                         answer("已签收")])).run(
         react_program(max_steps=3), Goal("A1001 状态", session_id="prod"))

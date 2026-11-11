@@ -19,7 +19,7 @@ from harness.impl.stores import MemoryCheckpointStore
 from harness.kernel import chain
 from harness.parts.middleware import budget_layer, checkpoint_layer, context_layer, taskboard_layer
 from harness.parts.middleware.base import layer
-from harness.testing import FakeModel, answer, tool_call
+from support import FakeModel, answer, tool_call
 from harness.fp import (
     Harness,
     NotSerializable,
