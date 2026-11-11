@@ -22,7 +22,7 @@ from harness.contracts.status import RunStatus
 from harness.contracts.types import Done, Effect, Step, StepRequest, StepResponse
 from harness.kernel import chain, stage
 from harness.kernel.effects import CallbackRunner
-from harness.kernel.interpret import Limits, Runtime, Outcome
+from harness.kernel.interpret import Runtime, RuntimeLimits, Outcome
 
 __all__ = ["LegacyProgram", "run_legacy", "as_run_result"]
 
@@ -121,16 +121,26 @@ async def run_legacy(*, program: Any, state: State, scope: Any,
     # 预算耗尽由护栏触发 degraded，程序/前端不再自查（消灭双重计数）。
     budget = getattr(scope, "budget", None)
     runtime = Runtime(
-        limits=Limits(max_transitions=ceiling,
+        limits=RuntimeLimits(max_transitions=ceiling,
                       max_calls=budget.calls if budget is not None else 10 ** 9,
                       max_tokens=budget.tokens if budget is not None else 10 ** 9,
                       wall_seconds=300.0),
         runner=CallbackRunner(run_one),
         after_commit=after_commit,
+        budget=budget,   # 单点记账：_commit 同时写 State.usage 与 Budget
         emit=None,   # 兼容期：新增事件记在 runtime.events，不改变旧 sink 的事件序列
     )
     out = await runtime.interpret(LegacyProgram(program, scope), state)
     result = as_run_result(out, state)
+    # C07：补 run 插点——声明在 run 上的层（尤其 output_guard_layer 的
+    # 出口扫描）对最终 RunResult 生效；拦截/改写直接落在出口上。
+    run_layers = chain.resolve(program.layers, "run")
+    if run_layers:
+        async def _passthrough(req):
+            return req
+
+        result = await chain.execute(run_layers, result, _passthrough)
+        state.status = result.status
     await _emit(scope, state, "run.end", status=str(result.status),
                 steps=state.step_index)
     return result
@@ -164,7 +174,9 @@ def _make_model_call(program: Any, scope: Any):
     async def call(request: ModelRequest) -> ModelResponse:
         async def terminal(req: ModelRequest) -> ModelResponse:
             reply = await scope.model.complete(list(req.messages), list(req.tools) or None)
-            return ModelResponse(reply=reply)
+            # M05：回包用量带上，显式挂载的 budget_layer 才能真正扣减。
+            return ModelResponse(reply=reply,
+                                 usage=dict(getattr(reply, "usage", {}) or {}))
 
         if layers:
             return await chain.execute(layers, request, terminal)

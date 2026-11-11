@@ -244,7 +244,7 @@ class TestA4BudgetWiring(unittest.TestCase):
         self.assertNotIn("budget", (result.error or ""))
 
     def test_explicit_limits_override_budget_derivation(self):
-        from harness.kernel.interpret import Limits
+        from harness.kernel.interpret import RuntimeLimits
         from harness.parts.tools import tool
 
         @tool
@@ -256,7 +256,7 @@ class TestA4BudgetWiring(unittest.TestCase):
         agent = build(AgentConfig(
             model=model, tools=[noop], mode="react", max_steps=8,
             budget=AgentBudget(tokens=10**9, calls=10**9),
-            limits=Limits(max_transitions=2, max_calls=10**9,
+            limits=RuntimeLimits(max_transitions=2, max_calls=10**9,
                           max_tokens=10**9, wall_seconds=30.0),
         ))
         result = run_(agent.run(Goal("跑", session_id="a4b")))

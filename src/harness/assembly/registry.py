@@ -162,16 +162,53 @@ def _fake_sandbox(arg: str = "", **kwargs: Any) -> Any:
     return FakeSandbox()
 
 
+def _local_sandbox(arg: str = "", **kwargs: Any) -> Any:
+    """local = 真本地进程沙箱（B07）；arg/extra 里的 allow 决定可执行白名单。"""
+    from harness.impl.backends import LocalSandbox
+
+    allow = kwargs.get("allow") or ((arg,) if arg else ())
+    return LocalSandbox(allow=tuple(allow))
+
+
 def _memory_artifacts(arg: str = "", **kwargs: Any) -> Any:
     from harness.impl.backends import MemoryArtifactStore
 
     return MemoryArtifactStore()
 
 
+def _local_artifacts(arg: str = "", **kwargs: Any) -> Any:
+    """local = 落盘工件存储，不再是内存件的别名（B07）。"""
+    from harness.impl.backends import LocalArtifactStore
+
+    return LocalArtifactStore(arg or kwargs.get("root", ""))
+
+
 def _env_secrets(arg: str = "", **kwargs: Any) -> Any:
     from harness.impl.backends import EnvSecretBroker
 
     return EnvSecretBroker()
+
+
+def _memory_secrets(arg: str = "", **kwargs: Any) -> Any:
+    """memory = 进程内密钥；不再回退到环境变量（B07）。"""
+    from harness.impl.backends import MemorySecretBroker
+
+    return MemorySecretBroker(kwargs.get("values"))
+
+
+def _callback_approval(arg: str = "", **kwargs: Any) -> Any:
+    """callback = 外部回调审批通道；不再是内存轮询通道（B07）。"""
+    from harness.impl.backends import CallbackApprovalChannel
+
+    on_request = kwargs.get("on_request") or (lambda req: None)
+    return CallbackApprovalChannel(on_request)
+
+
+def _fake_clock(arg: str = "", **kwargs: Any) -> Any:
+    """fake = 可控时钟；不再回退到系统时钟（B07）。"""
+    from harness.impl.backends import FakeClock
+
+    return FakeClock()
 
 
 def _memory_index(arg: str = "", **kwargs: Any) -> Any:
@@ -200,18 +237,19 @@ def _system_clock(arg: str = "", **kwargs: Any) -> Any:
 
 BACKENDS: dict[str, dict[str, Callable[..., Any]]] = {
     "fs": {"memory": _memory_fs, "local": _local_fs, "s3": _adapter("s3", "s3")},
-    "sandbox": {"fake": _fake_sandbox, "local": _fake_sandbox,
+    "sandbox": {"fake": _fake_sandbox, "local": _local_sandbox,
                 "docker": _adapter("docker", "docker")},
-    "artifacts": {"memory": _memory_artifacts, "local": _memory_artifacts,
+    "artifacts": {"memory": _memory_artifacts, "local": _local_artifacts,
                   "s3": _adapter("s3", "s3")},
-    "secrets": {"env": _env_secrets, "memory": _env_secrets, "vault": _adapter("vault", "vault")},
+    "secrets": {"env": _env_secrets, "memory": _memory_secrets,
+                "vault": _adapter("vault", "vault")},
     "index": {"memory": _memory_index, "vector": _vector_index,
               "qdrant": _adapter("qdrant", "qdrant"),
               "pgvector": _adapter("pgvector", "postgres")},
     "queue": {"memory": _memory_queue, "redis": _adapter("redis", "redis")},
-    "approval": {"memory": _memory_approval, "callback": _memory_approval,
+    "approval": {"memory": _memory_approval, "callback": _callback_approval,
                  "http": _adapter("http", "http")},
-    "clock": {"system": _system_clock, "fake": _system_clock},
+    "clock": {"system": _system_clock, "fake": _fake_clock},
 }
 
 GUARDRAILS: dict[str, Callable[..., Any]] = {

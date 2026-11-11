@@ -149,6 +149,9 @@ class EffectRuntime:
     model: Any = None
     tool_registry: Any = None
     child_runner: Callable[..., Awaitable[Any]] | None = None
+    #: middleware 层（chain 层）：v3 的 model 效应经它们的 model_call 插点
+    #: 执行（G07：不再绕过 model_call 插点）。空 = 直调模型。
+    model_call_layers: tuple[Any, ...] = ()
 
     #: 本运行消费过的效应（dry_run 用）
     effects_log: list[Effect] = field(default_factory=list)
@@ -179,75 +182,36 @@ class EffectRuntime:
     # ---- 四段链 ----------------------------------------------------
 
     async def _stages(self, effect: Effect, state: State) -> dict[str, Any]:
-        step = to_step(effect)
-
-        async def finish(result: dict[str, Any]) -> dict[str, Any]:
-            for layer in self.layers:                      # Hook：只读观察
-                try:
-                    await maybe_await(layer.observe(effect, result, state))
-                except Exception:  # noqa: BLE001 - 观测不得影响运行
-                    pass
-            await self._fire_hooks(effect, result, state)
-            return result
-
+        """四段链委托给 ``stage.run_effect_stages``（G06：单一实现）；
+        这里只保留运行时关注点：幂等回放、Hook/观察、缓存。"""
         # 幂等：同键命中直接回放，不重复产生副作用、也不重复计量
         if effect.idem_key and effect.idem_key in self.seen:
             cached = dict(self.seen[effect.idem_key])
             cached["_usage"] = {"calls": 0, "tokens": 0}
-            return await finish(cached)
+            return await self._finish(effect, cached, state)
 
-        # ① Gate：返回判定，不抛异常，可短路
-        for layer in self.layers:
-            verdict = await maybe_await(layer.gate(effect, state))
-            if verdict in ("deny", "ask"):
-                return await finish({
-                    "ok": False,
-                    "error": f"{'gate' if verdict == 'deny' else 'approval'}:{layer.name}",
-                    "status": "refused" if verdict == "deny" else "needs_approval",
-                })
-        if self.guard is not None:
-            verdict = await self.guard.check(step, state)
-            if getattr(verdict, "action", "allow") in ("deny", "ask"):
-                return await finish({
-                    "ok": False, "error": f"policy:{getattr(verdict, 'reason', '')}",
-                    "status": "refused" if verdict.action == "deny" else "needs_approval",
-                })
-
-        # ② Check：参数校验与转换
-        try:
-            for layer in self.layers:
-                await maybe_await(layer.check(effect, state))
-            for pipe in self.checks:
-                step = await maybe_await(pipe.transform(step, state))
-        except Exception as exc:  # noqa: BLE001 - 统一走 Classify
-            return await finish(await self._failed(exc, state, phase="check"))
-
-        # ③ Wrap：洋葱，外层在最外
-        handler: Callable = self._terminal
-        for layer in reversed(self.layers):
-            handler = layer.wrap(effect, handler) or handler
-
-        # ④ Classify：异常 → 失败归类的唯一映射点
-        try:
-            out = await maybe_await(handler(effect, state))
-            result = as_result_dict(out)
-        except Exception as exc:  # noqa: BLE001 - 运行边界
-            result = await self._failed(exc, state, phase="wrap")
-
-        if effect.idem_key:
+        result, cacheable = await stage.run_effect_stages(
+            effect, state,
+            terminal=self._terminal,
+            layers=self.layers,
+            guard=self.guard,
+            checks=self.checks,
+            classify=self.classify,
+            to_step=to_step,
+        )
+        if cacheable and effect.idem_key:
             self.seen[effect.idem_key] = dict(result)
-        return await finish(result)
+        return await self._finish(effect, result, state)
 
-    async def _failed(self, exc: BaseException, state: State, *, phase: str) -> dict[str, Any]:
-        classifier = self.classify or stage.DefaultClassify()
-        try:
-            failure = await classifier.classify(exc, phase=phase, state=state)
-            status = str(getattr(failure, "status", "failed"))
-            reason = getattr(failure, "reason", str(exc))
-        except Exception:  # noqa: BLE001 - 归类器本身坏了也不能吞掉结果
-            status, reason = "failed", str(exc)
-        return {"ok": False, "error": f"{type(exc).__name__}:{exc}",
-                "status": status, "reason": reason}
+    async def _finish(self, effect: Effect, result: dict[str, Any],
+                      state: State) -> dict[str, Any]:
+        for layer in self.layers:                      # Hook：只读观察
+            try:
+                await maybe_await(layer.observe(effect, result, state))
+            except Exception:  # noqa: BLE001 - 观测不得影响运行
+                pass
+        await self._fire_hooks(effect, result, state)
+        return result
 
     async def _fire_hooks(self, effect: Effect, result: Any, state: State) -> None:
         """v3 首次给 Hook 协议接上真正落点；hook 报错只发 hook.error。"""
@@ -268,7 +232,9 @@ class EffectRuntime:
 
     async def _terminal(self, effect: Effect, state: State) -> dict[str, Any]:
         """终端：只记账不写业务状态（状态单一所有者由 commit 保证）。"""
-        usage = {"calls": 1, "tokens": 10 if effect.kind == "model" else 0}
+        # 默认每个效应记 1 次调用；token 只来自模型回包的统一口径，
+        # 不再为 model 效应硬编码 10（M01）。
+        usage = {"calls": 1, "tokens": 0}
         if self.record_only:
             return {"ok": True, "output": f"[dry-run:{effect.kind}]", "_usage": usage}
         handler = self.handlers.get(effect.kind)
@@ -282,29 +248,77 @@ class EffectRuntime:
     # ---- 内置 handler ----------------------------------------------
 
     async def _model(self, effect: Effect, state: State) -> dict[str, Any]:
+        from harness.contracts.types import usage_total
+
         script = state.data.get("script")
         if script is not None:
             cursor = int(state.journal.get("cursor", 0))
             reply = script[cursor] if cursor < len(script) else {"content": "done"}
             # journal 是"外部世界的既成事实"，必须即时推进；它不参与回溯。
             state.journal["cursor"] = cursor + 1
-            return {"ok": True, "output": reply}
+            usage = {"total": usage_total(reply.get("usage") if isinstance(reply, dict) else None)}
+            return {"ok": True, "output": reply,
+                    "_usage": {"calls": 1, "tokens": usage["total"]}}
         if self.model is not None:
             messages = list(effect.args.get("messages", ()))
-            reply = await maybe_await(self.model.complete(messages, None))
-            return {"ok": True, "output": reply}
+            reply = await self._complete(messages)
+            # M02：回包 usage 不再丢弃，交给 _commit 唯一记账点。
+            tokens = usage_total(getattr(reply, "usage", None))
+            return {"ok": True, "output": reply,
+                    "_usage": {"calls": 1, "tokens": tokens}}
         raise EffectError("model 效应需要 state.data['script'] 或注入 model")
 
+    async def _complete(self, messages: list) -> Any:
+        """模型调用统一入口（G07）：有 model_call 层就走插点链，否则直调。"""
+        from harness.contracts.types import ModelRequest, ModelResponse
+
+        mc = self.model_call_layers or ()
+        if not mc:
+            return await maybe_await(self.model.complete(messages, None))
+        from harness.kernel import chain
+
+        async def terminal(req: ModelRequest) -> ModelResponse:
+            reply = await maybe_await(
+                self.model.complete(list(req.messages), list(req.tools) or None))
+            return ModelResponse(reply=reply,
+                                 usage=dict(getattr(reply, "usage", {}) or {}))
+
+        request = ModelRequest(state=None, messages=tuple(messages), tools=())
+        response = await chain.execute(mc, request, terminal)
+        return response.reply
+
     async def _tool(self, effect: Effect, state: State) -> dict[str, Any]:
+        from harness.contracts.types import ToolContext
+
         name = effect.args.get("name")
         if not name:
             raise EffectError("tool 效应缺少 args['name']")
+        args = dict(effect.args.get("args", {}) or {})
         tools = self.tool_registry if self.tool_registry is not None else state.data.get("tools", {})
-        fn = tools[name] if isinstance(tools, dict) else tools.get(name)
-        if fn is None:
+        if isinstance(tools, dict):
+            fn = tools.get(name)
+            if fn is None:
+                raise EffectError(f"未注册的工具：{name}")
+            return {"ok": True, "output": await maybe_await(fn(**args))}
+        # 工具注册表：经 invoke 走参数校验与 ToolContext 能力注入，不裸调函数。
+        # 用鸭子类型判定，避免 kernel 反向依赖 parts。
+        try:
+            tool = tools.get(name)
+        except Exception as exc:  # noqa: BLE001 - 未注册工具统一归因
+            raise EffectError(f"未注册的工具：{name}") from exc
+        if tool is None:
             raise EffectError(f"未注册的工具：{name}")
-        out = await maybe_await(fn(**(effect.args.get("args", {}) or {})))
-        return {"ok": True, "output": out}
+        invoker = getattr(tool, "invoke", None)
+        if invoker is not None:
+            ctx = ToolContext(
+                fs=state.data.get("fs"),
+                sandbox=state.data.get("sandbox"),
+                artifacts=state.data.get("artifacts"),
+                secrets=state.data.get("secrets"),
+                state=state,
+            )
+            return {"ok": True, "output": await invoker(args, ctx)}
+        return {"ok": True, "output": await maybe_await(tool(**args))}
 
     async def _skill(self, effect: Effect, state: State) -> dict[str, Any]:
         """渐进披露三段：catalog 常驻 / body 按需 / resource 按需。"""

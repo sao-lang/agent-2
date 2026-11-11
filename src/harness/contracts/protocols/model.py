@@ -17,7 +17,7 @@ class Model(Protocol):
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         *,
-        response_format: "ResponseFormat",
+        response_format: "ResponseFormat | None" = None,
     ) -> "ModelReply": ...
 
     def stream(

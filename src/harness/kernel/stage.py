@@ -17,27 +17,28 @@ from typing import Any, Awaitable, Callable, Sequence
 
 from harness.contracts.result import RunResult
 from harness.contracts.state import State
-from harness.contracts.types import ActionResult, GuardDecision, RunStatus, Step
+from harness.contracts.types import (
+    ActionResult,
+    Failure,
+    GuardDecision,
+    RunStatus,
+    Step,
+)
 
 Terminal = Callable[[Step, State], Awaitable[ActionResult]]
 Layer = Callable[..., Awaitable[ActionResult]]
 
 
 @dataclass(frozen=True)
-class ToolRequest:
-    """Wrap 段的请求形状（SPEC M1.7）。层拿它构造新 Response，不原地改。"""
+class StageRequest:
+    """Wrap 段的请求形状（SPEC M1.7）。层拿它构造新 Response，不原地改。
+
+    P1 合并 §4.3.2：原名 ``ToolRequest`` 与契约层的 ``ToolRequest``
+    （step + spec，middleware 消费）同名不同形状，改名消除歧义。
+    """
 
     step: Step
     state: State
-
-
-@dataclass(frozen=True)
-class Failure:
-    """异常归类结果。`Filter` 的唯一产物（SPEC M16.1.1）。"""
-
-    status: RunStatus
-    reason: str
-    retryable: bool = False
 
 
 @dataclass(frozen=True)
@@ -140,21 +141,119 @@ async def run_stages(
         return StageResult(step, failure=await classify.classify(exc, phase="check", state=state))
 
     # ③ Wrap：洋葱包住终端（层签名是 (ToolRequest, nxt) -> ActionResult）
-    async def base(req: ToolRequest) -> ActionResult:
+    async def base(req: StageRequest) -> ActionResult:
         return await terminal(req.step, req.state)
 
-    handler: Callable[[ToolRequest], Awaitable[ActionResult]] = base
+    handler: Callable[[StageRequest], Awaitable[ActionResult]] = base
     for layer in reversed(list(layers)):
         inner, lay = handler, layer
 
         async def handler(
-            req: ToolRequest, *, _inner=inner, _lay=lay
+            req: StageRequest, *, _inner=inner, _lay=lay
         ) -> ActionResult:  # noqa: ANN001
             return await _lay(req, _inner)
 
     # ④ Classify：异常 → Failure 的唯一映射点
     try:
-        result = await handler(ToolRequest(step=step, state=state))
+        result = await handler(StageRequest(step=step, state=state))
     except Exception as exc:  # noqa: BLE001 - 运行边界
         return StageResult(step, failure=await classify.classify(exc, phase="wrap", state=state))
     return StageResult(step, result=result)
+
+
+# ------------------------------------------------------------------ 效应四段链
+
+
+async def run_effect_stages(
+    effect: Any,
+    state: State,
+    *,
+    terminal: Any,
+    layers: Sequence[Any] = (),
+    guard: Any = None,
+    checks: Sequence[Any] = (),
+    classify: Any = None,
+    to_step: Any,
+) -> tuple[dict[str, Any], bool]:
+    """效应侧四段链（G06：与 ``run_stages`` 同源同序，effects.py 不再内联重写）。
+
+    返回 ``(result_dict, cacheable)``：Gate/Check 短路的结果**不进幂等缓存**
+    （重判比回放拒绝更正确），只有 Wrap 段真正执行过的结果可回放。
+    ``to_step`` 由调用方注入（``kernel.effects.to_step``），避免契约层反向依赖。
+    """
+    from harness.contracts.types import GuardDecision
+
+    def _refused(reason: str) -> dict[str, Any]:
+        return {"ok": False, "error": reason, "status": "refused"}
+
+    step = to_step(effect)
+
+    # ① Gate：EffectLayer.gate（allow/deny/ask）+ 可注入 Guard（allow/deny/ask）
+    for layer in layers:
+        verdict = await _maybe_await(layer.gate(effect, state))
+        if verdict in ("deny", "ask"):
+            return ({"ok": False,
+                     "error": f"{'gate' if verdict == 'deny' else 'approval'}:{layer.name}",
+                     "status": "refused" if verdict == "deny" else "needs_approval"},
+                    False)
+    if guard is not None:
+        verdict: GuardDecision = await _maybe_await(guard.check(step, state))
+        if getattr(verdict, "action", "allow") in ("deny", "ask"):
+            return ({"ok": False,
+                     "error": f"policy:{getattr(verdict, 'reason', '')}",
+                     "status": "refused" if verdict.action == "deny" else "needs_approval"},
+                    False)
+
+    # ② Check：EffectLayer.check 抛异常即参数非法；Pipe 做 Step 转换
+    try:
+        for layer in layers:
+            await _maybe_await(layer.check(effect, state))
+        for pipe in checks:
+            step = await _maybe_await(pipe.transform(step, state))
+    except Exception as exc:  # noqa: BLE001 - 统一走 Classify
+        return (await _classify_failure(exc, state, phase="check", classify=classify),
+                False)
+
+    # ③ Wrap：洋葱，外层在最外；终端是 (effect, state) -> result dict
+    handler: Callable = terminal
+    for layer in reversed(list(layers)):
+        handler = layer.wrap(effect, handler) or handler
+
+    # ④ Classify：异常 → 失败归类的唯一映射点
+    try:
+        result = _as_dict(await _maybe_await(handler(effect, state)))
+    except Exception as exc:  # noqa: BLE001 - 运行边界
+        return (await _classify_failure(exc, state, phase="wrap", classify=classify),
+                False)
+    return (result, True)
+
+
+async def _maybe_await(value: Any) -> Any:
+    import inspect
+
+    return await value if inspect.isawaitable(value) else value
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    return {
+        "ok": bool(getattr(value, "ok", True)),
+        "output": getattr(value, "output", ""),
+        "error": getattr(value, "error", "") or "",
+        "tokens": int(getattr(value, "tokens", 0) or 0),
+        "raw": value,
+    }
+
+
+async def _classify_failure(exc: BaseException, state: State, *, phase: str,
+                            classify: Any) -> dict[str, Any]:
+    classifier = classify or DefaultClassify()
+    try:
+        failure = await classifier.classify(exc, phase=phase, state=state)
+        status = str(getattr(failure, "status", "failed"))
+        reason = getattr(failure, "reason", str(exc))
+    except Exception:  # noqa: BLE001 - 归类器本身坏了也不能吞掉结果
+        status, reason = "failed", str(exc)
+    return {"ok": False, "error": f"{type(exc).__name__}:{exc}",
+            "status": status, "reason": reason}

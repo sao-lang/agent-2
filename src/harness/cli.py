@@ -76,18 +76,45 @@ def new_project(target: str) -> Path:
 
 
 def check(spec: str) -> int:
-    """探活：解析存储/后端 spec，能解析就返回 0。"""
+    """探活：解析 spec → 实例化 → **校验运行时依赖与协议方法**。
+
+    只做语法解析会把「占位工厂 / 缺 SDK」误报为可用；这里要求解析出的
+    实例真的具备该槽位协议要求的方法，且默认装配能完整构造一次。
+    """
     from harness.assembly import parse_spec, resolve
     from harness.assembly.registry import BACKENDS, STORE_SLOTS
 
-    for table in (STORE_SLOTS["memory"], BACKENDS["index"]):
+    #: 槽位 → 该实现至少应具备的协议方法
+    required = {
+        "store": ("put", "get"),
+        "index": ("upsert", "search"),
+        "artifacts": ("put", "get", "stat"),
+    }
+    for kind, table in (("store", STORE_SLOTS["durability"]),
+                        ("index", BACKENDS["index"]),
+                        ("artifacts", BACKENDS["artifacts"])):
         try:
-            resolve("check", spec, table)
-            return 0
+            instance = resolve(kind, spec, table)
         except Exception:  # noqa: BLE001 - 继续试下一个表
             continue
-    parse_spec(spec, kind="check")          # 至少语法要合法
-    return 1
+        methods = required[kind]
+        missing = [m for m in methods if not callable(getattr(instance, m, None))]
+        if not missing:
+            return 0
+    try:
+        parse_spec(spec, kind="check")          # 语法合法，但没有可用的运行时实现
+    except Exception:  # noqa: BLE001
+        pass
+    # 默认装配探活：能构造出 Harness 才算运行时依赖齐备
+    try:
+        from harness.assembly.config import HarnessConfig, build_harness
+
+        default = build_harness(HarnessConfig())
+        if default.model is None or not callable(getattr(default.model, "complete", None)):
+            return 1
+        return 0 if all(slot in default.backends for slot in BACKENDS) else 1
+    except Exception:  # noqa: BLE001
+        return 1
 
 
 def main(argv: list[str] | None = None) -> int:

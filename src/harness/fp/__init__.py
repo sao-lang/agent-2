@@ -140,15 +140,21 @@ class Program:
         )
 
     @classmethod
-    def from_spec(cls, spec: ProgramSpec, *, factories: dict[str, Any]) -> "Program":
-        """由声明形态重建；未知层名 → ConfigError（不静默跳过）。"""
-        from harness.assembly import registry
+    def from_spec(cls, spec: ProgramSpec, *, factories: dict[str, Any] | None = None) -> "Program":
+        """由声明形态重建；未知层名 → ConfigError（不静默跳过）。
 
+        缺省工厂表与装配期共用 `assembly.config.LAYER_FACTORIES` —— 只保留
+        一张层工厂表，避免两套互不相干的注册。
+        """
+        from harness.assembly import registry
+        from harness.assembly.config import LAYER_FACTORIES
+
+        table = LAYER_FACTORIES if factories is None else factories
         layers = []
         for layer_spec in spec.layers:
-            factory = factories.get(layer_spec.name)
+            factory = table.get(layer_spec.name)
             if factory is None:
-                raise ConfigError(f"未知层：{layer_spec.name}；可用：{sorted(factories)}")
+                raise ConfigError(f"未知层：{layer_spec.name}；可用：{sorted(table)}")
             layers.append(factory(**layer_spec.config))
         body = registry.resolve("program", spec.body, registry.PROGRAMS)
         return cls(body=body, max_steps=spec.max_steps, layers=tuple(layers))

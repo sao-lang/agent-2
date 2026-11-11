@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from harness.parts.actor import Actor
 from harness.assembly.agent import Agent
 from harness.parts.body import PlanExecutePolicy, ReactPolicy, WorkflowPolicy
-from harness.parts.budget import Budget
+from harness.contracts.types import Budget
 from harness.parts.context import BudgetedContext
 from harness.contracts.types import Step
 from harness.parts.delivery import DefaultDelivery
-from harness.parts.durability import NullDurability
+from harness.parts.durability import MemoryDurability
 from harness.contracts.errors import ConfigError
 from harness.parts.guard import AllowAllGuard
 from harness.parts.reflector import NullReflector
@@ -46,9 +47,25 @@ class AgentConfig:
     limits: Any = None
     #: v3.1（SUPPLEMENT A2）：检查点存储（CheckpointStore 协议），供崩溃恢复。
     checkpoints: Any = None
+    #: C05：最终答案出口判定（Validator 协议实现）；None = 不判定。
+    validator: Any = None
+    #: G07：model_call 插点（callable(ModelRequest) -> ModelResponse）；
+    #: None = 直调模型。
+    model_call: Any = None
 
 
 def build(config: AgentConfig) -> Agent:
+    # F03：默认即空实现要在装配期显式可见（观测/反思/准入的空默认只
+    # 服务测试；生产预设 build_production 已把这些参数全部设为必填）。
+    if config.tracer is None:
+        warnings.warn("tracer 未指定，默认 NullTracer（无观测）；生产请显式传入",
+                      UserWarning, stacklevel=2)
+    if config.reflector is None:
+        warnings.warn("reflector 未指定，默认 NullReflector（不评估）；生产请显式传入",
+                      UserWarning, stacklevel=2)
+    if config.guard is None:
+        warnings.warn("guard 未指定，默认 AllowAllGuard（全部放行）；生产请显式传入",
+                      UserWarning, stacklevel=2)
     if config.mode == "workflow":
         if not config.workflow:
             raise ConfigError("mode=workflow 需要 workflow 步骤")
@@ -71,7 +88,8 @@ def build(config: AgentConfig) -> Agent:
         raise ConfigError(f"未知 mode：{config.mode}")
 
     registry = ToolRegistry().add(*(as_tool(item) for item in config.tools))
-    actor = Actor(model=config.model, tools=registry, resilience=config.resilience)
+    actor = Actor(model=config.model, tools=registry, resilience=config.resilience,
+                  model_call=config.model_call)
     context = config.context or BudgetedContext(system=config.system)
 
     return Agent(
@@ -82,7 +100,9 @@ def build(config: AgentConfig) -> Agent:
         guard=config.guard or AllowAllGuard(),
         budget=config.budget or Budget(),
         tracer=config.tracer or NullTracer(),
-        durability=config.durability or NullDurability(),
+        # C10：默认改 MemoryDurability（save/load 真实可用，审批挂起/崩溃
+        # 恢复成立）。NullDurability 仍可显式传入，但不再是默认。
+        durability=config.durability or MemoryDurability(),
         delivery=config.delivery or DefaultDelivery(),
         reflector=config.reflector or NullReflector(),
         max_steps=config.max_steps,
@@ -92,4 +112,5 @@ def build(config: AgentConfig) -> Agent:
         memory_policy=config.memory_policy,
         limits=config.limits,
         checkpoints=config.checkpoints,
+        validator=config.validator,
     )

@@ -2,7 +2,7 @@
 
 > 一句话：给仓库提一个 bug issue，系统自动理解问题 → 在代码库中定位相关文件 → 复现失败 → 编写修复补丁 → 跑测试验证 → 产出一份**带 diff 和测试证据的 PR**，全过程可观测、可评测、可审计。
 > 对标场景：SWE-agent / OpenHands / Claude Code——当前 coding agent 最热的落地方向。
-> 框架基座（v2，2026-11-11）：**LangChain 负责组件层**（模型绑定工具、结构化输出、检索器、文档切块、回调观测），**LangGraph 负责编排层**（StateGraph 状态机、条件边验证门、checkpointer 持久化、`interrupt()` 审批、`Send` 并行、子图隔离）。本仓库自研 `code/harness/` 与 `docs/harness/SUPPLEMENT-PLAN.md` 的 A/B/C 类补充计划**不再是本项目依赖**，仅保留为「手写 loop vs 通用框架」的可选对照样本（M6 选做）。
+> 框架基座（v2，2026-11-11）：**LangChain 负责组件层**（模型绑定工具、结构化输出、检索器、文档切块、回调观测），**LangGraph 负责编排层**（StateGraph 状态机、条件边验证门、checkpointer 持久化、`interrupt()` 审批、`Send` 并行、子图隔离）。仓库内原有的自研 harness 框架及其补充计划**不再是本项目依赖**，仅保留为「手写 loop vs 通用框架」的可选对照样本（M6 选做）。
 > 独特优势：**修没修好由测试判定，评测天然客观**，能产出和公开榜单（SWE-bench）可比的数字——面试里最值钱的硬通货。
 
 ---
@@ -194,7 +194,7 @@ patchpilot/
 | **M3 RAG** | locator 节点上线（tree-sitter 切块 + Qdrant + `EnsembleRetriever` + rerank）+ 历史 issue 存入 `BaseStore` | LangChain splitters / embeddings / retrievers / `langgraph.store` | "百文件仓库定位：无 RAG 遍历 vs 检索 top3 命中率 __%；AST 切块 vs 定长切块对比" |
 | **M4 Harness** | Docker 沙箱工具 + diff 护栏 + `interrupt()` 双审批 + 注入演练 + MCP 化 | `MultiServerMCPClient` / `interrupt` / `Command(resume=...)` / 自定义 `@tool` | "无验证门时 __% 假完成；恶意 issue 攻防对照；越界改动硬拦" |
 | **M5 多 agent** | `create_supervisor` 子图编排 triage/locator/coder/tester/critic + `Send` 并行定位 + LangFuse/LangSmith trace + 看板 + 评测 | `langgraph-supervisor` / `Send` / `stream_mode` / LangSmith `evaluate` | "SWE-bench Lite 子集 pass@1 __%（对标公开数据）；并行定位耗时降 __%" |
-| **M6 对照（选做）** | 用本仓库自研 `code/harness/` 重写同一编排，跑同一评测集对比行为与成本 | 项目层对照，不进主链路 | "两套编排行为一致；讲清 LangGraph 省掉了什么、哪些能力仍必须自己实现" |
+| **M6 对照（选做）** | 用原有的自研 harness 框架重写同一编排，跑同一评测集对比行为与成本 | 项目层对照，不进主链路 | "两套编排行为一致；讲清 LangGraph 省掉了什么、哪些能力仍必须自己实现" |
 
 ---
 

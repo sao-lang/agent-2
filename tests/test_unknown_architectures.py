@@ -23,7 +23,7 @@ import unknown_architectures as U  # noqa: E402  （用户侧代码）
 from harness.contracts.decision import Decision, FnProgram, Halt, capabilities  # noqa: E402
 from harness.contracts.types import Effect  # noqa: E402
 from harness.fp.frontends import make_state  # noqa: E402
-from harness.kernel.interpret import Limits, Runtime, interpret  # noqa: E402
+from harness.kernel.interpret import Runtime, RuntimeLimits, interpret  # noqa: E402
 
 
 def run(coro):
@@ -31,7 +31,7 @@ def run(coro):
 
 
 def runtime() -> Runtime:
-    return Runtime(limits=Limits(max_transitions=64, max_calls=80))
+    return Runtime(limits=RuntimeLimits(max_transitions=64, max_calls=80))
 
 
 KERNEL_FILES = (

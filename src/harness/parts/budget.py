@@ -1,44 +1,11 @@
-"""预算：token 与调用次数。预算是共享资源，不是某个组件的私有财产。"""
+"""预算（转发壳，P1 合并 §4.3.1）：唯一实现在 :mod:`harness.contracts.types`。
 
-from __future__ import annotations
+历史上 v1 线用本模块的 60k/30 小 Budget，v2/v3 线用 contracts 的
+200k/60 Budget（带 split/view/owner）——同名两份实现已在 P1 统一：
+顶层与装配层全部改指 ``contracts.types.Budget``，``NullBudget`` 一并
+迁入契约层。本模块只为旧导入路径保留转发。
+"""
 
-from dataclasses import dataclass
+from harness.contracts.types import Budget, NullBudget
 
-
-@dataclass
-class Budget:
-    tokens: int = 60_000
-    calls: int = 30
-    used_tokens: int = 0
-    used_calls: int = 0
-
-    @property
-    def remaining_tokens(self) -> int:
-        return max(0, self.tokens - self.used_tokens)
-
-    @property
-    def remaining_calls(self) -> int:
-        return max(0, self.calls - self.used_calls)
-
-    @property
-    def exhausted(self) -> bool:
-        return self.remaining_tokens <= 0 or self.remaining_calls <= 0
-
-    def spend(self, tokens: int = 0, calls: int = 1) -> None:
-        self.used_tokens += max(0, tokens)
-        self.used_calls += max(0, calls)
-
-    def snapshot(self) -> dict[str, int]:
-        return {
-            "tokens": self.tokens,
-            "calls": self.calls,
-            "used_tokens": self.used_tokens,
-            "used_calls": self.used_calls,
-        }
-
-
-class NullBudget(Budget):
-    """测试用：永不耗尽。"""
-
-    def __init__(self) -> None:
-        super().__init__(tokens=10**12, calls=10**9)
+__all__ = ["Budget", "NullBudget"]

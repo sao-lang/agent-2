@@ -57,16 +57,17 @@ from harness.parts.body import (
     ScriptedPlanner,
     WorkflowPolicy,
 )
-from harness.parts.budget import Budget
+from harness.contracts.types import Budget
 from harness.parts.context import BudgetedContext, NullContext
 from harness.parts.delivery import DefaultDelivery
 from harness.parts.dispatch import AlwaysRoute, RuleRouter
 from harness.parts.durability import MemoryDurability, NullDurability, SQLiteDurability
-from harness.parts.guard import AllowAllGuard, DenyAllGuard, FunctionGuard
+from harness.parts.guard import AllowAllGuard, AnswerValidator, DenyAllGuard, FunctionGuard, SessionGuard
 from harness.parts.knowledge import InMemoryKnowledge
 from harness.parts.memory import InMemoryMemory
 from harness.parts.reflector import FunctionReflector, NullReflector
-from harness.parts.resilience import Resilience
+from harness.parts.resilience import CircuitBreaker, CircuitOpen, Resilience
+from harness.parts.structured import StructuredModel, structured, validate_json
 from harness.parts.retrieval import AutoRetrieval, NoRetrieval
 from harness.parts.skills import Skill, SkillMeta, SkillRegistry
 from harness.parts.tools import FunctionTool, ToolRegistry, as_tool, tool
@@ -90,13 +91,14 @@ from harness.contracts.decision import (
 from harness.kernel.effects import EffectLayer, execute_effects
 from harness.contracts.types import Effect
 from harness.kernel.interpret import (
-    Limits as InterpreterLimits,
+    RuntimeLimits,
     Outcome,
     Runtime,
     ValidationFailed,
     interpret,
 )
 from harness.fp import frontends as _frontends  # noqa: F401 （触发前端自注册）
+from harness.adapters import openai as _openai_adapter  # noqa: F401 （B08：适配器自注册）
 
 __version__ = "0.3.0"
 contracts_version = "3"
@@ -116,9 +118,12 @@ __all__ = [
     "Step", "Supervisor", "ToolCall", "ToolError", "ToolRegistry", "Verdict",
     "WorkflowPolicy", "as_tool", "build", "build_minimal", "build_pe",
     "build_production", "build_react", "build_workflow", "contracts_version", "tool",
+    # C01/C02/C03/C05/C08：新增出口判定、会话准入、熔断与结构化输出
+    "AnswerValidator", "SessionGuard", "CircuitBreaker", "CircuitOpen",
+    "StructuredModel", "structured", "validate_json",
     # v3
     "Transition", "Halt", "FnProgram", "interpret", "Runtime", "Outcome",
-    "InterpreterLimits", "ValidationFailed", "EffectLayer", "execute_effects",
+    "RuntimeLimits", "ValidationFailed", "EffectLayer", "execute_effects",
     "Effect", "capabilities", "program_describe", "program_to_spec",
     "Layer", "layer", "Hook",
 ]

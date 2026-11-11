@@ -1,0 +1,1421 @@
+{
+  "anchors": {
+    "failed": [],
+    "passed": 44,
+    "results": [
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/config.py",
+        "found": true,
+        "id": "auto_layers",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/contracts/types.py",
+        "found": true,
+        "id": "budget_contract",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/budget.py",
+        "found": true,
+        "id": "budget_forward",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/middleware/builtin.py",
+        "found": true,
+        "id": "budget_layer",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/delivery.py",
+        "found": true,
+        "id": "budget_metadata",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/contracts/types.py",
+        "found": true,
+        "id": "budget_view",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/guard.py",
+        "found": true,
+        "id": "check_identity",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/kernel/interpret.py",
+        "found": true,
+        "id": "commit_spends_budget",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/kernel/interpret.py",
+        "found": true,
+        "id": "commit_usage",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/harness.py",
+        "found": true,
+        "id": "counter_wired",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/contracts/protocols/governance.py",
+        "found": true,
+        "id": "delivery_protocol",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/harness.py",
+        "found": true,
+        "id": "dry_run",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/kernel/effects.py",
+        "found": true,
+        "id": "effects_stages",
+        "ok": true
+      },
+      {
+        "expect": "absent",
+        "file": "src/harness/kernel/stage.py",
+        "found": false,
+        "id": "failure_contract",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/impl/fakes.py",
+        "found": true,
+        "id": "fake_model",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/config.py",
+        "found": true,
+        "id": "harness_config",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/config.py",
+        "found": true,
+        "id": "layer_factories",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/config.py",
+        "found": true,
+        "id": "layer_fn",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/config.py",
+        "found": true,
+        "id": "layers_dead",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/kernel/legacy.py",
+        "found": true,
+        "id": "legacy_model_resp",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/resilience.py",
+        "found": true,
+        "id": "max_qps",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/kernel/effects.py",
+        "found": true,
+        "id": "model_drop_usage",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/harness.py",
+        "found": true,
+        "id": "new_runtime",
+        "ok": true
+      },
+      {
+        "expect": "absent",
+        "file": "src/harness/parts/guardrail/detectors.py",
+        "found": false,
+        "id": "no_feed_impl",
+        "ok": true
+      },
+      {
+        "expect": "absent",
+        "file": "src/harness/parts/guardrail/streaming.py",
+        "found": false,
+        "id": "no_hasattr_feed",
+        "ok": true
+      },
+      {
+        "expect": "absent",
+        "file": "src/harness/kernel/effects.py",
+        "found": false,
+        "id": "no_tokens_10",
+        "ok": true
+      },
+      {
+        "expect": "absent",
+        "file": "src/harness/parts/body/react.py",
+        "found": false,
+        "id": "no_total_tokens",
+        "ok": true
+      },
+      {
+        "expect": "absent",
+        "file": "src/harness/assembly/agent.py",
+        "found": false,
+        "id": "no_v1_double_count",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/durability.py",
+        "found": true,
+        "id": "null_durability",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/adapters/openai.py",
+        "found": true,
+        "id": "openai_selfreg",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/__init__.py",
+        "found": true,
+        "id": "pkg_version",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/kernel/chain.py",
+        "found": true,
+        "id": "points",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/contracts/types.py",
+        "found": true,
+        "id": "quota_field",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/resilience.py",
+        "found": true,
+        "id": "resilience",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/guardrail/layer.py",
+        "found": true,
+        "id": "run_point_declared",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/kernel/legacy.py",
+        "found": true,
+        "id": "run_point_executed",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/registry.py",
+        "found": true,
+        "id": "sandbox_local",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/contracts/state.py",
+        "found": true,
+        "id": "schema_version",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/contracts/types.py",
+        "found": true,
+        "id": "split",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/structured.py",
+        "found": true,
+        "id": "structured",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/tokens.py",
+        "found": true,
+        "id": "tiktoken",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/parts/actor_v2.py",
+        "found": true,
+        "id": "usage_total_v2",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/config.py",
+        "found": true,
+        "id": "validate_layers",
+        "ok": true
+      },
+      {
+        "expect": "present",
+        "file": "src/harness/assembly/harness.py",
+        "found": true,
+        "id": "with_auto_layers",
+        "ok": true
+      }
+    ],
+    "total": 44
+  },
+  "dangling_all": [],
+  "duplicate_defs": {
+    "group_count": 12,
+    "groups": {
+      "Actor": [
+        {
+          "fields": [],
+          "file": "src/harness/contracts/protocols/governance.py",
+          "kind": "class",
+          "line": 22
+        },
+        {
+          "fields": [
+            "model",
+            "model_call",
+            "resilience",
+            "tools"
+          ],
+          "file": "src/harness/parts/actor.py",
+          "kind": "class",
+          "line": 17
+        }
+      ],
+      "Decision": [
+        {
+          "fields": [
+            "effects",
+            "meta",
+            "note",
+            "patch",
+            "program",
+            "restore"
+          ],
+          "file": "src/harness/contracts/decision.py",
+          "kind": "class",
+          "line": 42
+        },
+        {
+          "fields": [
+            "action",
+            "args",
+            "by",
+            "reason"
+          ],
+          "file": "src/harness/contracts/types.py",
+          "kind": "class",
+          "line": 249
+        }
+      ],
+      "PlanExecutePolicy": [
+        {
+          "fields": [],
+          "file": "src/harness/parts/body/pe.py",
+          "kind": "class",
+          "line": 19
+        },
+        {
+          "fields": [
+            "_cursor",
+            "_plan",
+            "_replans",
+            "max_replan",
+            "name",
+            "planner"
+          ],
+          "file": "src/harness/parts/policy/policies.py",
+          "kind": "class",
+          "line": 43
+        }
+      ],
+      "Program": [
+        {
+          "fields": [
+            "name"
+          ],
+          "file": "src/harness/contracts/protocols/runtime.py",
+          "kind": "class",
+          "line": 67
+        },
+        {
+          "fields": [
+            "body",
+            "layers",
+            "max_steps",
+            "scope"
+          ],
+          "file": "src/harness/fp/__init__.py",
+          "kind": "class",
+          "line": 102
+        }
+      ],
+      "ReactPolicy": [
+        {
+          "fields": [],
+          "file": "src/harness/parts/body/react.py",
+          "kind": "class",
+          "line": 8
+        },
+        {
+          "fields": [
+            "max_tool_calls",
+            "name"
+          ],
+          "file": "src/harness/parts/policy/policies.py",
+          "kind": "class",
+          "line": 15
+        }
+      ],
+      "Router": [
+        {
+          "fields": [],
+          "file": "src/harness/contracts/protocols/governance.py",
+          "kind": "class",
+          "line": 31
+        },
+        {
+          "fields": [
+            "arms",
+            "fallback",
+            "name",
+            "phase"
+          ],
+          "file": "src/harness/fp/frontends.py",
+          "kind": "class",
+          "line": 196
+        }
+      ],
+      "WorkflowPolicy": [
+        {
+          "fields": [],
+          "file": "src/harness/parts/body/workflow.py",
+          "kind": "class",
+          "line": 10
+        },
+        {
+          "fields": [
+            "_index",
+            "name",
+            "on_tool_error",
+            "steps"
+          ],
+          "file": "src/harness/parts/policy/policies.py",
+          "kind": "class",
+          "line": 26
+        }
+      ],
+      "describe": [
+        {
+          "fields": [],
+          "file": "src/harness/contracts/decision.py",
+          "kind": "def",
+          "line": 89
+        },
+        {
+          "fields": [],
+          "file": "src/harness/fp/__init__.py",
+          "kind": "def",
+          "line": 88
+        },
+        {
+          "fields": [],
+          "file": "src/harness/kernel/chain.py",
+          "kind": "def",
+          "line": 65
+        }
+      ],
+      "pe": [
+        {
+          "fields": [],
+          "file": "src/harness/assembly/fpresets.py",
+          "kind": "def",
+          "line": 34
+        },
+        {
+          "fields": [],
+          "file": "src/harness/fp/__init__.py",
+          "kind": "def",
+          "line": 177
+        }
+      ],
+      "react": [
+        {
+          "fields": [],
+          "file": "src/harness/assembly/fpresets.py",
+          "kind": "def",
+          "line": 20
+        },
+        {
+          "fields": [],
+          "file": "src/harness/fp/__init__.py",
+          "kind": "def",
+          "line": 166
+        }
+      ],
+      "resolve": [
+        {
+          "fields": [],
+          "file": "src/harness/assembly/registry.py",
+          "kind": "def",
+          "line": 46
+        },
+        {
+          "fields": [],
+          "file": "src/harness/impl/backends/paths.py",
+          "kind": "def",
+          "line": 45
+        },
+        {
+          "fields": [],
+          "file": "src/harness/kernel/chain.py",
+          "kind": "def",
+          "line": 27
+        }
+      ],
+      "workflow": [
+        {
+          "fields": [],
+          "file": "src/harness/assembly/fpresets.py",
+          "kind": "def",
+          "line": 30
+        },
+        {
+          "fields": [],
+          "file": "src/harness/fp/__init__.py",
+          "kind": "def",
+          "line": 170
+        }
+      ]
+    }
+  },
+  "manual_findings": {
+    "anchor_ids": [
+      "auto_layers",
+      "budget_layer",
+      "budget_metadata",
+      "budget_view",
+      "check_identity",
+      "commit_spends_budget",
+      "counter_wired",
+      "delivery_protocol",
+      "dry_run",
+      "effects_stages",
+      "fake_model",
+      "harness_config",
+      "layer_factories",
+      "layer_fn",
+      "layers_dead",
+      "legacy_model_resp",
+      "max_qps",
+      "model_drop_usage",
+      "new_runtime",
+      "no_feed_impl",
+      "no_tokens_10",
+      "no_v1_double_count",
+      "null_durability",
+      "openai_selfreg",
+      "quota_field",
+      "run_point_executed",
+      "sandbox_local",
+      "structured",
+      "validate_layers",
+      "with_auto_layers"
+    ],
+    "broken_anchor_ids": [],
+    "by_category": {
+      "契约": 10,
+      "治理": 7,
+      "装配": 12,
+      "计量": 10,
+      "默认实现": 5
+    },
+    "by_level": {
+      "中": 17,
+      "低": 5,
+      "高": 22
+    },
+    "items": [
+      {
+        "anchor": "layers_dead",
+        "category": "装配",
+        "id": "B01",
+        "level": "高"
+      },
+      {
+        "anchor": "layer_factories",
+        "category": "装配",
+        "id": "B02",
+        "level": "高"
+      },
+      {
+        "anchor": "validate_layers",
+        "category": "装配",
+        "id": "B03",
+        "level": "中"
+      },
+      {
+        "anchor": "auto_layers",
+        "category": "装配",
+        "id": "B04",
+        "level": "高"
+      },
+      {
+        "anchor": "harness_config",
+        "category": "装配",
+        "id": "B05",
+        "level": "高"
+      },
+      {
+        "anchor": "new_runtime",
+        "category": "装配",
+        "id": "B06",
+        "level": "高"
+      },
+      {
+        "anchor": "sandbox_local",
+        "category": "装配",
+        "id": "B07",
+        "level": "高"
+      },
+      {
+        "anchor": "openai_selfreg",
+        "category": "装配",
+        "id": "B08",
+        "level": "高"
+      },
+      {
+        "anchor": "layer_factories",
+        "category": "装配",
+        "id": "B09",
+        "level": "低"
+      },
+      {
+        "anchor": "layer_fn",
+        "category": "装配",
+        "id": "B10",
+        "level": "中"
+      },
+      {
+        "anchor": "layer_factories",
+        "category": "装配",
+        "id": "B11",
+        "level": "低"
+      },
+      {
+        "anchor": "layer_factories",
+        "category": "装配",
+        "id": "B12",
+        "level": "低"
+      },
+      {
+        "anchor": "no_tokens_10",
+        "category": "计量",
+        "id": "M01",
+        "level": "高"
+      },
+      {
+        "anchor": "model_drop_usage",
+        "category": "计量",
+        "id": "M02",
+        "level": "高"
+      },
+      {
+        "anchor": "no_v1_double_count",
+        "category": "计量",
+        "id": "M03",
+        "level": "高"
+      },
+      {
+        "anchor": "commit_spends_budget",
+        "category": "计量",
+        "id": "M04",
+        "level": "中"
+      },
+      {
+        "anchor": "legacy_model_resp",
+        "category": "计量",
+        "id": "M05",
+        "level": "中"
+      },
+      {
+        "anchor": "fake_model",
+        "category": "计量",
+        "id": "M06",
+        "level": "高"
+      },
+      {
+        "anchor": "fake_model",
+        "category": "计量",
+        "id": "M07",
+        "level": "中"
+      },
+      {
+        "anchor": "counter_wired",
+        "category": "计量",
+        "id": "M08",
+        "level": "中"
+      },
+      {
+        "anchor": "budget_layer",
+        "category": "计量",
+        "id": "M09",
+        "level": "中"
+      },
+      {
+        "anchor": "budget_metadata",
+        "category": "计量",
+        "id": "M10",
+        "level": "低"
+      },
+      {
+        "anchor": "quota_field",
+        "category": "契约",
+        "id": "C01",
+        "level": "高"
+      },
+      {
+        "anchor": "check_identity",
+        "category": "契约",
+        "id": "C02",
+        "level": "高"
+      },
+      {
+        "anchor": "max_qps",
+        "category": "契约",
+        "id": "C03",
+        "level": "中"
+      },
+      {
+        "anchor": "no_feed_impl",
+        "category": "契约",
+        "id": "C04",
+        "level": "高"
+      },
+      {
+        "anchor": "delivery_protocol",
+        "category": "契约",
+        "id": "C05",
+        "level": "中"
+      },
+      {
+        "anchor": "delivery_protocol",
+        "category": "契约",
+        "id": "C06",
+        "level": "低"
+      },
+      {
+        "anchor": "run_point_executed",
+        "category": "契约",
+        "id": "C07",
+        "level": "高"
+      },
+      {
+        "anchor": "structured",
+        "category": "契约",
+        "id": "C08",
+        "level": "中"
+      },
+      {
+        "anchor": "budget_view",
+        "category": "契约",
+        "id": "C09",
+        "level": "中"
+      },
+      {
+        "anchor": "null_durability",
+        "category": "契约",
+        "id": "C10",
+        "level": "高"
+      },
+      {
+        "anchor": "with_auto_layers",
+        "category": "治理",
+        "id": "G01",
+        "level": "高"
+      },
+      {
+        "anchor": "dry_run",
+        "category": "治理",
+        "id": "G02",
+        "level": "中"
+      },
+      {
+        "anchor": "new_runtime",
+        "category": "治理",
+        "id": "G03",
+        "level": "中"
+      },
+      {
+        "anchor": "no_v1_double_count",
+        "category": "治理",
+        "id": "G04",
+        "level": "中"
+      },
+      {
+        "anchor": "new_runtime",
+        "category": "治理",
+        "id": "G05",
+        "level": "高"
+      },
+      {
+        "anchor": "effects_stages",
+        "category": "治理",
+        "id": "G06",
+        "level": "高"
+      },
+      {
+        "anchor": "counter_wired",
+        "category": "治理",
+        "id": "G07",
+        "level": "中"
+      },
+      {
+        "anchor": "fake_model",
+        "category": "默认实现",
+        "id": "F01",
+        "level": "中"
+      },
+      {
+        "anchor": "sandbox_local",
+        "category": "默认实现",
+        "id": "F02",
+        "level": "高"
+      },
+      {
+        "anchor": "null_durability",
+        "category": "默认实现",
+        "id": "F03",
+        "level": "高"
+      },
+      {
+        "anchor": "openai_selfreg",
+        "category": "默认实现",
+        "id": "F04",
+        "level": "高"
+      },
+      {
+        "anchor": "fake_model",
+        "category": "默认实现",
+        "id": "F05",
+        "level": "中"
+      }
+    ],
+    "note": "人工判定条目的稳定索引；结论正文见 AUDIT 文档 §1，脚本不重算结论",
+    "total": 44
+  },
+  "meta": {
+    "audit_spec_version": "1.2",
+    "deterministic": true,
+    "generator": "tools/audit_harness.py",
+    "generator_sha256": "f2f8d6b38392110b8aee30787c027d0573bfff2081250db56a0c96150a0b1bf4",
+    "no_timestamp_no_randomness": true,
+    "regex": {
+      "full": "\\b(?:v|V)[123](?:\\.\\d+)?\\b|legacy|Legacy|LEGACY|兼容|SUPPLEMENT|M15|版本|version|Version|VERSION|schema_version|SCHEMA_VERSION|contracts_version|__version__",
+      "strict": "\\b(?:v|V)[123](?:\\.\\d+)?\\b",
+      "wide": "\\b(?:v|V)[123](?:\\.\\d+)?\\b|legacy|Legacy|LEGACY"
+    },
+    "scope": {
+      "code": "src/harness/**/*.py",
+      "docs": "docs/harness/*.md (排除 AUDIT-*.md)",
+      "tests": "tests/**/*.py"
+    }
+  },
+  "parse_errors": [],
+  "placeholders": {
+    "adapter_placeholder_calls": 18,
+    "not_implemented_error": [
+      {
+        "file": "src/harness/kernel/effects.py",
+        "line": 386,
+        "text": "raise NotImplementedError"
+      }
+    ],
+    "pass_statements": [
+      {
+        "file": "src/harness/adapters/openai.py",
+        "line": 138
+      },
+      {
+        "file": "src/harness/assembly/harness.py",
+        "line": 181
+      },
+      {
+        "file": "src/harness/assembly/harness.py",
+        "line": 252
+      },
+      {
+        "file": "src/harness/assembly/harness.py",
+        "line": 272
+      },
+      {
+        "file": "src/harness/cli.py",
+        "line": 107
+      },
+      {
+        "file": "src/harness/contracts/errors.py",
+        "line": 15
+      },
+      {
+        "file": "src/harness/contracts/errors.py",
+        "line": 19
+      },
+      {
+        "file": "src/harness/contracts/errors.py",
+        "line": 23
+      },
+      {
+        "file": "src/harness/contracts/errors.py",
+        "line": 27
+      },
+      {
+        "file": "src/harness/contracts/errors.py",
+        "line": 31
+      },
+      {
+        "file": "src/harness/contracts/errors.py",
+        "line": 35
+      },
+      {
+        "file": "src/harness/kernel/effects.py",
+        "line": 212
+      },
+      {
+        "file": "src/harness/kernel/interpret.py",
+        "line": 197
+      },
+      {
+        "file": "src/harness/kernel/interpret.py",
+        "line": 317
+      },
+      {
+        "file": "src/harness/kernel/legacy.py",
+        "line": 196
+      },
+      {
+        "file": "src/harness/parts/guardrail/layer.py",
+        "line": 66
+      },
+      {
+        "file": "src/harness/parts/layers.py",
+        "line": 76
+      },
+      {
+        "file": "src/harness/parts/layers.py",
+        "line": 157
+      },
+      {
+        "file": "src/harness/parts/middleware/builtin.py",
+        "line": 131
+      }
+    ],
+    "todo_like": []
+  },
+  "scope": {
+    "code_files": 94,
+    "code_fingerprint_sha256": "1382173b980313a4dcc592b3d3f7061b9052a0b381eff7dbc62a61d7f1901ae9",
+    "doc_files": 3,
+    "doc_lines": {
+      "docs/harness/CHANGELOG.md": 61,
+      "docs/harness/SPEC.md": 2618,
+      "docs/harness/TUTORIAL.md": 619
+    },
+    "doc_total_lines": 3298,
+    "test_files": 27
+  },
+  "shims": [
+    {
+      "file": "src/harness/adapters/__init__.py",
+      "lines": 1,
+      "reasons": [
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/assembly/agent.py",
+      "lines": 456,
+      "reasons": [
+        "docstring_mentions_compat"
+      ]
+    },
+    {
+      "file": "src/harness/errors.py",
+      "lines": 14,
+      "reasons": [
+        "docstring_mentions_compat",
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/impl/__init__.py",
+      "lines": 1,
+      "reasons": [
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/kernel/__init__.py",
+      "lines": 1,
+      "reasons": [
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/kernel/loop.py",
+      "lines": 26,
+      "reasons": [
+        "docstring_mentions_compat"
+      ]
+    },
+    {
+      "file": "src/harness/parts/__init__.py",
+      "lines": 1,
+      "reasons": [
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/parts/body/__init__.py",
+      "lines": 8,
+      "reasons": [
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/parts/budget.py",
+      "lines": 11,
+      "reasons": [
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/parts/policy/__init__.py",
+      "lines": 5,
+      "reasons": [
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/result.py",
+      "lines": 5,
+      "reasons": [
+        "docstring_mentions_compat",
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/state.py",
+      "lines": 5,
+      "reasons": [
+        "docstring_mentions_compat",
+        "only_imports_and_all"
+      ]
+    },
+    {
+      "file": "src/harness/testing.py",
+      "lines": 5,
+      "reasons": [
+        "docstring_mentions_compat",
+        "only_imports_and_all"
+      ]
+    }
+  ],
+  "versions": {
+    "constants": [
+      {
+        "file": "src/harness/__init__.py",
+        "line": 103,
+        "text": "__version__ = \"0.3.0\""
+      },
+      {
+        "file": "src/harness/__init__.py",
+        "line": 104,
+        "text": "contracts_version = \"3\""
+      },
+      {
+        "file": "src/harness/assembly/agent.py",
+        "line": 396,
+        "text": "name = \"agent_v1\""
+      },
+      {
+        "file": "src/harness/contracts/__init__.py",
+        "line": 37,
+        "text": "contracts_version = \"3\""
+      },
+      {
+        "file": "src/harness/contracts/state.py",
+        "line": 14,
+        "text": "SCHEMA_VERSION = 2"
+      },
+      {
+        "file": "src/harness/kernel/legacy.py",
+        "line": 33,
+        "text": "name = \"legacy\""
+      }
+    ],
+    "full": {
+      "code": {
+        "files": 45,
+        "lines": 144,
+        "per_file": {
+          "src/harness/__init__.py": 5,
+          "src/harness/adapters/openai.py": 2,
+          "src/harness/assembly/__init__.py": 1,
+          "src/harness/assembly/agent.py": 12,
+          "src/harness/assembly/build.py": 2,
+          "src/harness/assembly/config.py": 1,
+          "src/harness/assembly/fpresets.py": 1,
+          "src/harness/assembly/harness.py": 10,
+          "src/harness/assembly/registry.py": 6,
+          "src/harness/contracts/__init__.py": 2,
+          "src/harness/contracts/decision.py": 1,
+          "src/harness/contracts/errors.py": 3,
+          "src/harness/contracts/events.py": 4,
+          "src/harness/contracts/protocols/backends.py": 1,
+          "src/harness/contracts/protocols/framing.py": 1,
+          "src/harness/contracts/protocols/runtime.py": 1,
+          "src/harness/contracts/protocols/stores.py": 5,
+          "src/harness/contracts/protocols/tools.py": 2,
+          "src/harness/contracts/state.py": 6,
+          "src/harness/contracts/types.py": 6,
+          "src/harness/errors.py": 1,
+          "src/harness/fp/__init__.py": 5,
+          "src/harness/fp/frontends.py": 4,
+          "src/harness/impl/backends/vector.py": 1,
+          "src/harness/impl/stores/memory.py": 17,
+          "src/harness/kernel/chain.py": 1,
+          "src/harness/kernel/effects.py": 5,
+          "src/harness/kernel/interpret.py": 6,
+          "src/harness/kernel/legacy.py": 9,
+          "src/harness/kernel/loop.py": 4,
+          "src/harness/parts/actor.py": 1,
+          "src/harness/parts/body/pe.py": 1,
+          "src/harness/parts/budget.py": 1,
+          "src/harness/parts/dispatch.py": 1,
+          "src/harness/parts/framing/encoders.py": 1,
+          "src/harness/parts/framing/framers.py": 2,
+          "src/harness/parts/policy/__init__.py": 1,
+          "src/harness/parts/policy/policies.py": 2,
+          "src/harness/parts/structured.py": 1,
+          "src/harness/parts/tokens.py": 1,
+          "src/harness/parts/tools.py": 2,
+          "src/harness/parts/topology.py": 2,
+          "src/harness/result.py": 1,
+          "src/harness/state.py": 1,
+          "src/harness/testing.py": 1
+        }
+      },
+      "docs": {
+        "files": 3,
+        "lines": 86,
+        "per_file": {
+          "docs/harness/CHANGELOG.md": 11,
+          "docs/harness/SPEC.md": 58,
+          "docs/harness/TUTORIAL.md": 17
+        }
+      }
+    },
+    "strict": {
+      "code": {
+        "files": 32,
+        "lines": 80,
+        "per_file": {
+          "src/harness/__init__.py": 2,
+          "src/harness/adapters/openai.py": 1,
+          "src/harness/assembly/agent.py": 9,
+          "src/harness/assembly/build.py": 2,
+          "src/harness/assembly/harness.py": 6,
+          "src/harness/assembly/registry.py": 5,
+          "src/harness/contracts/decision.py": 1,
+          "src/harness/contracts/errors.py": 2,
+          "src/harness/contracts/events.py": 4,
+          "src/harness/contracts/protocols/backends.py": 1,
+          "src/harness/contracts/protocols/framing.py": 1,
+          "src/harness/contracts/protocols/runtime.py": 1,
+          "src/harness/contracts/protocols/stores.py": 5,
+          "src/harness/contracts/protocols/tools.py": 2,
+          "src/harness/contracts/state.py": 2,
+          "src/harness/contracts/types.py": 5,
+          "src/harness/fp/__init__.py": 3,
+          "src/harness/fp/frontends.py": 3,
+          "src/harness/kernel/chain.py": 1,
+          "src/harness/kernel/effects.py": 3,
+          "src/harness/kernel/interpret.py": 4,
+          "src/harness/kernel/legacy.py": 3,
+          "src/harness/kernel/loop.py": 1,
+          "src/harness/parts/body/pe.py": 1,
+          "src/harness/parts/budget.py": 1,
+          "src/harness/parts/dispatch.py": 1,
+          "src/harness/parts/framing/encoders.py": 1,
+          "src/harness/parts/framing/framers.py": 2,
+          "src/harness/parts/policy/__init__.py": 1,
+          "src/harness/parts/policy/policies.py": 2,
+          "src/harness/parts/tools.py": 2,
+          "src/harness/parts/topology.py": 2
+        }
+      },
+      "docs": {
+        "files": 3,
+        "lines": 38,
+        "per_file": {
+          "docs/harness/CHANGELOG.md": 3,
+          "docs/harness/SPEC.md": 23,
+          "docs/harness/TUTORIAL.md": 12
+        }
+      }
+    },
+    "v31_supplement": {
+      "code_files": 15,
+      "code_lines": 26,
+      "docs_lines": 1,
+      "per_file": {
+        "src/harness/adapters/openai.py": 1,
+        "src/harness/assembly/agent.py": 7,
+        "src/harness/assembly/build.py": 2,
+        "src/harness/assembly/registry.py": 2,
+        "src/harness/contracts/state.py": 1,
+        "src/harness/contracts/types.py": 1,
+        "src/harness/impl/backends/vector.py": 1,
+        "src/harness/kernel/interpret.py": 3,
+        "src/harness/kernel/legacy.py": 2,
+        "src/harness/parts/body/pe.py": 1,
+        "src/harness/parts/dispatch.py": 1,
+        "src/harness/parts/framing/encoders.py": 1,
+        "src/harness/parts/framing/framers.py": 1,
+        "src/harness/parts/structured.py": 1,
+        "src/harness/parts/tokens.py": 1
+      }
+    },
+    "wide": {
+      "code": {
+        "files": 32,
+        "lines": 92,
+        "per_file": {
+          "src/harness/__init__.py": 2,
+          "src/harness/adapters/openai.py": 1,
+          "src/harness/assembly/agent.py": 9,
+          "src/harness/assembly/build.py": 2,
+          "src/harness/assembly/harness.py": 8,
+          "src/harness/assembly/registry.py": 5,
+          "src/harness/contracts/decision.py": 1,
+          "src/harness/contracts/errors.py": 2,
+          "src/harness/contracts/events.py": 4,
+          "src/harness/contracts/protocols/backends.py": 1,
+          "src/harness/contracts/protocols/framing.py": 1,
+          "src/harness/contracts/protocols/runtime.py": 1,
+          "src/harness/contracts/protocols/stores.py": 5,
+          "src/harness/contracts/protocols/tools.py": 2,
+          "src/harness/contracts/state.py": 2,
+          "src/harness/contracts/types.py": 5,
+          "src/harness/fp/__init__.py": 5,
+          "src/harness/fp/frontends.py": 3,
+          "src/harness/kernel/chain.py": 1,
+          "src/harness/kernel/effects.py": 3,
+          "src/harness/kernel/interpret.py": 4,
+          "src/harness/kernel/legacy.py": 8,
+          "src/harness/kernel/loop.py": 4,
+          "src/harness/parts/body/pe.py": 1,
+          "src/harness/parts/budget.py": 1,
+          "src/harness/parts/dispatch.py": 1,
+          "src/harness/parts/framing/encoders.py": 1,
+          "src/harness/parts/framing/framers.py": 2,
+          "src/harness/parts/policy/__init__.py": 1,
+          "src/harness/parts/policy/policies.py": 2,
+          "src/harness/parts/tools.py": 2,
+          "src/harness/parts/topology.py": 2
+        }
+      },
+      "docs": {
+        "files": 3,
+        "lines": 40,
+        "per_file": {
+          "docs/harness/CHANGELOG.md": 4,
+          "docs/harness/SPEC.md": 23,
+          "docs/harness/TUTORIAL.md": 13
+        }
+      }
+    }
+  },
+  "zero_reference_candidates": {
+    "count": 17,
+    "items": {
+      "DenyAllGate": {
+        "definitions": [
+          "src/harness/kernel/stage.py:62"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 0
+      },
+      "IdentityCheck": {
+        "definitions": [
+          "src/harness/kernel/stage.py:67"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 0
+      },
+      "Job": {
+        "definitions": [
+          "src/harness/contracts/types.py:524"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 4
+      },
+      "VectorRouter": {
+        "definitions": [
+          "src/harness/parts/dispatch.py:92"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 5
+      },
+      "bind_namespace": {
+        "definitions": [
+          "src/harness/parts/layers.py:42"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 0
+      },
+      "builtin_paradigms": {
+        "definitions": [
+          "src/harness/fp/frontends.py:482"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 6
+      },
+      "compose": {
+        "definitions": [
+          "src/harness/fp/__init__.py:40"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 2
+      },
+      "layers_from_specs": {
+        "definitions": [
+          "src/harness/assembly/config.py:279"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 0
+      },
+      "make_counter": {
+        "definitions": [
+          "src/harness/parts/tokens.py:76"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 0
+      },
+      "minimal": {
+        "definitions": [
+          "src/harness/assembly/fpresets.py:15"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 4
+      },
+      "pe": {
+        "definitions": [
+          "src/harness/assembly/fpresets.py:34",
+          "src/harness/fp/__init__.py:177"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 13
+      },
+      "production": {
+        "definitions": [
+          "src/harness/assembly/fpresets.py:38"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 4
+      },
+      "react": {
+        "definitions": [
+          "src/harness/assembly/fpresets.py:20",
+          "src/harness/fp/__init__.py:166"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 47
+      },
+      "register_capabilities": {
+        "definitions": [
+          "src/harness/parts/capability.py:149"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 1
+      },
+      "resume_from_checkpoint": {
+        "definitions": [
+          "src/harness/kernel/interpret.py:330"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 2
+      },
+      "run_child": {
+        "definitions": [
+          "src/harness/parts/subagent.py:91"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 0
+      },
+      "subagent_layer": {
+        "definitions": [
+          "src/harness/parts/subagent.py:23"
+        ],
+        "static_refs_in_code": 0,
+        "text_hits_in_tests": 2
+      }
+    },
+    "note": "启发式：仅统计静态可见引用；getattr/注册表字符串/动态 import 不可见"
+  }
+}

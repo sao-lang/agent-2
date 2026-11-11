@@ -25,7 +25,7 @@ from harness.contracts.types import Effect, Goal, SessionRef
 
 __all__ = [
     "Leaf", "ToolUse", "React", "PlanExecute", "Reflection", "Router", "RouterSkill",
-    "Supervisor", "Handoff", "Blackboard", "Graph", "GraphSpec",
+    "SupervisorProgram", "HandoffProgram", "BlackboardProgram", "Graph", "GraphSpec",
     "compile_graph", "program_from_spec", "builtin_paradigms", "toolset", "make_state",
 ]
 
@@ -256,7 +256,7 @@ class RouterSkill:
 
 
 @dataclass(frozen=True)
-class Supervisor:
+class SupervisorProgram:
     """一批 child = 并行 fan-out，下一轮 join。"""
 
     name: ClassVar[str] = "supervisor"
@@ -287,7 +287,7 @@ class Supervisor:
 
 
 @dataclass(frozen=True)
-class Handoff:
+class HandoffProgram:
     name: ClassVar[str] = "handoff"
     roles: dict[str, Any] = field(default_factory=dict)
     current: str = "triage"
@@ -315,7 +315,7 @@ class Handoff:
 
 
 @dataclass(frozen=True)
-class Blackboard:
+class BlackboardProgram:
     name: ClassVar[str] = "blackboard"
     agents: tuple[Any, ...] = ()
     max_rounds: int = 2
@@ -521,20 +521,20 @@ def builtin_paradigms() -> list[tuple[str, Any, State]]:
                   make_state("我要退款", data={"tools": toolset(), "skills": skills,
                                                "script": [{"route": "refund"}]})))
 
-    cases.append(("⑦ Supervisor", Supervisor(workers={
+    cases.append(("⑦ Supervisor", SupervisorProgram(workers={
         "research": Leaf("资料"), "write": Leaf("报告"),
     }), make_state("写报告", data={"tools": toolset(),
                                     "script": [{"tasks": [["research", "查资料"],
                                                             ["write", "写报告"]]}]})))
 
-    cases.append(("⑧ Handoff", Handoff(roles={"triage": leaf_b, "specialist": leaf_a}),
+    cases.append(("⑧ Handoff", HandoffProgram(roles={"triage": leaf_b, "specialist": leaf_a}),
                   make_state("转人工", data={
                       "tools": toolset(),
                       "script": [{"handoff": "specialist"},
                                  {"content": " specialist 已处理"}],
                   })))
 
-    cases.append(("⑨ Blackboard", Blackboard(agents=(Leaf("发现一"), Leaf("发现二"))),
+    cases.append(("⑨ Blackboard", BlackboardProgram(agents=(Leaf("发现一"), Leaf("发现二"))),
                   make_state("调研", data={"tools": toolset()})))
 
     cases.append(("⑩ Graph / DAG", Graph(
@@ -579,9 +579,9 @@ def _register_frontends() -> None:
         "reflection": Reflection,
         "router": Router,
         "router_skill": RouterSkill,
-        "supervisor": Supervisor,
-        "handoff": Handoff,
-        "blackboard": Blackboard,
+        "supervisor": SupervisorProgram,
+        "handoff": HandoffProgram,
+        "blackboard": BlackboardProgram,
     }.items():
         if name not in PROGRAMS:
             register_program(name, _program_factory(name, cls))

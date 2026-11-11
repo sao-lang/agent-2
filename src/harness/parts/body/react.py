@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from harness.contracts.types import Done, Step
+from harness.contracts.types import Done, Step, usage_total
 
 
 class ReactPolicy:
@@ -16,9 +16,8 @@ class ReactPolicy:
         pack = await ctx.context.assemble(state, ctx.budget.remaining_tokens)
         reply = await ctx.actor.decide(state, pack)
         state.data["last_model_usage"] = dict(reply.usage)
-        tokens = int(reply.usage.get("total_tokens", 0))
-        state.add_usage(tokens=tokens, calls=1)
-        ctx.budget.spend(tokens=tokens, calls=1)
+        # 计量由 _commit 单点完成；这里只把回包用量交给效应结果，不再自查/双计。
+        state.data["_pending_usage"] = {"calls": 1, "tokens": usage_total(reply.usage)}
 
         if reply.tool_calls:
             call = reply.tool_calls[0]

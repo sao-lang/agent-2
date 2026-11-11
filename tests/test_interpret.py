@@ -22,7 +22,7 @@ from harness.contracts.errors import NotSerializable
 from harness.contracts.types import Effect
 from harness.fp.frontends import Graph, Leaf, builtin_paradigms, make_state
 from harness.kernel.effects import EffectLayer
-from harness.kernel.interpret import Limits, Runtime, ValidationFailed, interpret
+from harness.kernel.interpret import Runtime, RuntimeLimits, ValidationFailed, interpret
 
 
 def run(coro):
@@ -57,7 +57,7 @@ LAYERS = (
 
 
 def runtime(**kwargs) -> Runtime:
-    params = dict(layers=LAYERS, limits=Limits(max_transitions=64, max_calls=80))
+    params = dict(layers=LAYERS, limits=RuntimeLimits(max_transitions=64, max_calls=80))
     params.update(kwargs)
     return Runtime(**params)
 
@@ -235,9 +235,9 @@ class RuntimeInvariantTest(unittest.TestCase):
             lambda s: Decision(effects=(Effect("compute", args={"op": "sum", "args": [1]}),),
                                program=None, note="call"), name="calling")
         for program, limits, expected in (
-            (spin, Limits(max_transitions=5, wall_seconds=60), "max_transitions"),
-            (calling, Limits(max_transitions=100, max_calls=1, wall_seconds=60), "max_calls"),
-            (spin, Limits(max_transitions=100, wall_seconds=0), "wall_clock"),
+            (spin, RuntimeLimits(max_transitions=5, wall_seconds=60), "max_transitions"),
+            (calling, RuntimeLimits(max_transitions=100, max_calls=1, wall_seconds=60), "max_calls"),
+            (spin, RuntimeLimits(max_transitions=100, wall_seconds=0), "wall_clock"),
         ):
             with self.subTest(expected=expected):
                 out = run(interpret(program, make_state("x"), limits=limits))
@@ -290,9 +290,9 @@ class RuntimeInvariantTest(unittest.TestCase):
         self.assertTrue(any("backtrack" in t for t in out.trace))
 
     def test_child_effect_runs_nested_program(self):
-        from harness.fp.frontends import Supervisor
+        from harness.fp.frontends import SupervisorProgram
 
-        sup = Supervisor(workers={"w": Leaf("子结果")})
+        sup = SupervisorProgram(workers={"w": Leaf("子结果")})
         out = run(interpret(sup, make_state("x", data={
             "script": [{"tasks": [["w", "任务"]]}],
         })))

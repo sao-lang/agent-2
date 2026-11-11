@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import Any
 
 from harness.contracts.decision import Decision, Halt
@@ -33,11 +33,12 @@ from harness.contracts.types import (
     Step,
 )
 from harness.kernel.effects import CallbackRunner
-from harness.kernel.interpret import Limits, Runtime, Outcome
+from harness.kernel.interpret import Runtime, RuntimeLimits, Outcome
+from harness.kernel.stage import DefaultClassify, run_stages
 from harness.parts.actor import Actor
-from harness.parts.budget import Budget
+from harness.contracts.types import Budget
 from harness.parts.delivery import DefaultDelivery
-from harness.parts.durability import NullDurability
+from harness.parts.durability import MemoryDurability
 from harness.parts.guard import AllowAllGuard
 from harness.parts.reflector import NullReflector
 from harness.parts.tracer import NullTracer, new_event
@@ -66,6 +67,7 @@ class Agent:
         memory_policy=None,
         limits=None,
         checkpoints=None,
+        validator=None,
     ) -> None:
         self.policy = policy
         self.actor = actor
@@ -73,7 +75,7 @@ class Agent:
         self.guard = guard or AllowAllGuard()
         self.budget = budget or Budget()
         self.tracer = tracer or NullTracer()
-        self.durability = durability or NullDurability()
+        self.durability = durability or MemoryDurability()
         self.delivery = delivery or DefaultDelivery()
         self.reflector = reflector or NullReflector()
         self.max_steps = max_steps
@@ -87,8 +89,19 @@ class Agent:
         self.retrieval = retrieval
         self.memory = memory
         self.memory_policy = memory_policy
+        # C05：最终答案出口判定（Validator 协议）；None = 不判定。
+        self.validator = validator
+        # G04：四段链的 Classify 段统一用内核默认映射。
+        self._classify = DefaultClassify()
 
     async def run(self, goal, session: SessionRef | None = None) -> RunResult:
+        # C02：接入鉴权/租户/配额链——入口先过 check_identity；
+        # deny → REFUSED，运行根本不开始。无 check_identity 的守卫跳过。
+        if self.guard is not None and hasattr(self.guard, "check_identity"):
+            verdict = await self.guard.check_identity(goal, session)
+            if getattr(verdict, "action", "allow") == "deny":
+                return RunResult(status=RunStatus.REFUSED,
+                                 error=f"identity_denied:{getattr(verdict, 'reason', '')}")
         session = session or SessionRef(
             session_id=goal.session_id,
             tenant=str(goal.metadata.get("tenant", "default")),
@@ -197,6 +210,14 @@ class Agent:
             state.status = RunStatus.FAILED
             state.last_error = str(exc)
             result = await self.delivery.finish(state, RunStatus.FAILED, error=str(exc))
+        # C05：最终答案出口判定。出口没有下一轮可重试——不通过诚实降级。
+        if (result.status is RunStatus.COMPLETED and self.validator is not None
+                and result.answer):
+            verdict = await self.validator.validate(result.answer, state)
+            if not getattr(verdict, "passed", True):
+                result = replace(result, status=RunStatus.DEGRADED,
+                                 error=f"validator:{getattr(verdict, 'reason', '')}")
+                state.status = RunStatus.DEGRADED
         await self.tracer.emit(new_event(
             state.trace_id, "run.end", start_ms=start,
             end_ms=int(time.time() * 1000),
@@ -237,18 +258,31 @@ class Agent:
                     "step_index": st.step_index,
                 },
             ))
-            result = await self.actor.execute(step, st)
+            # G04：执行 + Classify 统一走四段链唯一实现（kernel.stage）。
+            # Gate 已在上面直判（ask 需要审批卡片副作用，无法塞进链），
+            # deny 语义与 run_stages Gate 完全一致（REFUSED）。
+            sr = await run_stages(
+                step, st,
+                terminal=lambda s, x: self.actor.execute(s, x),
+                checks=(), layers=(),
+                classify=self._classify,
+            )
+            if sr.failure is not None:
+                return _halt_result(str(sr.failure.status), "",
+                                    reason=sr.failure.reason)
+            result = sr.result
             st.data["last_output"] = result.output
             if result.tool_name:
                 self._append_tool_messages(st, step, result.ok, result.output, result.error)
+            # 模型回包用量由策略在决策时挂起；_commit 是唯一记账点（M03）。
+            usage = st.data.pop("_pending_usage", None) or {"calls": 1, "tokens": 0}
 
             if result.ok:
                 review = await self.reflector.review(result, st)
                 if review.action == "retry":
                     st.data["_retry"] = True
                     await self.durability.save(st)
-                    return {"ok": True, "skip_tail": True,
-                            "_usage": {"calls": 1, "tokens": 0}}
+                    return {"ok": True, "skip_tail": True, "_usage": usage}
 
             if not result.ok:
                 st.last_error = result.error
@@ -258,8 +292,8 @@ class Agent:
 
             return {
                 "ok": result.ok, "output": result.output, "raw": result,
-                "tokens": int(getattr(result, "tokens", 0) or 0),
-                "_usage": {"calls": 1, "tokens": 0},
+                "tokens": int(getattr(result, "tokens", usage["tokens"]) or 0),
+                "_usage": usage,
                 "skip_tail": False,
                 "tool_name": result.tool_name,
                 "error": result.error,
@@ -296,7 +330,7 @@ class Agent:
         if self.limits is not None:
             limits = self.limits
         else:
-            limits = Limits(max_transitions=self.max_steps + 2,
+            limits = RuntimeLimits(max_transitions=self.max_steps + 2,
                             max_calls=self.budget.calls,
                             max_tokens=self.budget.tokens,
                             wall_seconds=300.0)

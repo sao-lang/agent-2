@@ -39,7 +39,7 @@ from harness.kernel.effects import (
     maybe_await,
 )
 
-__all__ = ["Limits", "Outcome", "Runtime", "ValidationFailed", "interpret",
+__all__ = ["RuntimeLimits", "Outcome", "Runtime", "ValidationFailed", "interpret",
             "resume_from_checkpoint"]
 
 
@@ -48,7 +48,7 @@ class ValidationFailed(Exception):
 
 
 @dataclass(frozen=True)
-class Limits:
+class RuntimeLimits:
     """框架新增的唯一不变量：**任何程序都必须能停下来**。
 
     新程序可以无限返回自己或发空效应空转，所以上限收拢到这里，
@@ -87,7 +87,7 @@ class Runtime:
         self,
         *,
         layers: Sequence[EffectLayer] = (),
-        limits: Limits | None = None,
+        limits: RuntimeLimits | None = None,
         record_only: bool = False,
         extra_handlers: dict[str, Callable] | None = None,
         runner: EffectRunner | None = None,
@@ -100,13 +100,17 @@ class Runtime:
         classify: Any = None,
         after_commit: Callable[..., Awaitable[None]] | None = None,
         checkpoint_store: Any = None,
+        budget: Any = None,
+        model_call_layers: Sequence[Any] = (),
     ) -> None:
         # v3.1（SUPPLEMENT A2）：可插拔检查点落盘——实现 CheckpointStore 协议
         # （put(ns, sid, state, expect_rev) / get(ns, sid, rev)），复用既有
         # 存储实现（impl.stores.MemoryCheckpointStore 等）。
         self.checkpoint_store = checkpoint_store
+        self.budget = budget
+        self.model_call_layers = tuple(model_call_layers)
         self.layers = tuple(layers)
-        self.limits = limits or Limits()
+        self.limits = limits or RuntimeLimits()
         self.record_only = record_only
         self.emit_fn = emit
         self.after_commit = after_commit
@@ -123,6 +127,7 @@ class Runtime:
             guard=guard,
             checks=tuple(checks),
             classify=classify,
+            model_call_layers=self.model_call_layers,
         )
         # child 效应复用同一运行时：层、检查点、预算护栏不因嵌套而丢失。
         if isinstance(self.runner, EffectRuntime) and self.runner.child_runner is None:
@@ -158,6 +163,15 @@ class Runtime:
 
             decision = await maybe_await(program.transition(state))
             if isinstance(decision, Halt):
+                # Done 未经 _commit：决策期挂起的模型用量在收尾前补记，
+                # 否则最后一轮模型调用会从 usage 里蒸发。
+                pending = state.data.pop("_pending_usage", None)
+                if isinstance(pending, dict) and (pending.get("calls") or pending.get("tokens")):
+                    state.add_usage(tokens=int(pending.get("tokens", 0) or 0),
+                                    calls=int(pending.get("calls", 0) or 0))
+                    if self.budget is not None:
+                        self.budget.spend(tokens=int(pending.get("tokens", 0) or 0),
+                                          calls=int(pending.get("calls", 0) or 0))
                 return await self._finish(state, decision, n, trace)
             if not isinstance(decision, Decision):
                 raise DecisionError(
@@ -221,16 +235,30 @@ class Runtime:
 
     # ---------------------------------------------------------------- 提交
 
-    @staticmethod
-    def _commit(state: State, decision: Decision, results: Sequence[Any]) -> Halt | None:
-        """**唯一提交点**。程序只读 State，效应只返回结果；写只发生在这里。"""
+    def _commit(self, state: State, decision: Decision, results: Sequence[Any]) -> Halt | None:
+        """**唯一提交点**。程序只读 State，效应只返回结果；写与记账只发生在这里。
+
+        计量链路统一为：模型回包 `usage.total` → 效应结果 `_usage` → 这里
+        同时写 `State.usage`、`Budget`、`state.data["budget"]` 快照。
+        """
         batch: dict[str, Any] = {}
         forced: Halt | None = None
+        # 决策期产生的模型调用用量（actor.propose 写入）也在这里单点记账：
+        # pop 语义保证 agent._interpret 等先行消费的路径不会双计。
+        pending = state.data.pop("_pending_usage", None)
+        if isinstance(pending, dict) and (pending.get("calls") or pending.get("tokens")):
+            state.add_usage(tokens=int(pending.get("tokens", 0) or 0),
+                            calls=int(pending.get("calls", 0) or 0))
+            if self.budget is not None:
+                self.budget.spend(tokens=int(pending.get("tokens", 0) or 0),
+                                  calls=int(pending.get("calls", 0) or 0))
         for effect, raw in zip(decision.effects, results):
             result = as_result_dict(raw)
             usage = result.pop("_usage", None) or {
                 "calls": 1, "tokens": int(result.get("tokens", 0) or 0)
             }
+            tokens = int(usage.get("tokens", 0) or 0)
+            calls = int(usage.get("calls", 0) or 0)
             messages = result.pop("_messages", ())
             halt_spec = result.pop("_halt", None)
             key = effect.key or "last"
@@ -239,7 +267,9 @@ class Runtime:
             if "output" in result:
                 state.data["last_output"] = result["output"]
                 state.data["last_result"] = result.get("raw", result)
-            state.add_usage(tokens=int(usage.get("tokens", 0)), calls=int(usage.get("calls", 0)))
+            state.add_usage(tokens=tokens, calls=calls)
+            if self.budget is not None:
+                self.budget.spend(tokens=tokens, calls=calls)
             for message in messages:
                 state.messages.append(message)
             if isinstance(halt_spec, dict) and forced is None:
@@ -250,6 +280,10 @@ class Runtime:
                 )
         state.results["__batch__"] = batch       # 每轮覆盖，程序只读"本批新结果"
         state.data.update(decision.patch)
+        if self.budget is not None:
+            state.data["budget"] = self.budget.snapshot()   # M10：出口读到真实快照
+        else:
+            state.data["budget"] = dict(state.usage)
         if decision.meta.get("bump_step"):
             state.step_index += 1
         state.rev += 1

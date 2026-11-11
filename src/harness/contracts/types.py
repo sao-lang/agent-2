@@ -31,6 +31,27 @@ RunId = str
 TraceId = str
 
 
+def usage_total(usage: Any) -> int:
+    """模型回包用量的**唯一口径**：`total`。
+
+    外部 provider 只给 `total_tokens` 或 `input/output` 时在这里归一，
+    调用方不许再各自挑字段 —— 消除三套计量口径。
+    """
+    if usage is None:
+        return 0
+    if not isinstance(usage, dict):
+        usage = getattr(usage, "model_dump", lambda: {})()
+        if not isinstance(usage, dict):
+            return 0
+    total = usage.get("total")
+    if total is None:
+        total = usage.get("total_tokens")
+    if total is None:
+        total = (int(usage.get("input", usage.get("prompt_tokens", 0)) or 0)
+                 + int(usage.get("output", usage.get("completion_tokens", 0)) or 0))
+    return max(0, int(total or 0))
+
+
 # ------------------------------------------------------------------ 标识
 
 
@@ -379,6 +400,20 @@ class Budget:
             "used_calls": self.used_calls,
         }
 
+    def view(self, owner: str | None = None) -> "Budget":
+        """只读视图（C09）：按 owner 视角呈现当前预算的独立副本。
+
+        不产生新额度、不写回本预算——子 agent / 观测面拿到的是快照，
+        任何 ``spend`` 都打在各自的 Budget 上，父预算消耗仍由父记账。
+        """
+        return Budget(
+            tokens=self.tokens,
+            calls=self.calls,
+            used_tokens=self.used_tokens,
+            used_calls=self.used_calls,
+            owner=owner or self.owner,
+        )
+
     def split(self, fraction: float = 0.3) -> "Budget":
         """给子 agent：额度按比例切分，消耗仍计入父（不变量 2）。"""
         ratio = max(0.0, min(1.0, fraction))
@@ -387,6 +422,13 @@ class Budget:
             calls=max(1, int(self.remaining_calls * ratio)),
             owner=f"child:{self.owner}",
         )
+
+
+class NullBudget(Budget):
+    """测试用：永不耗尽（P1 合并：自 parts/budget.py 迁入）。"""
+
+    def __init__(self) -> None:
+        super().__init__(tokens=10**12, calls=10**9)
 
 
 @dataclass(frozen=True)
@@ -659,8 +701,8 @@ Request = RunRequest | StepRequest | ModelRequest | ToolRequest
 Response = RunResponse | StepResponse | ModelResponse | ToolResponse
 
 __all__ = [
-    # 标识
-    "Namespace", "SessionRef", "SessionMeta", "RunId", "TraceId",
+    # 标识 / 计量
+    "Namespace", "SessionRef", "SessionMeta", "RunId", "TraceId", "usage_total",
     # 输入
     "Goal", "Brief", "TaskSpec",
     # 过程

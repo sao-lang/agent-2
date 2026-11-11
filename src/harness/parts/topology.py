@@ -40,6 +40,10 @@ class Pipeline:
     def __init__(self, stages: list[Any]) -> None:
         self.stages = list(stages)
 
+    @property
+    def children(self) -> tuple[Any, ...]:     # C06：满足 Topology 协议
+        return tuple(self.stages)
+
     async def run(self, goal: Goal, session: SessionRef | None = None, *,
                   scope: Any = None) -> RunResult:
         current = goal
@@ -77,6 +81,10 @@ class Handoff:
         self.agents = dict(agents)
         self.router = router
 
+    @property
+    def children(self) -> tuple[Any, ...]:     # C06：满足 Topology 协议
+        return tuple(self.agents.values())
+
     async def run(self, goal: Goal, session: SessionRef | None = None, *,
                   scope: Any = None) -> RunResult:
         route = await self.router.route(goal)
@@ -101,6 +109,10 @@ class Supervisor:
         self.workers = dict(workers)
         self.plan = plan
         self.synth = synth
+
+    @property
+    def children(self) -> tuple[Any, ...]:     # C06：满足 Topology 协议
+        return tuple(self.workers.values())
 
     async def run(self, goal: Goal, session: SessionRef | None = None, *,
                   scope: Any = None) -> RunResult:
@@ -147,6 +159,10 @@ class Blackboard:
         self.agents = list(agents)
         self.reducer = reducer
         self.trigger = trigger
+
+    @property
+    def children(self) -> tuple[Any, ...]:     # C06：满足 Topology 协议
+        return tuple(self.agents)
 
     async def run(self, goal: Goal, session: SessionRef | None = None, *,
                   scope: Any = None) -> RunResult:

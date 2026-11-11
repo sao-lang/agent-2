@@ -18,8 +18,20 @@ class Actor:
     model: Model
     tools: ToolRegistry
     resilience: object | None = None
+    #: G07：model_call 插点（callable(ModelRequest) -> ModelResponse）。
+    #: None = 直调模型（兼容默认）；装配层注入后模型调用走插点链。
+    model_call: Any = None
 
     async def decide(self, state: State, pack: Pack) -> ModelReply:
+        from harness.contracts.types import ModelRequest
+
+        if self.model_call is not None:
+            request = ModelRequest(
+                state=state, messages=tuple(pack.messages),
+                tools=tuple(self.tools.schemas() or ()),
+            )
+            response = await self.model_call(request)
+            return response.reply
         call = lambda: self.model.complete(pack.messages, self.tools.schemas())
         if self.resilience is not None:
             return await self.resilience.call(call)

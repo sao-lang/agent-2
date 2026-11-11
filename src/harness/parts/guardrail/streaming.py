@@ -32,11 +32,18 @@ class StreamOutcome:
 
 
 class StreamGuard:
-    """包住一个文本增量流，边收边判。"""
+    """包住一个文本增量流，边收边判。
+
+    C04：不再按「有无增量接口」过滤检测器——内置检测器只有 ``check``，
+    过滤会把 guardrails 清空、护栏整体空转。现在逐检测器分流：
+    有 ``feed`` 用增量语义，否则退化为对当前窗口整块 ``check``。
+    """
 
     def __init__(self, guardrails: Sequence[Any], *, window: int = WINDOW,
                  block_size: int = BLOCK_SIZE) -> None:
-        self.guardrails = [g for g in guardrails if hasattr(g, "feed")]
+        self.guardrails = [g for g in guardrails
+                           if callable(getattr(g, "feed", None))
+                           or callable(getattr(g, "check", None))]
         self.window = window
         self.block_size = block_size
 
@@ -80,9 +87,17 @@ class StreamGuard:
 
     async def _feed(self, buffer: str, state: StreamState) -> GuardrailVerdict:
         verdicts = []
+        text = buffer[-self.block_size :]
         for rule in self.guardrails:
             try:
-                verdicts.append(await rule.feed(buffer[-self.block_size :], state))
+                feed = getattr(rule, "feed", None)
+                if feed is not None:
+                    verdicts.append(await feed(text, state))
+                else:
+                    # C04：check-only 检测器的退化路径——对当前窗口整块检测。
+                    verdicts.append(
+                        await rule.check(Content(text=text, kind="stream"))
+                    )
             except Exception:  # noqa: BLE001 - 检测器故障默认 fail-closed
                 verdicts.append(
                     GuardrailVerdict(risk=1.0, labels=("detector_error",), action="block")

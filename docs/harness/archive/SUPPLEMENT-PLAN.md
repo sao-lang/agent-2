@@ -1,3 +1,7 @@
+> **历史资料，非实现依据。** 本文按框架代际（v1/v2/v3/v3.1）记录当时的设计与施工过程；
+> 现行唯一权威是 `docs/harness/AUDIT-断点-重复实现-版本说法统计.md`（§6.5 完成线）与 `audit-report.json` 快照。
+> 单一版本口径见根 `CHANGELOG.md`。
+
 # SUPPLEMENT-PLAN：harness 框架补充与强化计划
 
 > 状态：规划文档（v1，2026-11-10）

@@ -155,6 +155,51 @@ class MemoryArtifactStore:
         return self._meta[ref.uri]
 
 
+class LocalArtifactStore:
+    """磁盘工件存储：内容落盘，State 里只留引用。
+
+    `local` 槽位的真实实现 —— 与 `MemoryArtifactStore` 同协议，但字节写进
+    root 目录，进程重启后仍可取回；未指定 root 时用临时目录。
+    """
+
+    def __init__(self, root: str = "") -> None:
+        import tempfile
+        from pathlib import Path
+
+        self.root = Path(root) if root else Path(tempfile.mkdtemp(prefix="harness-artifacts-"))
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._meta: dict[str, ArtifactMeta] = {}
+
+    async def put(self, name: str, data: Any) -> ArtifactRef:
+        if hasattr(data, "__aiter__"):
+            raw = b"".join([chunk async for chunk in data])
+        else:
+            raw = data if isinstance(data, bytes) else bytes(data)
+        digest = hashlib.sha256(raw).hexdigest()[:16]
+        safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in str(name))[:80] or "blob"
+        path = self.root / f"{digest}-{safe}"
+        path.write_bytes(raw)
+        ref = ArtifactRef(uri=path.as_uri(), bytes=len(raw), sha256=digest,
+                          content_type="application/octet-stream")
+        self._meta[ref.uri] = ArtifactMeta(ref=ref, created_at=time.time())
+        return ref
+
+    async def get(self, ref: ArtifactRef) -> bytes:
+        from pathlib import Path
+        from urllib.parse import unquote, urlparse
+
+        parsed = urlparse(ref.uri)
+        path = Path(ref.uri) if not parsed.scheme else Path(unquote(parsed.path))
+        if not path.exists():
+            raise FileNotFoundError(ref.uri)
+        return path.read_bytes()
+
+    async def stat(self, ref: ArtifactRef) -> ArtifactMeta:
+        if ref.uri not in self._meta:
+            raise FileNotFoundError(ref.uri)
+        return self._meta[ref.uri]
+
+
 # ------------------------------------------------------------------ 密钥
 
 
@@ -382,6 +427,7 @@ __all__ = [
     "FakeSandbox",
     "LocalSandbox",
     "MemoryArtifactStore",
+    "LocalArtifactStore",
     "EnvSecretBroker",
     "MemorySecretBroker",
     "MemoryIndex",

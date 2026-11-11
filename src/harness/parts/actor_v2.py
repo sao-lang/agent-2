@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from harness.contracts.types import ActionResult, Done, Step, ToolContext
+from harness.contracts.types import ActionResult, Done, Step, ToolContext, usage_total
 
 
 @dataclass
@@ -43,10 +43,9 @@ class LlmActor:
             reply = await self.model.complete(pack.messages, schemas)
 
         usage = dict(getattr(reply, "usage", {}) or {})
-        tokens = int(usage.get("total", usage.get("tokens", 0)) or 0)
-        state.add_usage(tokens=tokens, calls=1)
-        if scope.budget is not None:
-            scope.budget.spend(tokens=tokens, calls=1)
+        # 模型回包用量只交给 _commit 记账；这里不再自查、不再自行 spend，
+        # 避免与 RunResult.usage / Budget 双计（M01/M03/M04）。
+        state.data["_pending_usage"] = {"calls": 1, "tokens": usage_total(usage)}
 
         calls = list(getattr(reply, "tool_calls", []) or [])
         if not calls:
