@@ -19,10 +19,10 @@ FROZEN_TYPES = [
     "Effect", "LayerSpec", "ProgramSpec", "Route",
     "RunRequest", "StepRequest", "ModelRequest", "ToolRequest",
     "RunResponse", "StepResponse", "ModelResponse", "ToolResponse",
-    "TraceEvent", "RunEvent", "HookEvent",
+    "RunEvent", "HookEvent",
 ]
 
-MUTABLE_TYPES = ["State", "Step", "Plan", "Board", "Budget", "RunContext", "StreamState"]
+MUTABLE_TYPES = ["State", "Step", "Plan", "Board", "Budget", "StreamState"]
 
 
 class StatusTest(unittest.TestCase):

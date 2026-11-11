@@ -22,7 +22,6 @@ class RunScope:
 
     namespace: Namespace = field(default_factory=Namespace)
     budget: Any = None
-    tracer: Any = None
     delivery: Any = None
     guard: Any = None
     #: 执行原语与数据视图（P5 接入；缺省为 None 时策略会明确报错）

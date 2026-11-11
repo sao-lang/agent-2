@@ -1,6 +1,6 @@
 """契约数据类型（SPEC M1.2 / M1.4）。
 
-规则：进契约的 dataclass 一律 `frozen=True`（`State`、`Step`、`Plan`、`RunContext`、
+规则：进契约的 dataclass 一律 `frozen=True`（`State`、`Step`、`Plan`、
 `Budget` 与流式累积态除外，它们跨层演进）。只增不改：新增字段必须有默认值。
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from harness.contracts.events import EVENT_NAMES, HookEvent, RunEvent, Span, TraceEvent
+from harness.contracts.events import EVENT_NAMES, HookEvent, RunEvent
 from harness.contracts.protocols import *  # noqa: F401,F403  （兼容：旧代码从 types 取协议）
 from harness.contracts.protocols import Handler
 from harness.contracts.status import (
@@ -164,7 +164,7 @@ class ModelReply:
     tool_calls: list[ToolCall] = field(default_factory=list)
     usage: dict[str, int] = field(default_factory=dict)
     finish_reason: str = "stop"
-    parsed: Any = None   # v3.1（SUPPLEMENT A5）：结构化输出校验通过后的强类型结果
+    parsed: Any = None   # （SUPPLEMENT A5）：结构化输出校验通过后的强类型结果
 
 
 @dataclass(frozen=True)
@@ -574,8 +574,8 @@ class StreamState:
 class Effect:
     """效应请求：想对外部世界做的一件事的**描述**，不是立刻做。
 
-    v1 里它只是 ``dry_run`` 的产物；v3 起它是解释器的唯一 I/O 载体
-    （PROPOSAL §9.2）。遵守文件头「只增不改」纪律：旧字段与位置不变，
+    它是解释器的唯一 I/O 载体（PROPOSAL §9.2）。遵守文件头
+    「只增不改」纪律：旧字段与位置不变，
     ``spec`` 放宽为 Any，新增字段全部带默认值，``kind`` 由字面量放宽为
     ``str`` —— 新增 kind 只需注册一个 handler，不改内核。
 
@@ -625,24 +625,6 @@ class Board:
     state: "State"
     rev: int = 0
     owner: str | None = None
-
-
-# ------------------------------------------------------------------ 运行时上下文（v1 兼容）
-
-
-@dataclass
-class RunContext:
-    """v1 服务定位器，保留兼容；v2 用 `kernel.scope.RunScope`。"""
-
-    state: "State"
-    actor: Any
-    context: Any
-    budget: Any
-    tracer: Any
-    knowledge: Any = None
-    memory: Any = None
-    skills: Any = None
-    config: Any = None
 
 
 # ------------------------------------------------------------------ 层请求/响应（SPEC M1.7）
@@ -722,8 +704,7 @@ __all__ = [
     "Effect", "LayerSpec", "ProgramSpec",
     # 拓扑
     "Route", "Board",
-    # v1 兼容
-    "RunContext",
+    # 层机制
     # 层机制
     "RunRequest", "StepRequest", "ModelRequest", "ToolRequest",
     "RunResponse", "StepResponse", "ModelResponse", "ToolResponse",
@@ -732,5 +713,5 @@ __all__ = [
     "RunStatus", "TERMINAL_STATUSES", "Phase", "Point", "FrameKind", "Gate5",
     "SideEffect", "GuardAction", "GuardrailAction",
     # 事件
-    "TraceEvent", "RunEvent", "HookEvent", "Span", "EVENT_NAMES",
+    "RunEvent", "HookEvent", "EVENT_NAMES",
 ]

@@ -13,8 +13,10 @@ import asyncio
 import json
 from dataclasses import asdict
 
-from harness import AgentConfig, Goal, RunStatus, Step, build
+from harness import Goal, HarnessConfig, RunStatus, Step
+from harness.assembly import validate
 from harness.errors import ConfigError
+from harness.fp import Harness, react
 from harness.testing import FakeModel, answer
 
 
@@ -31,14 +33,14 @@ def show_step() -> None:
 
 def show_invalid_config() -> None:
     try:
-        build(AgentConfig(model=FakeModel([answer("x")]), mode="react", planner=object()))
+        validate(HarnessConfig(max_transitions=0))
     except ConfigError as exc:
-        print("build 拒绝:", exc)
+        print("装配拒绝:", exc)
 
 
 async def show_result() -> None:
-    agent = build(AgentConfig(model=FakeModel([answer("可以退")]), mode="react"))
-    result = await agent.run(Goal("A1001 能退吗", session_id="demo"))
+    h = Harness.of(model=FakeModel([answer("可以退")]))
+    result = await h.run(react(max_steps=4), Goal("A1001 能退吗", session_id="demo"))
     print("status =", result.status)
     print("answer =", result.answer)
     print("usage  =", result.usage)

@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import asyncio
 
-from harness import AgentConfig, Budget, Goal, build, tool
+from harness import Budget, Goal, tool
+from harness.assembly import HarnessConfig, build_harness
+from harness.fp import react
 from harness.testing import FakeModel, answer, tool_call
 
 
@@ -55,13 +57,14 @@ async def after_agent() -> str:
         tool_call("check_policy", order_id="A1001"),
         answer("A1001 已签收 3 天、未拆封，可以退。"),
     ])
-    agent = build(AgentConfig(
-        model=model,
+    h = build_harness(HarnessConfig(
+        model="fake",
         tools=[get_order, check_policy],
-        mode="react",
         budget=Budget(tokens=20_000, calls=8),
     ))
-    result = await agent.run(Goal("订单 A1001 还能退吗", session_id="demo"))
+    h.model = model
+    result = await h.run(react(max_steps=6),
+                         Goal("订单 A1001 还能退吗", session_id="demo"))
     return result.answer
 
 
@@ -75,8 +78,8 @@ async def main() -> None:
 
     print()
     print("=== 2. 基座版 ===")
-    print("  改动模型：换 AgentConfig.model")
-    print("  加 Guard：换 AgentConfig.guard")
+    print("  改动模型：换 HarnessConfig.model")
+    print("  加 Guard：换 HarnessConfig.guard")
     print("  换政策：check_policy 一个工具")
     print("  answer:", await after_agent())
 

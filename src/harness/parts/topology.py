@@ -11,9 +11,9 @@ from harness.contracts.result import RunResult
 
 
 async def _call(child: Any, goal: Goal, session: Any = None, scope: Any = None) -> RunResult:
-    """调用子节点：v2 `run(goal, *, scope)` 与 v1 `run(goal, session)` 两形态。
+    """调用子节点：`run(goal, *, scope)` 与 `run(goal, session)` 两形态。
 
-    v3：按签名显式分流，不再用 `try/except TypeError` 兜底 —— 那会吞掉
+    按签名显式分流，不用 `try/except TypeError` 兜底 —— 那会吞掉
     子节点**内部**抛出的 TypeError，把真实故障伪装成签名不匹配。
     """
     params = inspect.signature(child.run).parameters

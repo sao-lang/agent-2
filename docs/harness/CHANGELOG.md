@@ -47,15 +47,43 @@
   代）改名 `SupervisorProgram/HandoffProgram/BlackboardProgram`，
   与 `parts/topology`（Runnable 代）不再同名。
 
-### P2 · 版本收敛（本轮完成部分）
+### P2 · 版本收敛
 
 - 历史文档 `TUTORIAL-BUILD.md` / `DEV-SESSION.md` /
   `PROPOSAL-通用解释器与效应系统.md` / `SUPPLEMENT-PLAN.md` 移入
   `docs/harness/archive/`，文件头标注「历史资料，非实现依据」。
 - 本 CHANGELOG 建立，作为代际变更的集中记录。
 
+### 收敛轮 · 多版本残留清零（2026-11-12，判据 1.2 → 1.3）
+
+全部 7 项残留（AUDIT §6.5 BL-1~BL-5、BL-7）完成；每阶段 `GATE OK`：
+
+- **Actor 双实现**：`parts/actor_v2.py` 并入 `parts/actor.py`；`LlmActor`
+  吸收 resilience / model_call 插点成为唯一执行终端。
+- **策略两代**：`parts/policy/policies.py` 唯一实现；`PlanExecutePolicy`
+  吸收原 PE 的 section 记账 / `replan_all` / `budget.replans` 镜像全部语义；
+  `ScriptedPlanner`/`FunctionPlanner` 移至 `parts/policy/planners.py`；
+  `parts/body/*` 整包退役。
+- **legacy 桥**：`kernel/legacy.py` 删除；`Harness.run`/`dry_run` 直连
+  `kernel.interpret.Runtime`（`CallbackRunner` + `run_stages` 四段链保留）；
+  `Program.transition` 内联 `next_step → Decision|Halt` 翻译；
+  `kernel/loop.py` 降为无循环空壳。
+- **装配线两条**：`assembly/agent.py`/`build.py`/`presets.py` 退役；
+  审批/恢复闭环（SUPPLEMENT A2）并入 `Harness.resume`（approve/reject/modify
+  + 崩溃恢复，持久化统一走 CheckpointStore 协议）；顶层 `__init__.py`
+  只导出门面入口（`Harness`/`build_harness`/`HarnessConfig`/fp 组合子）。
+- **Tracer-事件双轨**：`parts/tracer.py` 退役，`parts/sinks.py`
+  （`Null/Memory/Jsonl` Sink，`emit(RunEvent)`）成为唯一观测面；
+  `TraceEvent`/`Span` 从契约层退役；JSONL 行形状对齐 `RunEvent`。
+- **代际标识**：代码内 strict/wide 口径代际词 **0 行**（原 88 行/32 文件）；
+  `name="agent_v1"`/`name="legacy"`/`LegacyProgram`/`_run_legacy` 随退役清除。
+- **顺带修复**：`MemoryCheckpointStore.get` 对齐 `state.rev == store 版本索引`；
+  `checkpoint_layer` 的 `expect_rev` 改为 `state.rev - 1`（与 interpret 同口径）——
+  多 commit 运行的乐观并发误报被消除。
+- **测试与示例**：9 个测试文件迁移至统一入口等价断言（341 tests，零删减）；
+  8 个示例脚本全部改写 v3 且端到端可运行。
+
 ### 已知遗留（见 AUDIT §6.5 backlog）
 
-- §1 无遗留断点；§2 剩余 4 组结构性合并（三策略类 / 两套 presets /
-  两条装配线 / Tracer-事件双轨）。
-- 代码内 78 行严格代际词注释改写；`SPEC.md` / `TUTORIAL.md` 单版本重写。
+- BL-6：`SPEC.md` / `TUTORIAL.md` 单版本重写（文档叙述口径，独立立项）。
+- 代码侧无遗留；判据 v1.3 锚点 44/44 通过。

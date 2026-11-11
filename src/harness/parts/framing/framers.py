@@ -27,7 +27,7 @@ PRIORITY = {
 
 
 def est_tokens(text: str) -> int:
-    """1 token ≈ 4 字符（与 v1 一致，只用于相对比较与裁剪）。"""
+    """1 token ≈ 4 字符（只用于相对比较与裁剪）。"""
     return max(1, len(text) // 4)
 
 
@@ -46,7 +46,7 @@ def _recall_texts(items: Iterable[Any]) -> list[str]:
 class ModelFramer:
     """给模型看的帧：system + skills + memory + retrieved + history + goal。
 
-    v3.1（SUPPLEMENT A6）：计数器可注入——缺省 CharEstimator（字符估算，
+    （SUPPLEMENT A6）：计数器可注入——缺省 CharEstimator（字符估算，
     与 est_tokens 同口径，离线测试用），生产装配 TiktokenCounter 精确计数。
     替换实验：换计数器只变精度，不变取景决策。"""
 

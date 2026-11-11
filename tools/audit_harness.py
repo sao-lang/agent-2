@@ -40,7 +40,7 @@ DOCS_DIR = ROOT / "docs" / "harness"
 TESTS_DIR = ROOT / "tests"
 SNAPSHOT_DEFAULT = DOCS_DIR / "audit-report.json"
 
-AUDIT_SPEC_VERSION = "1.2"
+AUDIT_SPEC_VERSION = "1.3"
 
 # ---------------------------------------------------------------- 口径常量
 
@@ -85,9 +85,9 @@ ANCHORS: dict[str, tuple[str, str, str]] = {
     "effects_stages": ("src/harness/kernel/effects.py", r"async def _stages\(", "present"),
     "model_drop_usage": ("src/harness/kernel/effects.py", r'["\']output["\']\s*:\s*reply', "present"),
     "failure_contract": ("src/harness/kernel/stage.py", r"class Failure", "absent"),
-    "no_total_tokens": ("src/harness/parts/body/react.py", r"total_tokens", "absent"),
-    "usage_total_v2": ("src/harness/parts/actor_v2.py", r"usage_total\(usage\)", "present"),
-    "no_v1_double_count": ("src/harness/assembly/agent.py", r'["\']_usage["\']\s*:\s*\{["\']calls["\']\s*:\s*1', "absent"),
+    "no_total_tokens": ("src/harness/parts/policy/policies.py", r"total_tokens", "absent"),
+    "usage_total_v2": ("src/harness/parts/actor.py", r"usage_total\(usage\)", "present"),
+    "no_v1_double_count": ("src/harness/assembly/harness.py", r'["\']_usage["\']\s*:\s*\{["\']calls["\']\s*:\s*1', "absent"),
     "budget_forward": ("src/harness/parts/budget.py", r"from harness\.contracts\.types import Budget", "present"),
     "budget_contract": ("src/harness/contracts/types.py", r"class Budget", "present"),
     "quota_field": ("src/harness/contracts/types.py", r"quota:\s*dict\[str,\s*int\]", "present"),
@@ -97,8 +97,8 @@ ANCHORS: dict[str, tuple[str, str, str]] = {
     "no_hasattr_feed": ("src/harness/parts/guardrail/streaming.py", r'hasattr\(g,\s*["\']feed["\']\)', "absent"),
     "no_feed_impl": ("src/harness/parts/guardrail/detectors.py", r"def feed\(", "absent"),
     "run_point_declared": ("src/harness/parts/guardrail/layer.py", r'["\']model_call["\'],\s*["\']run["\']', "present"),
-    "run_point_executed": ("src/harness/kernel/legacy.py", r'resolve\(program\.layers,\s*["\']run["\']\)', "present"),
-    "legacy_model_resp": ("src/harness/kernel/legacy.py", r"ModelResponse\(reply=reply,", "present"),
+    "run_point_executed": ("src/harness/assembly/harness.py", r'resolve\(program\.layers,\s*["\']run["\']\)', "present"),
+    "legacy_model_resp": ("src/harness/assembly/harness.py", r"ModelResponse\(reply=reply,", "present"),
     "points": ("src/harness/kernel/chain.py", r'["\']run["\'],\s*["\']step["\'],\s*["\']model_call["\'],\s*["\']tool_call["\']', "present"),
     "sandbox_local": ("src/harness/assembly/registry.py", r'["\']local["\']\s*:\s*_local_sandbox', "present"),
     "openai_selfreg": ("src/harness/adapters/openai.py", r'_registry\.MODELS\[["\']openai["\']\]', "present"),

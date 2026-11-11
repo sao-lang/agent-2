@@ -10,21 +10,30 @@ from __future__ import annotations
 import asyncio
 
 from harness import (
-    AgentConfig,
     Blackboard,
     Goal,
     Handoff,
     Pipeline,
     Route,
     RuleRouter,
+    RunStatus,
     Supervisor,
-    build,
 )
-from harness.testing import FakeModel, answer
+from harness.contracts.result import RunResult
+
+
+class _Agent:
+    """拓扑演示桩：拓扑只关心 `run(goal) -> RunResult` 形状。"""
+
+    def __init__(self, name: str, out: str) -> None:
+        self.name, self.out = name, out
+
+    async def run(self, goal, *, scope=None):
+        return RunResult(status=RunStatus.COMPLETED, answer=self.out)
 
 
 def make(text: str):
-    return build(AgentConfig(model=FakeModel([answer(text)]), name=text))
+    return _Agent(text, text)
 
 
 async def main() -> None:

@@ -149,7 +149,7 @@ def derive_schema(func: Callable[..., Any]) -> tuple[dict[str, Any], str, dict[s
 
 @dataclass
 class FunctionTool:
-    """既满足 v1 形状（name/description/parameters/invoke），也带 `spec` 元数据。"""
+    """同时满足既有形状（name/description/parameters/invoke），也带 `spec` 元数据。"""
 
     spec: ToolSpec
     func: Callable[..., Any]
@@ -197,7 +197,7 @@ class FunctionTool:
         return json.dumps(value, ensure_ascii=False, default=str)
 
     async def call(self, args: dict[str, Any], ctx: ToolContext | None = None) -> ToolResult:
-        """v2 形状：返回结构化结果，供 Wrap 段截断/脱敏。"""
+        """返回结构化结果，供 Wrap 段截断/脱敏。"""
         out = await self.invoke(args, ctx)
         return ToolResult(step_id="", tool=self.name, ok=True, output=out)
 

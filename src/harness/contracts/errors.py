@@ -62,7 +62,7 @@ class PolicyError(HarnessError):
     """准入或护栏拒绝。"""
 
 
-# ---- v3：通用解释器（PROPOSAL §9.2），纯新增 ----
+# ---- 通用解释器（PROPOSAL §9.2）----
 
 
 class DecisionError(ContractError):
@@ -80,7 +80,7 @@ class NotSerializable(ConfigError, TypeError):
     """
 
 
-#: SPEC 里叫 BudgetError；保留旧名以兼容 v1 代码。
+#: SPEC 里叫 BudgetError；保留旧名以兼容既有代码。
 BudgetError = BudgetExceeded
 
 __all__ = [

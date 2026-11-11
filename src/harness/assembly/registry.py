@@ -106,14 +106,14 @@ def _memory_idem(arg: str = "", **kwargs: Any) -> Any:
 
 
 def _vector_index(arg: str = "", **kwargs: Any) -> Any:
-    """v3.1（SUPPLEMENT B3）：向量检索槽位——零依赖 InMemoryVectorIndex
+    """（SUPPLEMENT B3）：向量检索槽位——零依赖 InMemoryVectorIndex
     （HashingEmbedder）。真 Qdrant/pgvector 仍走 extras 占位。"""
     from harness.impl.backends.vector import InMemoryVectorIndex
 
     return InMemoryVectorIndex()
 
 
-# v3.1（SUPPLEMENT B2）：openai 槽位保持占位默认；真工厂由
+# （SUPPLEMENT B2）：openai 槽位保持占位默认；真工厂由
 # adapters/openai.py 在模块加载时**自注册**覆盖（adapters → assembly
 # 是合法方向，assembly → adapters 越界）。用户 import 适配器模块即可接线。
 
@@ -265,11 +265,11 @@ def _detector(name: str) -> Any:
     return builtin_detectors([name])[0]
 
 
-# ------------------------------------------------------------------ v3 程序注册表
+# ------------------------------------------------------------------ 程序注册表
 
 
 def _body_factory(name: str) -> Callable[..., Any]:
-    """v2 body 策略（``fp.Program.from_spec`` 用）；局部 import 避免装配期成环。"""
+    """body 策略（``fp.Program.from_spec`` 用）；局部 import 避免装配期成环。"""
 
     def factory(arg: str = "", **kwargs: Any) -> Any:
         from harness.parts.policy import ReactPolicy, WorkflowPolicy
@@ -282,7 +282,7 @@ def _body_factory(name: str) -> Callable[..., Any]:
 
 
 #: 具名注册的程序工厂（PROPOSAL §9.2）。``fp.from_spec`` 的白名单改走这里；
-#: v3 内置范式由 ``fp.frontends`` 在模块加载时调 ``register_program`` 自注册，
+#: 内置范式由 ``fp.frontends`` 在模块加载时调 ``register_program`` 自注册，
 #: 这样新增前端只加一行注册，且 assembly 不依赖 fp（层间不成环）。
 PROGRAMS: dict[str, Callable[..., Any]] = {
     "react": _body_factory("react"),

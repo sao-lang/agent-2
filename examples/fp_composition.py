@@ -15,15 +15,14 @@
 就犯了这个错，运行结果是 `状态=refused 但 refund 已执行`。这个洞只能在
 "两层组合"里堵上，正好说明为什么要分插点而不是只用一条洋葱。
 
-对照 v1 的等价写法（同样六个关注点）：
+对照装配入口的等价写法（同样六个关注点）：
 
-    agent = build(AgentConfig(
-        model=model, tools=[fetch, refund], mode="react", max_steps=6,
-        guard=FunctionGuard(policy), budget=Budget(tokens=2000),
-        durability=MemoryDurability(), tracer=MemoryTracer(),
+    h = build_harness(HarnessConfig(
+        model=model, tools=[fetch, refund], guard=FunctionGuard(policy),
+        budget=Budget(tokens=2000),
     ))
 
-两者都能跑；差别在于：v1 的六个关注点是**构造参数**，加一个要改签名、
+两者都能跑；差别在于：装配入口的六个关注点是**构造参数**，加一个要改签名、
 换一个要改实现；这里的六个是**可组合的值**，加一个只是多一次 `>>`。
 """
 

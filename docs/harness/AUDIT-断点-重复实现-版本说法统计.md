@@ -40,12 +40,28 @@
 | `Decision` 同名异物 | ⏸ 保留 | 语义本不同（审批 vs 转移）；顶层 `Transition` 别名已隔离，无合并收益 |
 | 两套四段链 | ✅ 已合并 | `run_effect_stages` 收编 `kernel/stage.py`；effects.py 只留运行时关注点 |
 | 两代拓扑组件 | ✅ 已改名 | `fp/frontends` → `SupervisorProgram/HandoffProgram/BlackboardProgram` |
-| 三个策略类 | ⬜ backlog | 见 §6.5（需统一两条执行线的 policy API） |
-| 两套 presets | ⬜ backlog | 见 §6.5 |
-| 两条装配线 | ⬜ backlog | 见 §6.5（涉及顶层 API 退役与大量测试迁移） |
-| 两套 Tracer-事件体系 | ⬜ backlog | 见 §6.5（三代载荷语义统一） |
-| 两代 Actor | ⏸ 保留 | `parts/actor.py` 是 v1 装配线载体；随「两条装配线」backlog 一并处置 |
+| 三个策略类 | ✅ 已合并 | 唯一实现在 `parts/policy/policies.py`；`PlanExecutePolicy` 吸收原 v1 PE 的 section 记账/replan/`budget.replans` 全部语义；`parts/body/*` 已退役 |
+| 两套 presets | ✅ 已合并 | 唯一预设 `assembly/fpresets.py`；`assembly/presets.py` 已退役 |
+| 两条装配线 | ✅ 已合并 | v1 线（`Agent`/`AgentConfig`/`build`）已退役；顶层只导出 `Harness`/`build_harness`/`HarnessConfig`/fp 组合子；审批/恢复闭环并入 `Harness.resume` |
+| 两套 Tracer-事件体系 | ✅ 已合并 | `RunEvent`+EventSink 单轨；`TraceEvent`/`Span`/三 Tracer 类退役，`parts/sinks.py` 提供 `Null/Memory/Jsonl` 三 sink |
+| 两代 Actor | ✅ 已合并 | `LlmActor` 唯一（`parts/actor.py`）；v1 `Actor` 类已退役 |
 | 其余（Framer/Encoder/Tracer 实现/模型包装等） | ⏸ 保留 | §2.6 判定为合理可替换策略 |
+
+## 0.3 单版本收敛轮完成登记（2026-11-12，判据 1.2 → 1.3）
+
+- **范围**：§6.5 backlog BL-1~BL-5、BL-7 全部完成；legacy 桥退役；Tracer/EventSink 统一；v1 装配线退役；代码内代际词清零。
+- **门禁终态**：`GATE OK` + `CHECK OK(v1.3)` + 341 tests（原 338 零删减，净增 3）+ 锚点 44/44 通过。
+- **合并明细**：
+  - Actor：`parts/actor_v2.py` 并入 `parts/actor.py`，`LlmActor` 唯一。
+  - 策略：`parts/policy/policies.py` 唯一实现，`PlanExecutePolicy` 吸收 v1 PE 全部 section 语义；`ScriptedPlanner`/`FunctionPlanner` 移至 `parts/policy/planners.py`；`parts/body/*` 删除。
+  - legacy 桥：`kernel/legacy.py` 删除；`Harness` 直连 `kernel.interpret.Runtime`（`CallbackRunner` + `run_stages` 四段链保留）；`Program.transition` 内联 `next_step → Decision|Halt` 翻译。
+  - 装配线：`assembly/agent.py`/`build.py`/`presets.py` 删除；审批/恢复闭环（SUPPLEMENT A2）并入 `Harness.resume`（CheckpointStore 单一持久化协议）；顶层 `__init__.py` 只导出门面入口。
+  - Tracer：`parts/tracer.py` 删除，`parts/sinks.py`（`Null/Memory/Jsonl` Sink，`emit(RunEvent)`）唯一观测面；`TraceEvent`/`Span` 从契约层退役。
+  - 代际词：代码 strict/wide 口径 **0 行**（原 88 行/32 文件）；`name="agent_v1"`/`name="legacy"`/`LegacyProgram` 随文件退役。
+- **锚点合并态改指（key 名保持稳定索引）**：`no_total_tokens`→`parts/policy/policies.py`；`usage_total_v2`→`parts/actor.py`；`no_v1_double_count`→`assembly/harness.py`；`run_point_executed`/`legacy_model_resp`→`assembly/harness.py`（run 插点与 `ModelResponse.usage` 填充的现处）。
+- **顺带修复的两个约定级缺陷**（多 commit 场景暴露）：`MemoryCheckpointStore.get` 对齐 `state.rev == store 版本索引`；`checkpoint_layer` 的 `expect_rev` 改为 `state.rev - 1`（与 interpret 同口径，多 commit 不再乐观并发误报）。
+- **测试迁移（零删减）**：9 个测试文件迁移至统一入口等价行为；examples 8 个脚本全部改写 v3 且端到端可运行。
+
 
 ---
 
@@ -462,17 +478,17 @@ python tools/audit_harness.py --json docs/harness/audit-report.json    # 代码/
 | 决定纳入判据 | 显式升 `AUDIT_SPEC_VERSION` → 改脚本正则 / 锚点 / 条目表 → 重新生成快照 → 更新本文 → 跑门禁 |
 | 只修代码、不升判据 | 不动判据；按 `--check` 提示重生成快照一次即可 |
 
-**backlog（2026-11-12 修复轮之后遗留；本轮判据已升版至 1.2，下轮处理时若需再动判据，走一次新升版）**
+**backlog（2026-11-12 修复轮之后遗留；单版本收敛轮（同日）已升版判据至 1.3，BL-1~BL-5、BL-7 已完成，BL-6 仍遗留）**
 
-| # | 条目 | 来源 | 证据 / 建议动作 |
+| # | 条目 | 状态 | 完成情况 / 剩余动作 |
 |---|---|---|---|
-| BL-1 | 三个策略类合并（ReactPolicy/WorkflowPolicy/PlanExecutePolicy 两代并存） | §2.1/§4.3.3 | v1 版（`parts/body/*`，`next_step(state, ctx)` 自行 assemble/decide/记账）与 v2/v3 版（`parts/policy/policies.py`，转发 `scope.actor.propose`）绑死两条执行线；需先把 pe 版的 replan + `budget.replans` 能力移植到统一实现，再删 `parts/body/*`。风险：v1 审批/记账语义已在 P0 期间统一到 `_commit`，合并时以 `kernel.stage` 为准 |
-| BL-2 | 两套 presets 合并（`assembly/presets.py` vs `assembly/fpresets.py`） | §2.2/§4.3.6 | 随 BL-3 一并处置；合并方向：顶层只保留一套预设工厂 |
-| BL-3 | 两条装配线收敛（`build/agent/presets` v1 线 vs `build_harness/HarnessConfig/fpresets` v3 线） | §2.2/§4.3.6 | 顶层 `__init__` 改为导出 `build_harness/HarnessConfig/fpresets`；v1 线集中到 `legacy/` 目录并标注「兼容壳」；涉及大量顶层 API 测试迁移（`test_core/test_compat` 等），单独立项 |
-| BL-4 | Tracer-事件双轨统一（`TraceEvent`+3 Tracer span 制 vs `RunEvent`+EventSink 事件制） | §2.1/§4.3.5 | 统一到 `RunEvent`；`TraceEvent` 保留为兼容类型；`JsonlTracer` 改读 `ts_ms` |
-| BL-5 | 代码内严格代际词清除（当前 strict ≈80 行 / 32 文件） | §3.2/§4.4.1 | 多为注释标注（如 `v3.1（SUPPLEMENT A2）`）与 docstring 版本叙述；逐处改写为单版本语义（保语义、去代际词）；`name="agent_v1"`/`name="legacy"` 代际标识随 BL-3 退役 |
-| BL-6 | `SPEC.md` / `TUTORIAL.md` 单版本重写 | §3.3/§4.4.2 | 两文仍为分代叙述（v2 主体 / v3 主线）；重写工作量大于本轮剩余预算，未归档（它们是现行文档）；`TUTORIAL-BUILD`/`DEV-SESSION`/`PROPOSAL`/`SUPPLEMENT-PLAN` 已于本轮移入 `archive/` |
-| BL-7 | 测试双轨断言改造（`test_replacement.py`、`test_supplement.py` A4/A6 等） | §4.4.3 | 随 BL-3 完成后改为验证统一入口等价行为 |
+| BL-1 | 三个策略类合并（ReactPolicy/WorkflowPolicy/PlanExecutePolicy 两代并存） | ✅ 已完成 | pe 的 replan + `budget.replans` 已并入唯一实现 `parts/policy/policies.py`（section 记账语义保全）；`parts/body/*` 已退役；`ScriptedPlanner`/`FunctionPlanner` 移至 `parts/policy/planners.py` |
+| BL-2 | 两套 presets 合并（`assembly/presets.py` vs `assembly/fpresets.py`） | ✅ 已完成 | `assembly/presets.py` 已退役；顶层只导出 `build_harness`/`HarnessConfig`/`fpresets` |
+| BL-3 | 两条装配线收敛（`build/agent/presets` v1 线 vs `build_harness/HarnessConfig/fpresets` v3 线） | ✅ 已完成 | v1 线三文件已删除；审批/恢复闭环并入 `Harness.resume`（CheckpointStore 单一持久化协议）；9 个测试文件迁移至统一入口等价行为（零删减），顶层 API 收敛为单版本公开面 |
+| BL-4 | Tracer-事件双轨统一（`TraceEvent`+3 Tracer span 制 vs `RunEvent`+EventSink 事件制） | ✅ 已完成 | `parts/tracer.py` 退役，`parts/sinks.py`（`Null/Memory/Jsonl` Sink）唯一观测面；`TraceEvent`/`Span` 契约退役；JSONL 行形状对齐 `RunEvent`（`ts_ms` 取代 start/end_ms） |
+| BL-5 | 代码内严格代际词清除 | ✅ 已完成 | strict/wide 口径代码 **0 行**（原 88 行/32 文件）；`name="agent_v1"`/`name="legacy"`/`LegacyProgram` 随文件退役；`_run_legacy` 改名 `_run_body` |
+| BL-6 | `SPEC.md` / `TUTORIAL.md` 单版本重写 | ⬜ 遗留 | 文档叙述口径不在代码判据内；重写工作量独立立项（文档代际词仍存在：strict 62 行 / wide 67 行 / 4 文件） |
+| BL-7 | 测试双轨断言改造（`test_replacement.py`、`test_supplement.py` A4/A6 等） | ✅ 已完成 | 随 BL-3 一并完成：`test_core/test_compat/test_governance/test_topology/test_scenarios/test_pe/test_supplement/test_assembly/test_presets` 全部迁至统一入口等价断言（净增 3 测试，零删减零放宽） |
 
 **backlog（新发现登记处，本轮不处理）**
 

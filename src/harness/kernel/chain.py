@@ -10,7 +10,7 @@ from typing import Any, Sequence
 from harness.contracts.errors import ConfigError
 
 #: 插点集合可扩展（PROPOSAL §9.2）：旧四点保留，新增解释器事件插点。
-#: ``status.Point`` 枚举仍是旧四点，供 v1/v2 契约使用，二者互不干扰。
+#: ``status.Point`` 枚举仍是旧四点，与插点字符串并存，互不干扰。
 POINTS = (
     "run", "step", "model_call", "tool_call",
     "transition", "effect", "commit", "node",

@@ -65,7 +65,11 @@ class MemoryCheckpointStore:
         if index < 0 or index >= len(versions):
             return None
         raw = copy.deepcopy(versions[index])
-        return Checkpoint(session_id=sid, rev=index, state=State.from_dict(raw))
+        state = State.from_dict(raw)
+        # put 写入后 state.rev == store 版本索引（put 自身会重置）；get 对称对齐，
+        # 否则从检查点恢复的运行再落盘时会触发 C2 乐观并发误报。
+        state.rev = index
+        return Checkpoint(session_id=sid, rev=index, state=state)
 
     async def history(self, ns: Namespace, sid: str, *, limit: int = 50) -> list[int]:
         versions = self._rows.get((_ns_key(ns), sid), [])

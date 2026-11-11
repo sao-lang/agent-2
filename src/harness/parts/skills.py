@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from harness.parts.body import WorkflowPolicy
+from harness.parts.policy import WorkflowPolicy
 from harness.contracts.types import Step
 
 

@@ -12,8 +12,8 @@ if TYPE_CHECKING:  # pragma: no cover
 class Tool(Protocol):
     """唯一有副作用的执行原语。
 
-    v2 形状：`spec` 携带元数据，`invoke` 接收能力注入的 `ToolContext`。
-    v1 的 `name/schema/invoke(args)` 由 `FunctionTool` 兼容提供。
+    推荐形状：`spec` 携带元数据，`invoke` 接收能力注入的 `ToolContext`。
+    既有 `name/schema/invoke(args)` 形状由 `FunctionTool` 兼容提供。
     """
 
     spec: "ToolSpec"

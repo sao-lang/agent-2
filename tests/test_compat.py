@@ -1,11 +1,11 @@
-"""兼容与收敛验收（PROPOSAL §10、§11、§13 阶段 2）。
+"""收敛验收（PROPOSAL §10、§11、§13 阶段 2）。
 
 验证三件事：
 
-1. 新旧公开 API 的名字与行为都还在（v1 Agent / v2 Program / dry_run）；
-2. 三条入口（v1 Agent、v2 Harness.run、v3 Harness.interpret）共用同一个解释器，
+1. 单版本公开 API 的名字与行为都在（Harness / build_harness / fp 组合子）；
+2. 两条入口（Harness.run、Harness.interpret）共用同一个解释器，
    **源码中不存在并列循环**；
-3. 新内核的 Outcome 能正确映射回既有 RunResult。
+3. 新内核的 Outcome 能正确映射回既有 RunResult（含审批挂起 pending）。
 """
 
 from __future__ import annotations
@@ -15,18 +15,17 @@ import unittest
 from pathlib import Path
 
 import harness
-from harness.assembly.agent import Agent
-from harness.assembly.build import AgentConfig, build
 from harness.assembly.harness import Harness
 from harness.contracts.decision import FnProgram, Halt
 from harness.contracts.protocols.runtime import Program as ProgramProtocol
 from harness.contracts.result import RunResult
 from harness.contracts.status import RunStatus
-from harness.contracts.types import Goal
+from harness.contracts.types import Decision, Goal, GuardDecision
 from harness.fp import react
 from harness.fp.frontends import make_state
-from harness.parts.tools import tool
+from harness.impl.stores import MemoryCheckpointStore
 from harness.testing import FakeModel, answer, tool_call
+from harness.parts.tools import tool
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "harness"
@@ -47,9 +46,11 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(harness.__version__, "0.3.0")
         self.assertEqual(harness.contracts_version, "3")
 
-    def test_all_old_public_names_still_resolve(self):
-        for name in ("build", "build_react", "build_production", "Agent", "AgentConfig",
-                     "Budget", "MemoryTracer", "SkillRegistry", "RuleRouter", "Pipeline",
+    def test_all_public_names_resolve(self):
+        """单版本公开面：v3 入口 + 既有部件名全部可达。"""
+        for name in ("Harness", "HarnessConfig", "build_harness", "react", "workflow",
+                     "pe", "Program", "interpret", "Budget", "MemorySink",
+                     "SkillRegistry", "RuleRouter", "Pipeline",
                      "Handoff", "Layer", "layer", "Hook", "tool", "Decision"):
             self.assertTrue(hasattr(harness, name), f"公开名丢失：{name}")
 
@@ -70,17 +71,18 @@ class PublicApiTest(unittest.TestCase):
         self.assertIsInstance(FnProgram(lambda s: Halt("x"), name="f").name, str)
 
 
-class LegacyPathTest(unittest.TestCase):
-    def test_v1_agent_still_completes(self):
+class RunPathTest(unittest.TestCase):
+    def test_harness_run_completes(self):
         model = FakeModel([tool_call("concat", left="a", right="b"), answer("ab")])
-        agent: Agent = build(AgentConfig(model=model, tools=[concat], mode="react"))
-        result = run(agent.run(Goal("2+3")))
+        h = Harness.of(model=model, tools=[concat])
+        result = run(h.run(react(max_steps=4), Goal("2+3")))
         self.assertIsInstance(result, RunResult)
         self.assertEqual(result.status, RunStatus.COMPLETED)
         self.assertEqual(result.answer, "ab")
         self.assertEqual(result.state.step_index, 1)
+        self.assertEqual(result.usage["calls"], 2)
 
-    def test_v2_harness_run_still_completes(self):
+    def test_harness_run_and_fp_run_share_one_runtime(self):
         model = FakeModel([tool_call("concat", left="a", right="b"), answer("ab")])
         h = Harness.of(model=model, tools=[concat])
         result = run(h.run(react(max_steps=4), Goal("拼接", session_id="s1")))
@@ -95,20 +97,18 @@ class LegacyPathTest(unittest.TestCase):
         self.assertEqual(len(effects), 1)
         self.assertEqual(effects[0].step.tool_name, "concat")
 
-    def test_v1_approval_resume_still_works(self):
-        from harness import Decision, GuardDecision, MemoryDurability
-
+    def test_approval_resume_still_works(self):
         class AskGuard:
             async def check(self, step, state):
                 return GuardDecision.ask("需要审批", {"tool": step.tool_name}, expires_in=3600)
 
         model = FakeModel([tool_call("concat", left="a", right="b"), answer("ab")])
-        agent = build(AgentConfig(model=model, tools=[concat], guard=AskGuard(),
-                                  durability=MemoryDurability()))
-        first = run(agent.run(Goal("审批", session_id="s9")))
+        h = Harness.of(model=model, tools=[concat], guard=AskGuard(),
+                       checkpoint_store=MemoryCheckpointStore())
+        first = run(h.run(react(max_steps=4), Goal("审批", session_id="s9")))
         self.assertEqual(first.status, RunStatus.NEEDS_APPROVAL)
         self.assertIsNotNone(first.pending)
-        second = run(agent.resume("s9", Decision.approve("alice")))
+        second = run(h.resume(react(max_steps=4), "s9", Decision.approve("alice")))
         self.assertEqual(second.status, RunStatus.COMPLETED)
 
 
@@ -159,13 +159,19 @@ class SingleInterpreterTest(unittest.TestCase):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             return sum(isinstance(node, ast.While) for node in ast.walk(tree))
 
-        for retired in ("kernel/loop.py", "assembly/agent.py"):
+        for retired in ("kernel/loop.py",):
             self.assertEqual(while_count(PKG / retired), 0,
                              f"{retired} 仍有并列循环")
             self.assertIn("interpret",
                           (PKG / retired).read_text(encoding="utf-8"),
                           f"{retired} 未接到唯一解释器")
         self.assertEqual(while_count(PKG / "kernel" / "interpret.py"), 1)
+
+    def test_retired_v1_files_are_gone(self):
+        """BL-2/BL-3：v1 装配线（Agent/build/presets/body）已退役。"""
+        for retired in ("assembly/agent.py", "assembly/build.py", "assembly/presets.py",
+                        "parts/body", "kernel/legacy.py", "parts/tracer.py"):
+            self.assertFalse((PKG / retired).exists(), f"残留未退役：{retired}")
 
     def test_kernel_stage_and_loop_are_not_modified_semantics(self):
         from harness.kernel import chain, stage

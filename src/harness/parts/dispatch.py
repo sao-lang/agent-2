@@ -1,6 +1,6 @@
 """分派层：请求走哪条路。
 
-v3.1（SUPPLEMENT A3）：补齐 DEV-SESSION §2 四层表的另外两路——
+（SUPPLEMENT A3）：补齐 DEV-SESSION §2 四层表的另外两路——
 ``LLMRouter``（小模型意图分类）与 ``VectorRouter``（嵌入检索路由，
 依赖 IndexBackend 协议，见 impl/backends/vector.py）。四者同签名
 ``route(goal) -> Route``，可做替换实验（RuleRouter ↔ VectorRouter

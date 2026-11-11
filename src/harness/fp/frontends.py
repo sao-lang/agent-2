@@ -1,4 +1,4 @@
-"""十种内置架构范式（v3 / PROPOSAL §7）—— **可删的前端库**。
+"""十种内置架构范式（PROPOSAL §7）—— **可删的前端库**。
 
 这些类与用户自写架构完全同层、同一个 ``Program`` 协议：内核不认识它们，
 删掉整个文件，框架照样能跑任意架构。它们不是框架算子，只是
@@ -508,8 +508,8 @@ def builtin_paradigms() -> list[tuple[str, Any, State]]:
     cases.append(("④ Reflection", Reflection(), make_state("写代码", data={
         "tools": toolset(),
         "script": [
-            {"content": "v1"}, {"verdict": "fail"},
-            {"content": "v2"}, {"verdict": "pass"},
+            {"content": "草稿一"}, {"verdict": "fail"},
+            {"content": "草稿二"}, {"verdict": "pass"},
         ],
     })))
 

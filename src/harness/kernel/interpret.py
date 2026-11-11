@@ -1,4 +1,4 @@
-"""通用解释器（v3 / PROPOSAL §3、§5）—— 全框架唯一的循环。
+"""通用解释器（PROPOSAL §3、§5）—— 全框架唯一的循环。
 
     program = 初始程序
     while True:
@@ -78,7 +78,7 @@ class Outcome:
 class Runtime:
     """解释器 = 一个循环 + 一个效应运行时。
 
-    ``runner`` 可整体替换：默认走 v3 效应系统，旧路径注入
+    ``runner`` 可整体替换：默认走效应系统，旧路径注入
     ``CallbackRunner`` 把效应喂给既有 ``kernel.stage.run_stages``，
     内核自身一行不改。
     """
@@ -103,7 +103,7 @@ class Runtime:
         budget: Any = None,
         model_call_layers: Sequence[Any] = (),
     ) -> None:
-        # v3.1（SUPPLEMENT A2）：可插拔检查点落盘——实现 CheckpointStore 协议
+        # （SUPPLEMENT A2）：可插拔检查点落盘——实现 CheckpointStore 协议
         # （put(ns, sid, state, expect_rev) / get(ns, sid, rev)），复用既有
         # 存储实现（impl.stores.MemoryCheckpointStore 等）。
         self.checkpoint_store = checkpoint_store
@@ -201,7 +201,7 @@ class Runtime:
                 "state": state.snapshot(),
             })
             if self.checkpoint_store is not None:
-                # v3.1（SUPPLEMENT A2）：落盘失败不静默——检查点是恢复的凭据，
+                # （SUPPLEMENT A2）：落盘失败不静默——检查点是恢复的凭据，
                 # 坏了必须让人知道（与观测不同：观测失败吞掉，持久化失败上抛）。
                 from harness.contracts.types import Namespace
 

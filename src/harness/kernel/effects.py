@@ -1,4 +1,4 @@
-"""效应系统（v3 / PROPOSAL §5、§9.1）。
+"""效应系统（PROPOSAL §5、§9.1）。
 
 所有 I/O 必须先表达成 ``Effect``，由这里批量执行，走四段链
 **Gate → Check → Wrap → Classify**；之后才由解释器在唯一提交点写状态。
@@ -149,7 +149,7 @@ class EffectRuntime:
     model: Any = None
     tool_registry: Any = None
     child_runner: Callable[..., Awaitable[Any]] | None = None
-    #: middleware 层（chain 层）：v3 的 model 效应经它们的 model_call 插点
+    #: middleware 层（chain 层）：model 效应经它们的 model_call 插点
     #: 执行（G07：不再绕过 model_call 插点）。空 = 直调模型。
     model_call_layers: tuple[Any, ...] = ()
 
@@ -214,7 +214,7 @@ class EffectRuntime:
         return result
 
     async def _fire_hooks(self, effect: Effect, result: Any, state: State) -> None:
-        """v3 首次给 Hook 协议接上真正落点；hook 报错只发 hook.error。"""
+        """Hook 协议的真正落点；hook 报错只发 hook.error。"""
         point = f"effect.{effect.kind}"
         event = HookEvent(point=point, state_id=state.trace_id,
                           fields={"key": effect.key, "ok": bool(result.get("ok", True))})

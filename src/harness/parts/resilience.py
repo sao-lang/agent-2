@@ -4,7 +4,7 @@
     1 超时 + 重试 + 退避：``timeout_s / retries / backoff_s``
     2 限流：``max_qps``（滑动窗口；0 = 不限流）
     3 熔断：``CircuitBreaker``（closed → open → half_open）
-全部只在显式装配（``AgentConfig.resilience``）时启用，默认 None 不行为。
+全部只在显式装配（``LlmActor.resilience``）时启用，默认 None 不行为。
 """
 
 from __future__ import annotations

@@ -73,7 +73,10 @@ def checkpoint_layer(*, store: Any, cap: str = "store") -> Layer:
                     getattr(req, "ns", None) or state_namespace(state),
                     state.session.session_id,
                     state,
-                    expect_rev=state.rev,
+                    # 存储约定：put 后 state.rev == store 版本索引；本 commit 已把
+                    # rev +1，故期望的"当前索引"是 state.rev - 1（与 interpret
+                    # 的检查点落盘同一口径，多 commit 运行才不会乐观并发误报）。
+                    expect_rev=state.rev - 1,
                 )
             return response
 

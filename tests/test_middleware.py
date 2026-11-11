@@ -105,6 +105,9 @@ class CheckpointLayerTest(unittest.TestCase):
 
         for i in range(2):
             state.step_index = i
+            # 存储约定：put 后 state.rev == store 版本索引；层的期望索引是
+            # state.rev - 1（解释器 _commit 先 +1）。这里模拟解释器的递增。
+            state.rev += 1
             run(chain.execute([ckpt], StepRequest(state=state, step=Step(id=f"s{i}")), terminal))
 
         self.assertEqual(run(store.history(chain_ns(state), "s1")), [0, 1])

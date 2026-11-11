@@ -13,7 +13,7 @@ from harness.contracts.types import Goal, Plan, Step
 from harness.fp import pe as pe_program
 from harness.fp import react as react_program
 from harness.fp import workflow as wf_program
-from harness.parts.body import ScriptedPlanner
+from harness.parts.policy import ScriptedPlanner
 from harness.parts.topology import Blackboard, Handoff, Pipeline, Supervisor
 from harness.parts.tools import tool
 from harness.testing import FakeModel, answer, tool_call

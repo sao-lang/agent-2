@@ -23,11 +23,11 @@ from harness.contracts.types import (
     LayerSpec,
     ProgramSpec,
     SessionRef,
+    Step,
 )
 from harness.kernel import chain
-from harness.kernel.loop import run_loop
 from harness.kernel.scope import Namespace, RunScope
-from harness.parts.actor_v2 import LlmActor
+from harness.parts.actor import LlmActor
 from harness.parts.framing import ChatEncoder, ModelFramer
 from harness.parts.middleware.base import Layer, layer
 from harness.parts.policy import PlanExecutePolicy, ReactPolicy, WorkflowPolicy
@@ -103,28 +103,65 @@ class Program:
     body: Any
     max_steps: int = 24
     layers: tuple[Layer, ...] = ()
-    #: v3：RunScope 由装配期注入；Program 本身仍不持有任何能力实例。
+    #: RunScope 由装配期注入；Program 本身仍不持有任何能力实例。
     scope: Any = None
 
     @property
     def name(self) -> str:
-        """v3 Program 协议的 ``name``；由 body 决定，不新增字段。"""
+        """Program 协议的 ``name``；由 body 决定，不新增字段。"""
         return str(getattr(self.body, "name", "react"))
 
     def __rshift__(self, lay: Layer) -> "Program":
         return replace(self, layers=self.layers + (lay,))
 
     async def transition(self, state: "State"):
-        """鸭子类型满足 v3 ``Program`` 协议（PROPOSAL §9.2，不重命名）。
+        """鸭子类型满足 ``Program`` 协议（PROPOSAL §9.2，不重命名）。
 
-        控制流仍由 ``body.next_step`` 决定；这里只把旧契约翻译成
+        控制流仍由 ``body.next_step`` 决定；这里把旧契约翻译成
         ``Decision | Halt``，唯一循环在 ``kernel.interpret``。
+        审批续跑（SUPPLEMENT A2）：``resume`` 注入 ``_approved_step`` 时
+        直接采用该步骤并跳过 Gate（人工已批准，不再二次询问）。
         """
-        from harness.kernel.legacy import LegacyProgram
+        from harness.contracts.decision import Decision, Halt
+        from harness.contracts.errors import HarnessError
+        from harness.contracts.types import Done, Effect, Step as StepT
 
         if self.scope is None:
             raise ConfigError("Program.transition 需要装配期注入 scope（请用 Harness.run）")
-        return await LegacyProgram(self, self.scope).transition(state)
+        if state.step_index >= self.max_steps:
+            return Halt("", "degraded", {"reason": "max_steps"})
+
+        approved = state.data.pop("_approved_step", None)
+        if approved:
+            step = StepT(**approved)
+            return Decision(
+                effects=(Effect(kind="tool", step=step, key=step.id,
+                                args={"skip_guard": True}),),
+                program=self,
+                meta={"bump_step": True},
+                note=step.id,
+            )
+
+        try:
+            decision = await self.body.next_step(state, self.scope)
+        except Exception as exc:  # noqa: BLE001 - 决策失败也要归类
+            failure = (await self.scope.filter.classify(exc, phase="step", state=state)
+                       if self.scope.filter is not None else None)
+            if failure is None:
+                state.last_error = str(exc)
+                return Halt("", "failed", {"reason": str(exc)})
+            state.last_error = failure.reason
+            return Halt("", str(failure.status), {"reason": failure.reason})
+        if isinstance(decision, Done):
+            return Halt(decision.answer, "completed")
+        if not isinstance(decision, Step):
+            raise HarnessError(f"BodyPolicy 返回非法类型：{type(decision)!r}")
+        return Decision(
+            effects=(Effect(kind="tool", step=decision, key=decision.id),),
+            program=self,
+            meta={"bump_step": True},
+            note=f"step:{decision.id}",
+        )
 
     def to_spec(self) -> ProgramSpec:
         specs: list[LayerSpec] = []

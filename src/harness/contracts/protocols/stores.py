@@ -1,7 +1,7 @@
 """存储协议（SPEC M7.2、M11）。
 
-v1 形状（`Durability`/`Memory`）保留兼容；v2 形状（`CheckpointStore`/`MemoryStore`
-等）在 P3 接实现。两者并存是有意的：每个方法都能用 `Namespace` 做隔离。
+`Durability`/`Memory` 保留兼容；`CheckpointStore`/`MemoryStore` 等在 P3 接实现。
+两者并存是有意的：每个方法都能用 `Namespace` 做隔离。
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @runtime_checkable
 class Durability(Protocol):
-    """v1 检查点：save/load。违反"历史不可变"，P3 迁移到 `CheckpointStore`。"""
+    """旧检查点：save/load。违反"历史不可变"；恢复请用 `CheckpointStore`。"""
 
     async def save(self, state: "State") -> None: ...
 
@@ -31,7 +31,7 @@ class Durability(Protocol):
 
 @runtime_checkable
 class CheckpointStore(Protocol):
-    """v2 多版本快照：追加新 rev，旧版本永不修改（不变量 1）。"""
+    """多版本快照：追加新 rev，旧版本永不修改（不变量 1）。"""
 
     async def put(
         self, ns: "Namespace", sid: str, state: "State", *, expect_rev: int | None
@@ -62,7 +62,7 @@ class MessageLog(Protocol):
 
 @runtime_checkable
 class Memory(Protocol):
-    """v1 形状，保留兼容。"""
+    """既有形状，保留兼容。"""
 
     async def recall(
         self, query: str, *, scope: str, layers: list[str], k: int
@@ -73,7 +73,7 @@ class Memory(Protocol):
 
 @runtime_checkable
 class MemoryStore(Protocol):
-    """v2 形状：命名空间强制、可遗忘、可过期、去重键（SPEC M7.2）。"""
+    """命名空间强制、可遗忘、可过期、去重键（SPEC M7.2）。"""
 
     async def recall(
         self, ns: "Namespace", query: str, *, layers: Sequence[str], k: int

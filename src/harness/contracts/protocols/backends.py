@@ -97,7 +97,7 @@ class IndexBackend(Protocol):
 
 @runtime_checkable
 class Knowledge(Protocol):
-    """v1 形状，保留兼容。"""
+    """既有形状，保留兼容。"""
 
     async def retrieve(
         self, query: str, *, k: int, filters: dict[str, Any] | None = None

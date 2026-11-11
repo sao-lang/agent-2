@@ -9,15 +9,10 @@ from __future__ import annotations
 
 import asyncio
 
-from harness import (
-    AgentConfig,
-    Goal,
-    Plan,
-    ScriptedPlanner,
-    Step,
-    build,
-    tool,
-)
+from harness import Goal, Plan, Step
+from harness.fp import Harness, pe as pe_program
+from harness.parts.policy import ScriptedPlanner
+from harness.parts.tools import tool
 from harness.testing import FakeModel, answer
 
 
@@ -39,13 +34,12 @@ async def main() -> None:
         Step(id="s2", tool_name="decide_refund",
              args={"order_id": "A1001", "signed_days_ago": 3}),
     ])
-    agent = build(AgentConfig(
+    h = Harness.of(
         model=FakeModel([answer("unused")]),
         tools=[fetch_order, decide_refund],
-        mode="pe",
-        planner=ScriptedPlanner(plan),
-    ))
-    result = await agent.run(Goal("判断 A1001 能不能退", session_id="pe-demo"))
+    )
+    result = await h.run(pe_program(ScriptedPlanner(plan)),
+                         Goal("判断 A1001 能不能退", session_id="pe-demo"))
     print("status:", result.status)
     print("answer:", result.answer)
     print("plan_id:", result.state.data["pe"]["plan"]["id"])

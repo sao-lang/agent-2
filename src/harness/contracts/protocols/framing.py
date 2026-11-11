@@ -29,7 +29,7 @@ class Encoder(Protocol):
 
 @runtime_checkable
 class Context(Protocol):
-    """v1 形状，保留兼容；v2 由 Framer + Encoder 取代（P4 迁移）。"""
+    """既有形状，保留兼容；新代码用 Framer + Encoder。"""
 
     async def assemble(self, state: "State", budget_tokens: int) -> "Pack": ...
 

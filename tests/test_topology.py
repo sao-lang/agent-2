@@ -6,7 +6,6 @@ import asyncio
 import unittest
 
 from harness import (
-    AgentConfig,
     Blackboard,
     Goal,
     Handoff,
@@ -15,13 +14,22 @@ from harness import (
     RuleRouter,
     RunStatus,
     Supervisor,
-    build,
 )
-from harness.testing import FakeModel, answer
+from harness.contracts.result import RunResult
+
+
+class _Agent:
+    """拓扑测试桩：拓扑只关心 `run(goal) -> RunResult` 形状（见 test_presets 同款）。"""
+
+    def __init__(self, name: str, out: str) -> None:
+        self.name, self.out = name, out
+
+    async def run(self, goal, *, scope=None):
+        return RunResult(status=RunStatus.COMPLETED, answer=self.out)
 
 
 def make(text: str):
-    return build(AgentConfig(model=FakeModel([answer(text)]), name=text))
+    return _Agent(text, text)
 
 
 class TestTopology(unittest.TestCase):

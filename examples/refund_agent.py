@@ -1,4 +1,4 @@
-"""最小示例：ReAct + 工具 + 预算 + 轨迹。
+"""最小示例：ReAct + 工具 + 预算 + 轨迹（v3 入口）。
 
 运行：
     $env:PYTHONPATH="src"
@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import asyncio
 
-from harness import AgentConfig, Budget, Goal, MemoryTracer, build, tool
+from harness import Budget, Goal, MemorySink, tool
+from harness.assembly import HarnessConfig, build_harness
+from harness.fp import react
 from harness.testing import FakeModel, answer, tool_call
 
 
@@ -31,21 +33,22 @@ async def main() -> None:
         tool_call("check_policy", order_id="A1001"),
         answer("订单 A1001 已签收 3 天、未拆封，仍在 7 天窗口内，可以退。"),
     ])
-    tracer = MemoryTracer()
-    agent = build(AgentConfig(
-        model=model,
+    sink = MemorySink()
+    h = build_harness(HarnessConfig(
+        model="fake",
         tools=[get_order, check_policy],
-        mode="react",
         budget=Budget(tokens=20_000, calls=8),
-        tracer=tracer,
     ))
+    h.model = model
 
-    result = await agent.run(Goal("订单 A1001 还能退吗？", user_id="u1", session_id="s1"))
+    result = await h.run(react(max_steps=6),
+                         Goal("订单 A1001 还能退吗？", user_id="u1", session_id="s1"),
+                         sinks=(sink,))
     print("status:", result.status)
     print("answer:", result.answer)
     print("steps:", result.state.step_index)
     print("usage:", result.usage)
-    print("trace:", [event.name for event in tracer.events])
+    print("trace:", [event.name for event in sink.events])
 
 
 if __name__ == "__main__":

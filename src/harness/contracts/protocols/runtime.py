@@ -65,7 +65,7 @@ class Topology(Runnable, Protocol):
 
 @runtime_checkable
 class Program(Protocol):
-    """v3 唯一契约：``transition(state) -> Decision | Halt``（PROPOSAL §4）。
+    """唯一契约：``transition(state) -> Decision | Halt``（PROPOSAL §4）。
 
     架构是运行在解释器上的**程序**，框架不认识任何具体架构。
     返回类型用 Any 以避免契约层内部循环导入；具体判定在

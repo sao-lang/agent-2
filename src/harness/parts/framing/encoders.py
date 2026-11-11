@@ -11,7 +11,7 @@ from harness.contracts.types import Card, Frame, Pack
 class ChatEncoder:
     """把帧编成 chat 消息：system 段合并，history 串联，goal 作最后一条 user。
 
-    v3.1（SUPPLEMENT A6）：可注入 TokenCounter 精确计数 Pack.usage 的
+    （SUPPLEMENT A6）：可注入 TokenCounter 精确计数 Pack.usage 的
     estimated_tokens；缺省沿用取景器的 tokens_est（字符估算口径）。
     与厂商回传 usage 的偏差由此可量化（推导 §5.5 约束 5）。"""
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from harness.assembly.build import AgentConfig, build
 from harness.assembly.registry import BACKENDS, MODELS, resolve
 from harness.contracts.decision import FnProgram
 from harness.contracts.decision import Decision as Transition
@@ -30,12 +29,13 @@ from harness.contracts.types import (
     Step,
     Verdict,
 )
+from harness.fp import Harness, react
 from harness.fp.frontends import make_state
 from harness.impl.backends.core import MemoryIndex
 from harness.impl.backends.vector import InMemoryVectorIndex
 from harness.impl.stores.memory import MemoryCheckpointStore
 from harness.kernel.interpret import interpret, resume_from_checkpoint
-from harness.parts.body.pe import PlanExecutePolicy
+from harness.parts.policy import PlanExecutePolicy
 from harness.parts.budget import Budget as AgentBudget
 from harness.parts.dispatch import LLMRouter, RuleRouter, VectorRouter
 from harness.parts.framing.encoders import ChatEncoder
@@ -183,6 +183,7 @@ class TestA2CheckpointRecovery(unittest.TestCase):
         self.assertEqual(recovered.answer, "恢复测试")
 
     def test_agent_resume_without_decision_is_crash_recovery(self):
+        """kill 掉跑完的运行：从检查点重放续跑（重放结论不是重新推理）。"""
         from harness.parts.tools import tool
 
         @tool
@@ -194,26 +195,27 @@ class TestA2CheckpointRecovery(unittest.TestCase):
             tool_call("concat", left="崩", right="溃恢复"),
             answer("收尾答复"),
         ])
-        agent = build(AgentConfig(
-            model=model, tools=[concat], mode="react", max_steps=8,
-            checkpoints=MemoryCheckpointStore(),
+        h = Harness.of(
+            model=model, tools=[concat],
+            checkpoint_store=MemoryCheckpointStore(),
             budget=AgentBudget(tokens=10**9, calls=10**9),
-        ))
+        )
+        program = react(max_steps=8)
         goal = Goal("跑一次", user_id="anonymous", session_id="resume-1")
-        first = run_(agent.run(goal))
+        first = run_(h.run(program, goal))
         self.assertEqual(first.status, RunStatus.COMPLETED)
         # 单 commit 的 ReAct 运行只落一次盘（store 版本从 0 计）；
         # 检查点是否真实存在由下一步 resume 成功与否证明。
 
-        resumed = run_(agent.resume("resume-1", decision=None,
-                                    ns=Namespace(session="resume-1")))
+        resumed = run_(h.resume(program, "resume-1", decision=None,
+                                ns=Namespace(session="resume-1")))
         self.assertEqual(resumed.status, RunStatus.COMPLETED)   # 从检查点重放续跑
         self.assertIn("崩", resumed.state.data.get("last_output", ""))
 
     def test_resume_without_store_raises(self):
-        agent = build(AgentConfig(model=FakeModel([answer("x")]), mode="react"))
+        h = Harness.of(model=FakeModel([answer("x")]))
         with self.assertRaises(Exception):
-            run_(agent.resume("nope", decision=None))
+            run_(h.resume(react(max_steps=2), "nope", decision=None))
 
 
 # ---------------------------------------------------------------- A4 预算接线
@@ -234,17 +236,16 @@ class TestA4BudgetWiring(unittest.TestCase):
             tool_call("noop"),
             answer("不该走到这里"),
         ])
-        agent = build(AgentConfig(
-            model=model, tools=[noop], mode="react", max_steps=8,
+        h = Harness.of(
+            model=model, tools=[noop],
             budget=AgentBudget(tokens=10**9, calls=1),   # 只允许 1 次调用
-        ))
-        result = run_(agent.run(Goal("跑", session_id="a4")))
+        )
+        result = run_(h.run(react(max_steps=8), Goal("跑", session_id="a4")))
         self.assertEqual(result.status, RunStatus.DEGRADED)
         self.assertEqual(result.answer, "max_calls")    # 护栏触发，不是 "budget exhausted"
         self.assertNotIn("budget", (result.error or ""))
 
     def test_explicit_limits_override_budget_derivation(self):
-        from harness.kernel.interpret import RuntimeLimits
         from harness.parts.tools import tool
 
         @tool
@@ -253,14 +254,12 @@ class TestA4BudgetWiring(unittest.TestCase):
             return "ok"
 
         model = FakeModel([tool_call("noop"), answer("完成")])
-        agent = build(AgentConfig(
-            model=model, tools=[noop], mode="react", max_steps=8,
+        h = Harness.of(
+            model=model, tools=[noop], max_transitions=2,
             budget=AgentBudget(tokens=10**9, calls=10**9),
-            limits=RuntimeLimits(max_transitions=2, max_calls=10**9,
-                          max_tokens=10**9, wall_seconds=30.0),
-        ))
-        result = run_(agent.run(Goal("跑", session_id="a4b")))
-        self.assertEqual(result.status, RunStatus.COMPLETED)   # 显式 limits 放行
+        )
+        result = run_(h.run(react(max_steps=8), Goal("跑", session_id="a4b")))
+        self.assertEqual(result.status, RunStatus.COMPLETED)   # 显式护栏放行
 
 
 # ---------------------------------------------------------------- A5 结构化输出

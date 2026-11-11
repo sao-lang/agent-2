@@ -9,7 +9,6 @@ import unittest
 from pathlib import Path
 
 from harness import (
-    AgentConfig,
     AlwaysRoute,
     Goal,
     Resilience,
@@ -17,10 +16,9 @@ from harness import (
     RuleRouter,
     RunStatus,
     SkillRegistry,
-    Step,
-    build,
     tool,
 )
+from harness.fp import Harness, workflow
 from harness.errors import ToolError
 from harness.testing import FakeModel, answer
 
@@ -77,13 +75,9 @@ class TestGovernance(unittest.TestCase):
             self.assertEqual([item.name for item in registry.catalog()], ["refund-review"])
             self.assertEqual(registry.load("refund-review").meta.allowed_tools, ["concat"])
 
-            agent = build(AgentConfig(
-                model=FakeModel([answer("unused")]),
-                tools=[concat],
-                mode="workflow",
-                workflow=registry.as_workflow("refund-review").steps,
-            ))
-            result = asyncio.run(agent.run(Goal("退款审核")))
+            h = Harness.of(model=FakeModel([answer("unused")]), tools=[concat])
+            program = workflow(*registry.as_workflow("refund-review").steps)
+            result = asyncio.run(h.run(program, Goal("退款审核")))
             self.assertEqual(result.status, RunStatus.COMPLETED)
             self.assertEqual(result.answer, "cd")
         finally:
