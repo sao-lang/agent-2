@@ -3,8 +3,8 @@
 不联网；模型是固定剧本。
 
 运行：
-    $env:PYTHONPATH="code/harness/src"
-    python code/harness/examples/contracts_demo.py
+    $env:PYTHONPATH="src"
+    python examples/contracts_demo.py
 """
 
 from __future__ import annotations

@@ -3,8 +3,8 @@
 不联网；模型是固定剧本。这个脚本只演示“改动点在哪里”，不比较答案质量。
 
 运行：
-    $env:PYTHONPATH="code/harness/src"
-    python code/harness/examples/coupling.py
+    $env:PYTHONPATH="src"
+    python examples/coupling.py
 """
 
 from __future__ import annotations

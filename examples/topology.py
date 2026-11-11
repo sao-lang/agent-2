@@ -1,8 +1,8 @@
 """四种拓扑：同一批 Agent，只换组合方式。
 
 运行：
-    $env:PYTHONPATH="code/harness/src"
-    python code/harness/examples/topology.py
+    $env:PYTHONPATH="src"
+    python examples/topology.py
 """
 
 from __future__ import annotations

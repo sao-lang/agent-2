@@ -1,6 +1,6 @@
 # 从零重建 Harness —— 全框架逐文件封装实录
 
-> 本教程按真实依赖顺序，把 `code/harness/src/harness/` 里**每一个文件**从空目录
+> 本教程按真实依赖顺序，把 `src/harness/` 里**每一个文件**从空目录
 > 开始重建一遍：先给这个文件的真实代码（逐字来自仓库，个别超长处用 `…` 标注省略），
 > 再讲它是怎么封装出来的。全文没有总览，只有施工。
 >
@@ -4138,7 +4138,7 @@ cd code/harness
 PYTHONPATH=src python -m unittest discover -s tests -v      # 304 个测试
 PYTHONPATH=src python examples/interpret_minimal.py
 PYTHONPATH=src python examples/unknown_architectures.py
-cd code/harness && PYTHONPATH=. python -m proposals.demo     # 独立样张 14 案例
+PYTHONPATH="src;." python -m proposals.demo     # 独立样张 14 案例
 ```
 
 ---

@@ -1,8 +1,8 @@
 """Plan-and-Execute 示例：固定计划、逐步执行。
 
 运行：
-    $env:PYTHONPATH="code/harness/src"
-    python code/harness/examples/pe_agent.py
+    $env:PYTHONPATH="src"
+    python examples/pe_agent.py
 """
 
 from __future__ import annotations

@@ -4,8 +4,7 @@
 框架不提供架构，架构就是你写的这个程序。
 
 运行：
-    cd code/harness
-    PYTHONPATH=src python examples/interpret_minimal.py
+    PYTHONPATH="src" python examples/interpret_minimal.py
 """
 
 from __future__ import annotations

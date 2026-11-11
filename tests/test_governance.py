@@ -55,7 +55,7 @@ class TestGovernance(unittest.TestCase):
         self.assertEqual(asyncio.run(AlwaysRoute().route(Goal("x"))).name, "default")
 
     def test_skill_as_workflow(self):
-        tmp = Path("code/harness/tests/_tmp_skill")
+        tmp = Path(__file__).resolve().parent / "_tmp_skill"
         shutil.rmtree(tmp, ignore_errors=True)
         tmp.mkdir(parents=True)
         try:

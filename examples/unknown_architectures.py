@@ -9,8 +9,7 @@
 * BareFunction    零封装：一个裸函数就是架构
 
 运行：
-    cd code/harness
-    PYTHONPATH=src python examples/unknown_architectures.py
+    PYTHONPATH="src" python examples/unknown_architectures.py
 """
 
 from __future__ import annotations

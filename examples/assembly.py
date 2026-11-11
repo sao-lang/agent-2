@@ -1,8 +1,8 @@
 """五个装配预设：同一套组件，只改配置。
 
 运行：
-    $env:PYTHONPATH="code/harness/src"
-    python code/harness/examples/assembly.py
+    $env:PYTHONPATH="src"
+    python examples/assembly.py
 """
 
 from __future__ import annotations

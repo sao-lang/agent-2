@@ -3,7 +3,7 @@
 > 面向对象：想真正理解这个框架怎么"想"的人。读完你应该能回答三个问题：
 > 框架守什么、程序管什么、一条 Effect 从产生到落盘走了哪些路。
 >
-> 配套阅读：`README.md`（一页纸总览）、`../../docs/harness/PROPOSAL-通用解释器与效应系统.md`（设计规格）。
+> 配套阅读：`README.md`（一页纸总览）、`docs/harness/PROPOSAL-通用解释器与效应系统.md`（设计规格）。
 
 ---
 
@@ -574,12 +574,12 @@ Outcome(answer, status, transitions, usage, trace, checkpoints)
 
 ```bash
 # 环境准备（PowerShell）
-$env:PYTHONPATH="$PWD\code\harness\src"
+$env:PYTHONPATH="$PWD\src"
 $env:PYTHONIOENCODING='utf-8'
 
-python code/harness/examples/interpret_minimal.py       # 1. 最小解释器
-python -m unittest discover -s code/harness/tests -v    # 2. 304 个测试全绿
-cd code/harness && PYTHONPATH=. python -m proposals.demo  # 3. 独立样张 14 案例
+python examples/interpret_minimal.py       # 1. 最小解释器
+python -m unittest discover -s tests -v    # 2. 304 个测试全绿
+PYTHONPATH="src;." python -m proposals.demo  # 3. 独立样张 14 案例
 ```
 
 1. **读 `examples/interpret_minimal.py`**（60 行）：裸函数 + 一批并行效应 +

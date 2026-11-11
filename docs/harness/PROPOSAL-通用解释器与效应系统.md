@@ -1,8 +1,8 @@
 # 通用解释器与效应系统：agent-harness v3 方案
 
 > 状态：提案（已带可运行样张） · **实施状态：已落地，见附录 C** · 日期：2026-11-09 · 目标版本：0.3 / contracts_version 3  
-> 配套代码：`code/harness/proposals/`（独立样张，不接入 `src/harness`）  
-> 运行验收：`cd code/harness && PYTHONPATH=. python -m proposals.demo`  
+> 配套代码：`proposals/`（独立样张，不接入 `src/harness`）  
+> 运行验收：`PYTHONPATH="src;." python -m proposals.demo`  
 > 实测：10 种内置范式 + 4 种"框架作者没想过的架构"全部通过；带环 DAG 被装配期拦截；治理分级、dry_run、横切观测均通过。
 
 ---
@@ -126,7 +126,7 @@ while True:
 
 ## 4. 核心契约（完整代码）
 
-> 完整可运行版本：`code/harness/proposals/contracts.py`。下面代码与该文件一致，仅省略模块 docstring 与 `__all__`。
+> 完整可运行版本：`proposals/contracts.py`。下面代码与该文件一致，仅省略模块 docstring 与 `__all__`。
 
 ```python
 from __future__ import annotations
@@ -255,7 +255,7 @@ class Layer:
 
 ## 5. 唯一解释器（完整代码）
 
-> 完整可运行版本：`code/harness/proposals/interpreter.py`。下面为核心实现（保留全部逻辑）。
+> 完整可运行版本：`proposals/interpreter.py`。下面为核心实现（保留全部逻辑）。
 
 ```python
 import asyncio, copy, inspect
@@ -481,7 +481,7 @@ class Runtime:
 
 ## 7. 十种内置架构范式（完整封装代码）
 
-> 目标位置：`src/harness/fp/frontends.py`。样张：`code/harness/proposals/paradigms.py`。  
+> 目标位置：`src/harness/fp/frontends.py`。样张：`proposals/paradigms.py`。  
 > 这十个类与用户自写架构**完全同层、同一个 `Program` 协议**；内核不认识它们，删掉整个文件框架照样跑任意架构。
 
 ### 7.0 公共辅助与叶子
@@ -809,7 +809,7 @@ class Graph:
 
 ## 8. 使用其他架构的范式（完整代码示例）
 
-> 完整可运行版本：`code/harness/proposals/custom.py`。  
+> 完整可运行版本：`proposals/custom.py`。  
 > 这四个架构都是**框架作者没想过的**，全部只写在用户侧，`contracts.py` / `interpreter.py` 一行不改。
 
 ### 8.1 Backtrack：回溯搜索（ToT / LATS）
@@ -1030,7 +1030,7 @@ await Runtime().interpret(program, State("裸函数"))
 
 ```
 docs/harness/PROPOSAL-通用解释器与效应系统.md    本文件
-code/harness/proposals/
+proposals/
     contracts.py       State / Effect / Decision / Halt / Program / Layer
     interpreter.py     Runtime（四段链 + interpret + 效应处理器）
     paradigms.py       十种内置架构范式 + builtin_paradigms()
@@ -1075,7 +1075,7 @@ PYTHONPATH=. python -m proposals.demo
 | 只增不改 | `contracts/types.py`（`Effect` 加 `key/args/child/idem_key/index`，`kind` 放宽为 `str`）、`contracts/state.py`（`results/journal` + `snapshot/restore`）、`contracts/errors.py`、`contracts/protocols/runtime.py`（`Program` 协议）、`kernel/chain.py`（POINTS 扩到 8 个） |
 | 接线 | `assembly/config.py`（`max_transitions` + 全插点校验）、`assembly/registry.py`（`PROGRAMS` + `register_program`）、`assembly/harness.py`（`interpret()` / `new_runtime()` / `dry_run_program()`）、`fp/__init__.py`（`Program.transition()` + `name` + `from_spec` 走注册表）、`assembly/agent.py`、`kernel/loop.py`、`parts/topology.py`、`__init__.py` |
 | 收敛 | `kernel/loop.py` 与 `assembly/agent.py` 的循环体**已删除**，降为 `interpret()` 的前端薄壳；AST 检查确认全库只有一个运行循环 |
-| 文档 | `code/harness/README.md` 重写；根 `README.md` 卷 12 条目更新（48–53 六篇此前已删） |
+| 文档 | `README.md` 重写；根 `README.md` 卷 12 条目更新（48–53 六篇此前已删） |
 
 ### C.2 与提案的三处偏差（均有意，且已在测试中钉死）
 

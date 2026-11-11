@@ -1,7 +1,7 @@
 # agent-harness 框架设计规格书
 
 > **版本** 1.0 · 2026-11-04 · 状态：**定稿，可据此实现**
-> **范围** `code/harness/`（副线组件基座）
+> **范围** ``（副线组件基座）
 > **基线** `outline/20-副线封装推导.md`（5.0–5.9）与 `outline/vol12-组件封装.md`（第 48–53 章）。基线的**九个插点、十五个组件、四层架构、R1–R7、十二类型十一接口、五种装配形态、四种拓扑**全部保留，本文只做运行时收敛与接口细化。
 > **取代** `docs/harness/ARCHITECTURE.md`（已并入本文并删除）
 > **读者** 实施方（人或 AI）：据此做任务拆分（§20）、编码（M1–M16）、验收（§1.4 + §21）
@@ -809,7 +809,7 @@ class BodyPolicy(Protocol):
 | `Planner` **只属 P&E** | ReAct/Workflow 持有 Planner 会产生"隐式规划"，无法归因 |
 | 重试/重规划次数上限写死在策略里 | 否则 Reflection 自激 |
 | 达到 `max_steps` → `Done(reason="max_steps")` | 与内核上限同义，不允许两套终止 |
-| v1 用 `policy.__class__.__name__ == "WorkflowPolicy"` 判断中止（[agent.py:238](../../code/harness/src/harness/agent.py)） | **删除**，改为 `on_tool_error` 显式属性 |
+| v1 用 `policy.__class__.__name__ == "WorkflowPolicy"` 判断中止（[agent.py:238](../../src/harness/agent.py)） | **删除**，改为 `on_tool_error` 显式属性 |
 
 ### M3.4 `Planner`
 
@@ -1163,7 +1163,7 @@ class Skills(Protocol):
 | ② 正文 | 模型调 `load_skill(name)` 后 | 一个 SKILL.md 正文 | `Capability` 层改写本轮 sections，`ephemeral=True` |
 | ③ 资源 | 模型调 `read_skill_resource` 后 | 单个 reference | 同上，按需 |
 
-外加：`allowed_tools` 在 `tool_call` 链里**真正执行**（过滤 `schemas(allow=...)`）。v1 只解析不使用（[skills.py:93](../../code/harness/src/harness/skills.py)），这是现成的洞。
+外加：`allowed_tools` 在 `tool_call` 链里**真正执行**（过滤 `schemas(allow=...)`）。v1 只解析不使用（[skills.py:93](../../src/harness/skills.py)），这是现成的洞。
 
 | 约束 | 理由 |
 |---|---|

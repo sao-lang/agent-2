@@ -1,8 +1,7 @@
 """通用解释器方案 · 可运行样张（不接入 src/harness）。
 
 运行：
-    cd code/harness
-    PYTHONPATH=. python -m proposals.demo
+    PYTHONPATH="src;." python -m proposals.demo
 """
 
 from proposals.contracts import Decision, Effect, Halt, Layer, State

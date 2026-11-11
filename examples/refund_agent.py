@@ -1,8 +1,8 @@
 """最小示例：ReAct + 工具 + 预算 + 轨迹。
 
 运行：
-    $env:PYTHONPATH="code/harness/src"
-    python code/harness/examples/refund_agent.py
+    $env:PYTHONPATH="src"
+    python examples/refund_agent.py
 """
 
 from __future__ import annotations

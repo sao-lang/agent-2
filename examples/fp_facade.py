@@ -1,8 +1,8 @@
 """P5 门面演示：三个类型 + 组合 + 端到端运行。
 
 运行：
-    $env:PYTHONPATH="code/harness/src"
-    python code/harness/examples/fp_facade.py
+    $env:PYTHONPATH="src"
+    python examples/fp_facade.py
 """
 
 from __future__ import annotations

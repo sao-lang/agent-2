@@ -1,7 +1,7 @@
 """FP 组合形态样张：把 v2 的插点 / 挂载用函数组合表达。
 
 运行：
-    python code/harness/examples/fp_composition.py
+    python examples/fp_composition.py
 
 这不是框架实现，是一份"可运行的形态样张"：证明同样的能力用函数组合
 表达时，开发体验（写、换、测）是什么样。核心只有三条：

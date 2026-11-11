@@ -2,8 +2,8 @@
 
 **框架不提供任何架构，只提供一套完备的最小执行契约与效应系统；架构是运行其上的程序。**
 
-> 规格：[`docs/harness/PROPOSAL-通用解释器与效应系统.md`](../../docs/harness/PROPOSAL-通用解释器与效应系统.md)
-> 组件基座（v1/v2 资产）：[`SPEC.md`](../../docs/harness/SPEC.md) · 开发记录：[`DEV-SESSION.md`](../../docs/harness/DEV-SESSION.md)
+> 规格：[`docs/harness/PROPOSAL-通用解释器与效应系统.md`](docs/harness/PROPOSAL-通用解释器与效应系统.md)
+> 组件基座（v1/v2 资产）：[`SPEC.md`](docs/harness/SPEC.md) · 开发记录：[`DEV-SESSION.md`](docs/harness/DEV-SESSION.md)
 
 ## 唯一契约
 
@@ -46,16 +46,16 @@ print(asyncio.run(interpret(program, make_state("最小示例"))).answer)  # 裸
 ## 运行
 
 ```powershell
-$env:PYTHONPATH="$PWD\code\harness\src"
+$env:PYTHONPATH="$PWD\src"
 $env:PYTHONIOENCODING='utf-8'
 
-python -m unittest discover -s code/harness/tests -v      # 304 个测试
-python code/harness/examples/interpret_minimal.py          # 最小解释器
-python code/harness/examples/unknown_architectures.py      # 四种"没想过的架构"
+python -m unittest discover -s tests -v      # 304 个测试
+python examples/interpret_minimal.py          # 最小解释器
+python examples/unknown_architectures.py      # 四种"没想过的架构"
 ```
 
 ```bash
-cd code/harness && PYTHONPATH=. python -m proposals.demo   # 独立可运行样张（14 案例）
+PYTHONPATH="src;." python -m proposals.demo   # 独立可运行样张（14 案例）
 ```
 
 ## 内置范式（可删的前端库）
