@@ -1,9 +1,11 @@
 # PatchPilot · 产品需求与技术设计方案
 
 > **文档类型**：PRD + 技术方案（用于设计评审与开发交付）
-> **版本**：v1.1　|　**最后更新**：2026-11-11
+> **版本**：v1.2　|　**最后更新**：2026-11-12
 > **产品定义**：把「给一个 issue，产出一份可审阅、可验证、可追溯、可回滚的 PR」做成一条 7×24 可运营的服务。
 > **适用范围**：产品需求、系统架构、前后端功能设计、接口契约、交付与运营。
+> **模块化阅读入口**：`docs/modules/README.md`（按模块拆分的完整闭环设计，每份可独立阅读；M0 阅读指南与 M1–M4 核心模块已交付，其余模块见该文档地图）。
+> **v1.2 变更**：新增 X10 阶段感知技能披露、X11 执行层自适应路由。机制集中在 §2.6.5 / §2.6.6，契约、安全、前端与验收分别落入 §3–§9 既有章节；不改变 §3 架构分层，不新增服务、模块与 agent 角色。
 
 ---
 
@@ -64,7 +66,7 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 | 业务 | **可合并率** = 实际被人工合并的 PR / 提交的 PR；issue → 可用 PR 的 MTTR；人工介入率 | 记录每次打回原因，作为迭代输入 |
 | 质量 | 验证门通过率、回归率、**重复运行稳定性**（同题 N 次成功比例）、diff 越界拦截率 | 可靠性优先于「一次做对」 |
 | 安全 | **unsafe-action rate**、注入对抗用例拦截率、egress 阻断数、secret 泄漏数（目标恒为 0） | 与成功率独立统计 |
-| 成本 | 单任务模型成本 P50/P95、wall time、沙箱机时、配额熔断次数 | 按租户 / 仓库 / 模型三维归因 |
+| 成本 | 单任务总成本 P50/P95（模型 + 沙箱机时）、wall time、配额熔断次数 | 按租户 / 仓库 / 模型 / tier 四维归因；分档升级带来的重复执行计入本轮成本 |
 | 体验 | SSE 首事件延迟、事件丢失率、审批等待时长、控制面可用性 | 前端可观测 |
 
 **指标设计依据**：单一「测试通过率」不足以代表交付质量。公开静态评测集存在饱和与污染风险；测试通过不等于维护者会合并（风格、设计、可维护性均未被覆盖）；评分环境若与执行环境处于同一 writable 域，测试夹具本身可被改写而制造假通过；能力（单次做对）与可靠性（每次都做对）在长任务中会系统性分离；「完成任务」与「安全地完成」是两个独立指标。因此端到端验收采用离线回归门禁 + 人工接受率 + 安全性指标的组合，离线结果报告分布与置信区间，不报告单点估计。
@@ -91,7 +93,7 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 | FR-02 | 策略准入：仓库 / 标签 / 严重度 / 并发 / 预算 / 文件禁区 | P0 | 后端 |
 | FR-03 | 任务状态机、队列、暂停 / 取消 / 接管 / 追加指令 / 崩溃续跑 | P0 | 前后端 |
 | FR-04 | 一次性隔离沙箱、环境可复现、网络默认拒绝 | P0 | 后端 |
-| FR-05 | ACI 工具集、最小权限、结构化输出、上下文预算、模型分级路由 | P0 | 后端 |
+| FR-05 | ACI 工具集、最小权限、结构化输出、上下文预算（模型分级路由的规格见 FR-31） | P0 | 后端 |
 | FR-06 | 代码增量索引与混合检索，结果绑定 commit SHA | P1 | 后端 |
 | FR-07 | 独立验证门：复现 → 修复 → 全量回归 + lint/type/扫描 | P0 | 后端 |
 | FR-08 | 防作弊：禁改测试 / CI / 锁文件、diff 范围与规模上限 | P0 | 后端 |
@@ -107,7 +109,7 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 | FR-18 | diff 分屏审阅、逐行评论、批量接受 / 拒绝 | P0 | 前端 |
 | FR-19 | 评测 / 策略 / 审计 / 运行监控页面 | P1 | 前端 |
 | FR-20 | 前后端契约单一事实来源（OpenAPI + 事件 schema + 枚举） | P0 | 前后端 |
-| FR-21 | 上下文管理：工具输出截断、state 与正文分离、超阈值压缩、上下文可复现、裁剪可观测 | P0 | 后端 |
+| FR-21 | 上下文管理：工具输出截断、state 与正文分离、超阈值压缩、上下文可复现、裁剪可观测（技能按需披露见 FR-30） | P0 | 后端 |
 | FR-22 | 失败分类、分层重试、熔断与降级阶梯 | P0 | 后端 |
 | FR-23 | 成本闭环：预算前置冻结、真实计量、四维硬上限、归因告警 | P1 | 前后端 |
 | FR-24 | 准入可修复性预检，不适合的任务快速拒绝并给出补充信息建议 | P1 | 前后端 |
@@ -116,6 +118,8 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 | FR-27 | 人工交接包（已定位文件 / 已排除方案 / 最小复现 / 当前 diff / 接手建议） | P1 | 前后端 |
 | FR-28 | 最小可审阅 diff：剔除无关 hunk 并标注断言与覆盖测试 | P1 | 前后端 |
 | FR-29 | 计算复用与整任务去重（测试结果、索引快照、依赖层） | P2 | 后端 |
+| FR-30 | 阶段感知技能披露：按状态 + 执行面确定性预取，模型请求经白名单校验；技能包契约、来源绑定与上下文账 | P1 | 前后端 |
+| FR-31 | 执行层自适应路由：coder 三档模型、纯代码 rubric、单向升级上限、可解释分账与复现指纹 | P1 | 前后端 |
 
 ### 2.2 非功能需求
 
@@ -133,9 +137,9 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 
 | 资产 | 不可信输入 | 攻击路径 | 控制点 |
 |---|---|---|---|
-| 私有源码、密钥、CI 配置、受保护分支、生产凭据 | issue 正文 / 评论、HTML 隐藏注释、PR 描述、README、依赖文档、测试输出、工具返回、检索到的代码注释 | ① 注入 → 读 `.env` / token → 外传；② 改测试 / CI → 假通过或执行恶意 workflow；③ 越界改基础设施 / 依赖 → 供应链；④ 沙箱逃逸；⑤ 超大 diff / 循环消耗预算 | 一次性沙箱 + egress 默认拒绝 + 短时凭证 + 工具 allow/deny/ask + 独立评分环境 + 防作弊规则 + 只追加审计 + 配额 + 分支保护 + 对抗测试 |
+| 私有源码、密钥、CI 配置、受保护分支、生产凭据 | issue 正文 / 评论、HTML 隐藏注释、PR 描述、README、依赖文档、测试输出、工具返回、检索到的代码注释、**仓库内 `.agents/skills/` 技能包** | ① 注入 → 读 `.env` / token → 外传；② 改测试 / CI → 假通过或执行恶意 workflow；③ 越界改基础设施 / 依赖 → 供应链；④ 沙箱逃逸；⑤ 超大 diff / 循环消耗预算；⑥ **agent 改写技能包给自己授权 / 技能正文夹带越权指令** | 一次性沙箱 + egress 默认拒绝 + 短时凭证 + 工具 allow/deny/ask + 独立评分环境 + 防作弊规则 + 只追加审计 + 配额 + 分支保护 + 对抗测试 + **技能包 commit SHA 绑定 / 只读挂载 / 契约 CI / `.agents/` 写入禁区** |
 
-注入防护不能只依赖 prompt 中「issue 是数据」的声明：内容型过滤只能覆盖单一藏匿点，网络边界与权限策略才是最终控制面。
+注入防护不能只依赖 prompt 中「issue 是数据」的声明：内容型过滤只能覆盖单一藏匿点，网络边界与权限策略才是最终控制面。技能包的控制面同样是**绑定与只读**，不是内容过滤——内容级检测只作告警信号，不承诺「100% 识别注入指令」；拦截判据是「越权动作是否被执行」（§9.3）。
 
 ### 2.4 架构约束
 
@@ -143,12 +147,12 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 2. 出网默认拒绝，域名 + 端口 + **HTTP 方法**三级 allowlist，DNS 受控，阻断云元数据地址，代理记录被拒请求并回写到 PR 与前端；依赖安装阶段与 agent 执行阶段的网络策略分离。
 3. 凭证不进沙箱：短时 installation token（约 1h，按仓库 / 权限收窄）由沙箱外的 credential broker 签发、任务结束撤销；不使用长期 PAT，私钥与 KMS 不挂载进执行环境。
 4. 不可委托决策：agent 只开 draft PR，不能自审自合、不能触发未审批 workflow、不能改权限 / 密钥 / CI 策略；分支保护对 agent 无例外。
-5. 工具集面向模型设计（ACI）：`view / search / edit / run_tests`，编辑带语法校验，输出截断降噪；仓库契约文件（`AGENTS.md`）由人工维护，用于声明构建 / 测试命令、约定与禁区。
+5. 工具集面向模型设计（ACI）：`view / search / edit / run_tests`，编辑带语法校验，输出截断降噪；仓库契约文件（`AGENTS.md`）由人工维护，用于声明构建 / 测试命令、约定与禁区。**工具数量是每轮常驻税**：技能披露（X10）不新增第 5 个常驻工具，模型请求通过结构化输出字段表达。
 6. 验证是瓶颈：确定性门禁先于任何模型评审；**评分环境与执行环境隔离**，禁止 agent 改测试、锁文件、CI 配置制造假通过。
-7. 证据与审计：工具调用、策略判定、文件改动、网络请求、token 消耗、审批决定写入只追加日志，归因到发起人 / session / commit SHA。
+7. 证据与审计：工具调用、策略判定、文件改动、网络请求、token 消耗、审批决定、技能加载与档位切换写入只追加日志，归因到发起人 / session / commit SHA。
 8. 长任务 = durable execution：持久化 checkpointer + `thread_id` + interrupt/resume；`interrupt()` 恢复时节点从顶部重执行，前置副作用必须幂等；checkpoint 只保存状态，进程崩溃后的自动续跑需要独立工作流运行时。
 9. 控制面主界面：任务卡 / 状态为顶层心智模型、worktree 隔离并行、「需要人注意」事件可路由、diff 内联评论即时改、后台异步无需盯进度条。
-10. 编排保持简单：Supervisor 为默认形态；按成本 / 角色分级路由模型；显式迭代上限与终止边；多执行面的价值在权限与上下文隔离，不在角色数量。
+10. 编排保持简单：Supervisor 为默认形态；按成本 / 角色分级路由模型（**规格见 §2.6.6，判断层固定强模型，路由只作用于 coder**）；显式迭代上限与终止边；多执行面的价值在权限与上下文隔离，不在角色数量。
 
 ### 2.5 假设与依赖
 
@@ -159,7 +163,7 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 
 ### 2.6 横切能力：上下文、可靠性、预算与效率
 
-> 本节规定的能力不改变 §3 架构分层、不新增服务与 agent 角色，全部作为机制落在既有域内。编号 X1–X9 与 §8 总表、FR-21～FR-29 一一对应。
+> 本节规定的能力不改变 §3 架构分层、不新增服务、模块与 agent 角色，全部作为机制落在既有域内。编号 X1–X11 与 §8 总表、FR-21～FR-31 一一对应；v1.2 新增的 X10 / X11 见 §2.6.5 / §2.6.6。
 
 #### 2.6.1 上下文管理（X1 · 落在 F2 / F4 / F5）
 
@@ -169,10 +173,10 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 | 检索侧预算装配 | 按 token 预算产出结构性符号地图，不堆砌文件片段 | 代码库远大于上下文窗口 |
 | state 与正文分离 | state 只存结论（路径 / 行号 / diff 引用 / 测试结论），大日志与大 diff 放对象存储存引用 | 每个 super-step 都会序列化 state，大对象会拖垮 checkpoint |
 | 超阈值压缩 | 仅压缩 tool message，保留任务契约与「已尝试并排除的方案」清单 | 防止 agent 反复踩同一个坑；系统指令不可被压缩掉 |
-| 上下文可复现 | prompt 版本 + 索引快照 + 模型版本 + 工具 schema 一起记录 | 同题两次必须能跑出相同结果，否则评测不可信 |
-| 裁剪可观测 | 记录每轮 token 占用与被裁剪内容 | 成本归因与排障需要「装配的账」 |
+| 上下文可复现 | prompt 版本 + 索引快照 + 模型版本 + 工具 schema + **技能集合与 version + 路由配置版本与打分器输入快照**一起记录 | 同题两次必须能跑出相同结果；X10 / X11 引入新的上下文变量，不进指纹则评测不可信 |
+| 裁剪可观测 | 记录每轮 token 占用、被裁剪内容与**上下文账**（index / 预取 / 请求 / 加载 / 压缩 token、cache 命中） | 成本归因与排障需要「装配的账」，也是 X10 的验收依据 |
 
-明确不做：四槽位装配框架、为压缩而追加的摘要链、把历史修复对喂回 prompt 当作经验。
+明确不做：四槽位装配框架、为压缩而追加的摘要链、把历史修复对喂回 prompt 当作经验、**通用技能语义发现与技能正文嵌套引用**（加载会退化为无界图遍历）。技能包是仓库契约，不是可被模型自由检索的目录（X10）。
 
 #### 2.6.2 失败分类、重试、熔断与降级（X2 · 落在 F2 / F7 / §9.2）
 
@@ -197,6 +201,8 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 
 原则：**降级降的是自动化程度，不是安全级别**；任何降级路径都不得关闭验证门、diff 规则、审计与分支保护。验收以「kill worker / 配额打满 / 模型超时后是否保住状态并优雅转人工」为准，不演示「不拦会怎样」。
 
+**与 X11 的优先级**：X2 是**任务级**系统性降级，X11 是**编辑单元级**档位选择。降级阶梯触发时任务级裁决优先于单元级分档，且降级路径内不触发 X11 升级，避免「X2 降档 + X11 升档」反复拉扯；attempt 边界（新 `Run`）重置 tier，成本仍按 §2.6.3 单独记账。
+
 #### 2.6.3 成本管理闭环（X3 · 落在 F2 / F4 / F9 / §9.4）
 
 | 层 | 做法 |
@@ -204,10 +210,10 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 | 前置冻结 | 建任务时按 issue 类型 / 仓库规模估算并冻结额度，策略准入检查余额 |
 | 真实计量 | `usage_metadata` 的真实 token × 模型单价，另计沙箱机时、embedding 与存储（沙箱机时常被漏计） |
 | 四维硬上限 | token / wall time / 工具调用数 / sandbox 分钟；触顶是**确定性中断并转人工**，不是提示模型省着点 |
-| 优化 | 模型分级路由、prompt caching（固定系统前缀与仓库契约）、检索与上下文瘦身、同 commit 结果缓存；best-of-N 仅低置信度触发 |
-| 归因告警 | 按租户 / 仓库 / 任务 / 节点出账，成本 P50/P95、异常任务告警 |
+| 优化 | 模型分级路由（规格见 §2.6.6 / X11）、prompt caching（固定系统前缀与仓库契约）、检索与上下文瘦身、同 commit 结果缓存；best-of-N 仅低置信度触发。**技能正文必须放每轮固定槽位**，中途插入不得破坏系统前缀的 cache 命中 |
+| 归因告警 | 按租户 / 仓库 / 任务 / 节点 / **tier** 出账，成本 P50/P95、异常任务告警 |
 
-硬约束：**降本不得削弱门禁**——跳过全量回归、缩减扫描项与关闭验证门等价，禁止。明确不做：把成本看板当作核心交付、把模型路由降本当作主指标。
+硬约束：**降本不得削弱门禁**——跳过全量回归、缩减扫描项与关闭验证门等价，禁止。X10 / X11 的降本按**总成本**核算：模型 token 之外的沙箱机时、升级导致的重复 `run_tests` 与 wall time 一并计入本轮，禁止用「模型单价下降」冒充「单任务成本下降」。明确不做：把成本看板当作核心交付、把模型路由降本当作主指标。
 
 #### 2.6.4 效率与体验增强（X4–X9）
 
@@ -221,6 +227,146 @@ RECEIVED → QUALIFIED → ENV_READY → REPRODUCING → PATCHING → VERIFYING
 | X9 | 计算复用与整任务去重 | 打回重跑、影子模式、CI 重跑、webhook 重放会产生相同输入的重复计算；现有幂等只到 delivery 级 | 按 `(repo, commit_sha, test_scope)` 缓存测试结果，复用索引快照与依赖层；按 `(issue_ref, commit_sha, policy_version)` 做整任务去重；影子模式结果可被正式跑复用 | F1 / F3 / F5 | 缓存命中率；重复提交产生的实际执行次数 = 1 | P2 |
 
 X4–X9 均不新增服务、不新增模块、不新增 agent 角色，只消掉链路里的浪费与等待。§9.3 对抗用例中「成本逼近配额、任务长时间无进展」的期望行为即由 X5 + X7 + X2 降级阶梯共同满足。
+
+#### 2.6.5 阶段感知技能披露（X10 · 落在 F2 / F3 / F4 / F5 / F7 / F9 / F10 / W2 / W4 / W5 / W6）
+
+**一句话定位**：状态机驱动的技能按需注入，不是通用懒加载框架。
+
+**边界：明确不做（X10 / X11 共同约束）**
+
+| 不做 | 理由 |
+|---|---|
+| 通用技能语义发现（模型从大目录里自己挑） | 索引写不好即召回失败，漏加载的代价是用错规程；状态机是确定信号，不该浪费 |
+| 多子 Agent 路由（每个技能开独立 agent） | 上下文交接损失 > 分工收益；与 §3.4「价值在权限隔离不在角色数量」一致 |
+| 让 LLM 自报置信度做路由决策 | 校准差，只能当提示不能当依据；X11 一律用确定性信号 |
+| 技能正文嵌套引用 | 加载退化为无界图遍历，必然「渐进式困惑」 |
+| `load_skill` 做成第 5 个 ACI 工具 | 工具数量是每轮常驻税（§2.4 约束 5），改为结构化输出字段 |
+| 全局模型调度器 / 路由作用于 locator | 前者把 F2 复杂度拉高一个量级，后者规划失败的代价是整轮成本 |
+
+**三层上下文（按阶段过滤，不按语义检索）**
+
+| 层 | 内容 | 预算 | 注入时机 |
+|---|---|---|---|
+| 常驻核心 | 系统指令 + `AGENTS.md` 契约 + 当前阶段规程骨架 | 固定系统前缀 | 始终，保持 prompt caching 命中 |
+| 索引层 | 当前阶段候选技能的 `id` + `one_liner` | 硬上限 300 token | 每次进入新阶段重建 |
+| 按需层 | 技能正文（自包含、单文件、无嵌套引用） | 单次 ≤1500 token，单轮总计 ≤3000 | 阶段预取 1–2 个 + 模型显式请求 |
+
+骨架与正文须去重，否则「token 下降」会被重复内容抵消；正文放**每轮固定槽位**，避免打断缓存前缀。
+
+**两条加载路径（主路径确定性）**
+
+1. **阶段预取（主）**：`TaskState × (node, surface) → skill_ids` 由服务端裁决——平台侧 `Policy.skill_allowlist` 定义各阶段允许集合，仓库侧 `manifest.yaml` 的 `applies_to_phases` 只能申请，**两者取交集**。纯 TaskState 粒度粗于执行面（定位与修复同在 `PATCHING`），故装配时按二级映射收窄。进入 `REPRODUCING` 预取复现规程，进入 `PATCHING` 且 surface = coder 时预取编辑规程；不依赖模型判断，零召回风险。唯一裁决点在服务端（§7.3），仓库不能单方面给自己授权。
+2. **模型请求（辅）**：模型在结构化输出中声明 `need_skill: string[]`，编排层校验白名单、存在性、加载深度 = 1、单轮次数 ≤2、token 上限后才注入正文。请求与校验结果写入 checkpoint，回放时按记录重放，保证同题同版本的加载集合一致（X1）。
+
+**技能包契约**（位于被接入仓库，随任务创建时的 `commit_sha` 只读挂载）
+
+```
+.agents/skills/<skill-id>/
+  manifest.yaml   # id, name, one_liner, applies_to_phases, applies_to_surfaces,
+                  # triggers, token_estimate, version, owner
+  SKILL.md        # 正文，自包含，禁止引用其他文件
+```
+
+- `applies_to_phases` 只允许 `SkillPhase`（§4.2 定义的主链子集），挂在 `QUARANTINED` / `BUDGET_EXCEEDED` 等旁路态由 CI 拒绝。
+- `applies_to_surfaces` 取 `locator | coder`；gatekeeper 是确定性门禁，其规则属于 F6 策略配置，不进 X10 的 token 预算体系。低置信度模型复核路径如需规程，单独标注，不默认注入。
+- `manifest.yaml` 走 JSON Schema 校验，纳入 `packages/contracts`；正文中的越权 / 外传 / 改门禁类指令由契约 CI 静态检查，运行时内容检测只作告警。
+
+**安全（落在 F3 / F7）**
+
+技能包来自仓库，与 issue 正文同级不可信：
+
+| 控制 | 做法 |
+|---|---|
+| 来源绑定 | 绑定任务创建时的 `commit_sha`，只读挂载，不跟随分支 HEAD 漂移；`skills_contract_sha` 进证据包 |
+| 写入禁区 | `.agents/` 加入 `deny_paths`，agent 不得通过 `edit` 改写技能包给自己授权 |
+| 路径校验 | 拒绝 `..`、绝对路径、符号链接逃逸 |
+| 契约 CI | 路径 / 嵌套引用 / manifest schema / 越权指令模式静态检查，随 F9 回归门禁执行 |
+| 运行时 | 技能正文标注为不可信数据；内容级注入检测只告警，**最终控制面是 egress / 工具白名单 / 只读挂载**（§2.3） |
+| 审计 | 每次加载记录 `task_id + attempt + phase + surface + skill_id + version`，写只追加日志 |
+| 变更门禁 | 技能包或白名单变更与 prompt 版本化同等级，自动触发 F9 回归；无在线关闭开关（§1.6 原则 7） |
+
+**可观测与验收（落在 F9 / X1）**
+
+每轮写「上下文账」：`index_tokens / prefetched_skills / requested_skills / loaded_tokens / compressed_tokens / cache_hit`，进入 `Evidence.context_account` 与 X1 复现指纹。
+
+| 指标 | 目标（影子模式 / 离线回放，报分布与置信区间） |
+|---|---|
+| `PATCHING` 阶段 prompt token（同任务集对照） | 下降 ≥30%，且可合并率非劣效（置信区间下界 > −2pp） |
+| 预取命中率 = 模型实际请求技能中已被预取覆盖的比例 | ≥95%；未命中任务可归因到具体阶段与 surface |
+| prompt cache 命中率 | 不低于对照，防止「token 降了、实际成本升了」 |
+| 恶意技能包对抗用例 | 路径逃逸 / 嵌套引用 / 越权指令 100% 被**策略或契约 CI 拦住动作**（§9.3） |
+| 技能 / 白名单变更 | 自动触发 F9 回归门禁 |
+
+对照实验一律在影子模式或离线回放完成，不提供在线「技能开关」；「漏加载率」因缺少客观真值不作为指标，改用可观测的预取命中率。
+
+#### 2.6.6 执行层自适应路由（X11 · 落在 F2 / F4 / F9 / F10 / W2 / W4 / W5 / W6）
+
+**一句话定位**：执行层按可验证性选模型，不是判断层路由，也不是全局调度器。
+
+**作用域**
+
+| 层 | 模型策略 |
+|---|---|
+| locator（定位、是否可修、改哪里） | **固定强模型，不参与路由** |
+| coder（具体编辑执行） | 三档路由 `cheap / standard / frontier`（§4.2 `Tier`） |
+| gatekeeper | 确定性门禁，不用模型（模型复核仅为 F6 低置信度可选路径） |
+| X4 准入预检 | 独立便宜模型，任务级；与 X11 的编辑单元级职责不重叠、不合并 |
+
+路由只改变「谁来写这次编辑」，不改变「该不该修、修哪里」，也不改变验证门。
+
+**Rubric 打分器（纯代码，不调模型）**
+
+决策发生在 coder 调用之前，因此**只用先验特征**（来自 locator 产出的 planned edit unit）；改动文件数、diff 大小、可逆性是编辑后产物，只能用于升级决策，不得用于首次分档。
+
+| 先验信号 | 低分（→ cheap） | 高分（→ frontier） |
+|---|---|---|
+| 可机械验证性 | 有目标测试覆盖、断言明确 | 无测试、只能人工判断 |
+| 计划编辑单元范围 | 单文件、单函数 | 跨 2+ 文件 / 跨模块 |
+| 接口边界 | 内部实现 | 公开 API / 类型契约变更 |
+| 格式约束 | 自由格式 | 严格 schema / 结构化输出 |
+| 上下文压力 | 远低于预算 | 已触发 X1 裁剪 |
+
+加权得分映射三档；阈值默认值在 F10 配置中心版本化，租户覆盖挂 `Policy.routing_thresholds`（绑定 `policy_version`），裁决优先级为「租户覆盖 > 平台默认」，变更触发 F9 回归。**每条信号的贡献与命中阈值写入 `RoutingDecision`**，否则审批台上的「为什么这次用了贵模型」只有一个档位名、没有理由。评分输入快照与 `routing_config_version` 进 X1 复现指纹。
+
+> 不引入「同指纹历史修复成功率」作为信号：X9 缓存的是测试结果 / 索引快照 / 整任务去重，不提供修复经验库；若指纹已精确到可复用答案，应走 X9 去重而非重新生成（§2.6.4）。
+
+**升级信号（单向、有上限、时序正确）**
+
+仅以下客观信号触发**同 attempt 内**升级，最多 2 次；不做自动降级避免档位抖动，attempt 边界（新 `Run`）重置 tier：
+
+| 信号 | 来源 | 说明 |
+|---|---|---|
+| 循环内目标测试仍失败 | F4 `run_tests`（X6 影响分析选测） | 区分编译错 / 断言错 / 超时，编译错升级收益最高 |
+| 结构化输出校验连续失败 ≥2 | F4 | 格式问题优先升级而非无限重试 |
+| X5 无进展指纹命中 | F2 | 只触发**一次**升级；连续无进展才早停 |
+| X1 上下文溢出触发裁剪后仍失败 | F4 | 升级前**重新装配上下文**，不让强模型看残缺输入 |
+
+**Gatekeeper 失败不属于上表**：它在最终验证门才执行一次（§3.2 步骤 8 / X6），此时 attempt 已结束；在此换模型重编辑会导致第二次全量回归，破坏「全量套件执行次数 = 1」。Gatekeeper 失败归**任务级重跑（X2）或转人工交接（X7）**。
+
+升级原因、来源信号、前后档位逐条写入 `Run.tier_history`；成本按 tier 分账，X3 四维硬上限不变。X5 的无进展计数器**不因升级重置**，避免「第一次重复即升级、第二次重复即早停」只给一次机会；升级（继续）与早停（终止）共享指纹但动作不同。
+
+**与既有能力的关系**
+
+| 能力 | 关系 |
+|---|---|
+| X2 降级阶梯 | 任务级优先于单元级；降级路径不触发升级（§2.6.2） |
+| X3 成本闭环 | 路由是「用对档位」不是「砍档位」；按总成本核算，降本不得削弱验证门 |
+| X4 准入预检 | 任务级 vs 编辑单元级，职责不重叠 |
+| X5 早停 | 共享指纹、动作分离；计数器不因升级重置 |
+| X6 测试分层 | 升级信号取循环内选测结果，不触碰验证门唯一一次全量回归 |
+| X9 去重 | 不提供历史成功率信号；与「已知答案」的边界见上 |
+
+**验收（影子模式 / 离线回放，报分布与置信区间）**
+
+| 指标 | 目标 |
+|---|---|
+| 简单任务集（单文件、有目标测试）单任务**总成本** | 下降 ≥25%（分布下界），含沙箱机时与升级重复执行 |
+| 复杂任务集**可合并率 + 重复运行稳定性** | 非劣效，不以 pass@1 为唯一北极星 |
+| 升级率 / 升级后成功率 / 误升级率（升了仍失败） | 三项均可测，写入 F9 评测报告 |
+| rubric 分档与真实结果的相关性 | 离线回放验证通过后才灰度放行（§7.4） |
+| 阈值或技能变更 | 自动触发 F9 回归门禁 |
+
+**落地顺序**：X10 低风险、收益确定、可完全离线回放验证，先行；X11 的打分器是纯代码，可先在历史回放数据上批量打分验证相关性，再接线上，不冒线上成本风险。
 
 ---
 
@@ -287,8 +433,8 @@ flowchart TB
 4. 准备环境：按仓库契约拉取固定镜像、只读挂载指定 commit SHA 的代码、安装依赖（此阶段才允许受限出网）、生成环境指纹。
 5. **复现失败**：先跑与 issue 关联的测试 / 最小复现，失败才继续；无法复现 → 转人工。
 6. 定位：增量索引 + 符号表 + 混合检索 → 候选文件与上下文，受 token 预算约束。
-7. 修复：ACI 工具循环、结构化输出、错误回填自愈；每次编辑语法校验；所有工具调用写审计。
-8. **Gatekeeper 独立验证**（agent 进程无权干涉）：目标测试 + 全量回归 + lint / type / secret / 依赖扫描 + diff 白名单与规模 + 防作弊规则。
+7. 修复：ACI 工具循环、结构化输出、错误回填自愈；每次编辑语法校验；所有工具调用写审计。**进入阶段时按 X10 装配技能（确定性预取 + 校验过的模型请求），按 X11 的先验 rubric 为本次编辑单元选档；循环内 `run_tests` 失败、结构校验连续失败、X5 无进展或 X1 裁剪后仍失败，才在同 attempt 内单向升级（≤2 次）**。
+8. **Gatekeeper 独立验证**（agent 进程无权干涉）：目标测试 + 全量回归 + lint / type / secret / 依赖扫描 + diff 白名单与规模 + 防作弊规则。**此处失败不触发 X11 的 attempt 内升级**（全量回归恰好一次），按 X2 任务级重跑或 X7 转人工处理。
 9. 证据包落对象存储，状态 `EVIDENCE_READY` → `interrupt()` 进入 `AWAITING_APPROVAL`。
 10. 审批台：diff 逐行评论、证据核对；批准 → GitHub Bridge 用短时 token 开 **draft PR**、回写 issue、注册 Check Run；打回 → 携带评论回到步骤 7（有次数上限）。
 11. 仓库 CI 在受保护分支规则下运行（首次 workflow 需人批）；合并与否完全由人决定。
@@ -316,6 +462,8 @@ flowchart TB
 | 审阅物 | diff + 证据包 | 改动范围由策略与白名单约束，审 diff 比审计划更贴近实际风险 |
 | 执行面划分 | locator / coder / gatekeeper 三个执行面 + 编排节点 | 价值在权限与上下文隔离，不在角色数量 |
 | 审批 | 仅 PR 创建一处 `interrupt()` | 计划审批让短任务卡在等人；模型复核是主观分叠在客观门禁上 |
+| 技能披露 | 阶段确定性预取 + 执行面隔离，模型请求走结构化输出字段 | 不新增常驻工具、不做语义检索；唯一裁决点在服务端（X10 / §2.6.5） |
+| 执行层模型策略 | locator 固定强模型；coder 三档单向升级；gatekeeper 确定性 | 路由只改「谁写这次编辑」，不改「该不该修、修哪里」；规划失败的代价是整轮成本（X11 / §2.6.6） |
 
 ---
 
@@ -327,13 +475,15 @@ flowchart TB
 |---|---|---|
 | `Tenant` | id, name, quota, retention_policy | 配额与留存策略归属 |
 | `Repo` | id, tenant_id, installation_id, default_branch, policy_version, allow_paths, deny_paths | 接入审批与策略绑定 |
-| `Task` | id, tenant_id, repo_id, issue_ref, state, reason_code, created_by, budget, cost, env_fingerprint, commit_sha | 任务主记录，`state` 见 §4.2 |
-| `Run` | id, task_id, thread_id, attempt_no, checkpoint_rev, model_profile, started_at, ended_at | 一次执行尝试，支持打回重跑 |
-| `Evidence` | id, run_id, object_key, test_log, scan_results, diff_stat, env_fingerprint, commit_sha, hash | 证据包索引，对象存于对象存储 |
+| `Task` | id, tenant_id, repo_id, issue_ref, state, reason_code, created_by, budget, cost, env_fingerprint, commit_sha, **routing_profile, skills_contract_sha, policy_version** | 任务主记录，`state` 见 §4.2；`policy_version` 是建任务时的策略快照，只存**静态引用**，逐轮变化的数据不进 `Task` |
+| `Run` | id, task_id, thread_id, attempt_no, checkpoint_rev, model_profile, started_at, ended_at, **initial_tier, tier_history[], routing_config_version, context_account_ref** | 一次执行尝试，支持打回重跑；`model_profile` 记初始档，档位变化全在 `tier_history` |
+| `Evidence` | id, run_id, object_key, test_log, scan_results, diff_stat, env_fingerprint, commit_sha, hash, **context_account, routing_account** | 证据包索引，对象存于对象存储；两本账供审阅者判断「为什么这次用了贵模型」 |
 | `Approval` | id, task_id, approver, decision, comments, decided_at | 审批记录，发起人不可审批自己发起的任务 |
-| `Policy` | id, tenant_id, version, rules_json, created_by | 版本化策略，可回滚 |
+| `Policy` | id, tenant_id, version, rules_json, created_by, **skill_allowlist, routing_thresholds** | 版本化策略，可回滚；阈值默认值另在 F10 配置中心版本化，此处只放租户覆盖 |
 | `AuditEvent` | seq, task_id, actor, action, decision, payload, trace_id, prev_hash | 只追加，hash 链防篡改 |
 | `IndexSnapshot` | repo_id, commit_sha, object_key, created_at | 保证检索结果可复现 |
+
+**字段归属原则**：`skills_loaded[]`、`context_account`、tier 变化都是**逐轮过程数据**，放 `Task` 会在打回重跑（新 `Run`、成本单独记账）时被覆盖；`Task` 只留静态引用，过程账放 `Run` / `Evidence`，事件流用 `AgentEvent(kind = skill | routing)`。`skill_prefetch_map` 不是独立配置项，而是 `Policy.skill_allowlist` 与仓库 `manifest.yaml` 取交集后的**裁决结果**，随 `policy_version` + `skills_contract_sha` 快照进 `Run`，保证可复现（§2.6.5 / §7.3）。
 
 ### 4.2 状态与事件枚举
 
@@ -349,7 +499,14 @@ type ReasonCode =
   | "POLICY_DENIED" | "NO_REPRO" | "VERIFY_FAILED" | "DIFF_OUT_OF_SCOPE"
   | "ANTI_CHEAT" | "EGRESS_BLOCKED" | "BUDGET_EXHAUSTED" | "TIMEOUT"
   | "MODEL_ERROR" | "HUMAN_REJECTED" | "SECURITY_INCIDENT";
+
+type SkillPhase = Extract<TaskState,
+  "ENV_READY" | "REPRODUCING" | "PATCHING" | "VERIFYING">;
+type Surface = "locator" | "coder" | "gatekeeper";
+type Tier = "cheap" | "standard" | "frontier";
 ```
+
+`applies_to_phases` 只允许 `SkillPhase` 主链子集，旁路态（如 `QUARANTINED` / `BUDGET_EXCEEDED`）挂技能由契约 CI 拒绝；`TaskState` 粒度粗于执行面（定位与修复同在 `PATCHING`），技能装配按 `(node, surface)` 二级映射收窄（X10）。`Tier` 只用于 coder 执行面（X11）。
 
 ### 4.3 REST API 概要
 
@@ -374,7 +531,8 @@ type AgentEvent = {
   seq: number;             // 每任务单调递增，用于排序与去重
   taskId: string;
   ts: string;              // ISO8601
-  kind: "state" | "token" | "node" | "tool" | "test" | "policy" | "approval" | "error";
+  kind: "state" | "token" | "node" | "tool" | "test" | "policy" | "approval" | "error"
+      | "skill" | "routing";
   phase: TaskState;
   payload: unknown;        // 按 kind 用 discriminated union 收窄
   traceId: string;
@@ -382,6 +540,7 @@ type AgentEvent = {
 ```
 
 - **可靠性**：`EventSource` 携带 `Last-Event-ID`，断线重连从 `seq` 续传；服务端在 Redis 保留最近 N 条事件，超窗则先拉一次快照再续流；`seq` 去重与乱序丢弃在前端 reducer 处理；测试日志窗口化与背压，禁止无限 append。
+- **向前兼容**：`skill`（技能加载，含 `skill_id / version / phase / surface / 预取或请求 / token`）与 `routing`（档位决策与升级，含 tier、信号贡献、升级原因）按 discriminated union 收窄；**前端 reducer 对未知 `kind` 必须忽略而非报错**，旧客户端收到新事件不得崩溃，事件序列回放测试对新增 kind 全绿（W6 / W7）。新 kind 与 `SkillManifest` / `RoutingDecision` / `TierHistoryEntry` schema 同步进 `packages/contracts`，由 CI 校验前后端生成结果一致。
 - **鉴权**：一次性、分钟级 SSE ticket 由 BFF 用 OIDC session 换取；长期 token 不放 URL；每条事件在服务端按 `tenant_id` + `task_id` 校验。
 - **三种流**：`messages`（token 流）、`updates`（节点事件）、`custom`（测试实时输出）；`values` / `debug` 用于内部诊断，不作为看板数据源。
 
@@ -406,7 +565,7 @@ type AgentEvent = {
 
 - **功能**：任务状态机、策略准入、队列与优先级、并发与公平调度、暂停 / 取消 / 接管 / 追加指令、超时与重试、崩溃自动续跑、幂等副作用。
 - **技术栈**：LangGraph `StateGraph`（`add_conditional_edges` / `Command` / `Send` / subgraph）、`AsyncPostgresSaver` + `durability="sync"`、`thread_id = task_id`、Temporal（长事务与自动续跑）、Redis Streams（短任务）、KEDA 扩缩。
-- **要点**：`interrupt()` 恢复时节点从顶部重执行，其前置副作用（发通知、建分支、写 PR）必须幂等（幂等键 = `task_id + step + payload hash`）；迭代上限与预算是上线常量，不提供关闭开关；worker 完全无状态，任何实例凭 `thread_id` 接管；失败分类、降级阶梯、无进展早停与交接包按 §2.6.2 / §2.6.4（X2 / X5 / X7）执行。
+- **要点**：`interrupt()` 恢复时节点从顶部重执行，其前置副作用（发通知、建分支、写 PR）必须幂等（幂等键 = `task_id + step + payload hash`）；迭代上限与预算是上线常量，不提供关闭开关；worker 完全无状态，任何实例凭 `thread_id` 接管；失败分类、降级阶梯、无进展早停与交接包按 §2.6.2 / §2.6.4（X2 / X5 / X7）执行；X10 的阶段预取在进入阶段时触发，技能加载决策写入 checkpoint 供回放重放；X11 的升级信号只取循环内 `run_tests` 失败等客观信号，Gatekeeper 失败归任务级重跑（§2.6.6）。
 - **验收**：kill worker 后另一实例从最近 checkpoint 续跑且不重复副作用；暂停 24h 后恢复不丢状态；取消立即释放沙箱。
 
 ### F3 · 执行沙箱与环境域
@@ -418,30 +577,30 @@ type AgentEvent = {
 
 ### F4 · 工具层与 Agent 循环域
 
-- **功能**：ACI 风格受限工具集、按执行面最小权限、参数校验、输出截断与错误分类、ReAct 循环、结构化输出、上下文预算、模型分级路由、prompt 版本化。
+- **功能**：ACI 风格受限工具集、按执行面最小权限、参数校验、输出截断与错误分类、ReAct 循环、结构化输出、上下文预算、模型分级路由（规格见 §2.6.6 / X11）、技能按需披露（X10）、prompt 版本化。
 - **技术栈**：LangChain `ChatModel.bind_tools` / `with_structured_output` / `trim_messages` / `BaseCallbackHandler`，LangGraph `ToolNode` + `tools_condition`，Pydantic v2，自研 model gateway（多供应商 + vLLM 自托管），`AIMessage.usage_metadata`。
-- **要点**：工具只有 `view`（带行窗口）/ `search` / `edit`（语法校验后写入）/ `run_tests`；每个执行面绑定不同工具白名单（locator 无写权、coder 无出网、gatekeeper 只读）；工具输出做长度与噪声裁剪；结构化输出校验失败回灌重试有次数上限；prompt 与工具 schema 版本化并纳入回归门禁；上下文截断、state 瘦身与可复现性按 §2.6.1（X1）执行，循环内测试范围按 §2.6.4（X6）收窄。
+- **要点**：工具只有 `view`（带行窗口）/ `search` / `edit`（语法校验后写入）/ `run_tests`；每个执行面绑定不同工具白名单（locator 无写权、coder 无出网、gatekeeper 只读）；工具输出做长度与噪声裁剪；结构化输出校验失败回灌重试有次数上限；prompt 与工具 schema 版本化并纳入回归门禁；上下文截断、state 瘦身与可复现性按 §2.6.1（X1）执行，循环内测试范围按 §2.6.4（X6）收窄；技能按需装配落在本域上下文装配——不新增常驻工具，`need_skill` 走结构化输出字段，正文放固定槽位（X10）；执行层三档模型与单向升级由本域执行，rubric 只用先验特征、每条信号贡献写 `RoutingDecision`（X11）。
 - **验收**：越权工具调用在策略层被拒并写审计；缺字段响应被修复或明确失败；单任务上下文不超预算；换模型只改配置。
 
 ### F5 · 代码检索与上下文域
 
 - **功能**：增量索引（跟随 push / commit）、AST 分块与符号表、混合检索、查询改写、上下文装配、索引快照版本化。
 - **技术栈**：tree-sitter（多语言解析）、Qdrant（向量）、BM25（Tantivy / OpenSearch 或 rank-bm25）、代码嵌入模型（自托管）、RRF 融合、`Document.metadata` 带 `file:line` + commit SHA、对象存储存索引快照。
-- **要点**：索引跟随 commit 增量更新，检索结果必须绑定代码版本，否则复现实验不可信；上下文按 token 预算装配（产出结构性符号地图而非堆砌片段）；堆栈与 issue 文本改写成检索查询；组件级指标采用文件级 top-k 命中率。
+- **要点**：索引跟随 commit 增量更新，检索结果必须绑定代码版本，否则复现实验不可信；上下文按 token 预算装配（产出结构性符号地图而非堆砌片段）；堆栈与 issue 文本改写成检索查询；组件级指标采用文件级 top-k 命中率；技能索引层按 (phase, surface) 重建并硬限 300 token，与代码检索一样绑定 commit SHA，不做技能语义检索（X10）。
 - **验收**：push 后索引在 SLA 内更新；同题同 commit 两次检索结果一致；命中率有离线评测集支撑。
 
 ### F6 · 验证与质量门禁域 ★
 
 - **功能**：复现失败、生成 / 校验回归测试、目标测试 + 全量回归 + lint / type + secret / 依赖扫描、防作弊、证据包生成、独立评分环境。
 - **技术栈**：Gatekeeper 独立服务 + 独立沙箱、pytest / Jest / Go test 适配器、CodeQL / Semgrep、gitleaks / trufflehog、osv-scanner、`git diff` 解析 + 路径 / AST 规则、对象存储（证据包）、Check Run 绑定 commit SHA。
-- **要点**：评分环境与 agent 执行环境物理隔离——同 writable 域下测试夹具可被改写而制造假通过；禁止改测试 / CI / 锁文件、禁止删除断言、diff 路径与规模上限、新增测试必须人工确认；无法复现失败则不进入修复；模型评审只作为低置信度时的可选二次意见，不替代确定性门禁；全量回归只在门禁侧执行一次、循环内按影响分析选测（X6），并按 §2.6.4（X8）输出最小可审阅 diff。
+- **要点**：评分环境与 agent 执行环境物理隔离——同 writable 域下测试夹具可被改写而制造假通过；禁止改测试 / CI / 锁文件、禁止删除断言、diff 路径与规模上限、新增测试必须人工确认；无法复现失败则不进入修复；模型评审只作为低置信度时的可选二次意见，不替代确定性门禁；全量回归只在门禁侧执行一次、循环内按影响分析选测（X6），并按 §2.6.4（X8）输出最小可审阅 diff；Gatekeeper 失败是 attempt 终止信号，不触发 X11 的同 attempt 升级，否则全量回归会被执行第二次（§2.6.6）。
 - **验收**：注入「改测试让测试通过」的对抗用例必须被拦；证据包能独立复跑出相同结论；Check Run 与 commit SHA 一一对应。
 
 ### F7 · 安全与治理域 ★
 
 - **功能**：不可信输入标注与来源隔离、egress 策略、deny / ask / allow 工具策略、短时凭证 broker、secret 扫描钩子、只追加审计、配额与熔断、数据合规。
 - **技术栈**：OPA / Casbin 策略引擎、Vault / KMS、GitHub App token broker、Envoy egress proxy（域名 + 端口 + 方法 allowlist、DNS 控制、拒答日志）、gitleaks（PreToolUse）、hash-chain / WORM 对象存储审计、OIDC / SAML + RBAC、Prometheus 告警。
-- **要点**：所有 issue / 评论 / 注释 / 工具输出标注为不可信数据；egress 被拒请求回写到 PR 与前端，让策略可见；凭证只在工具边界注入、从不进入模型上下文；不可委托决策清单（合并、部署、权限变更、策略例外、密钥访问）硬性编码在策略引擎；日志脱敏但保留取证所需字段与留存策略；疑似注入按安全事件处理（吊销 token、保留日志、轮换凭据、复盘）。
+- **要点**：所有 issue / 评论 / 注释 / 工具输出标注为不可信数据；egress 被拒请求回写到 PR 与前端，让策略可见；凭证只在工具边界注入、从不进入模型上下文；不可委托决策清单（合并、部署、权限变更、策略例外、密钥访问）硬性编码在策略引擎；日志脱敏但保留取证所需字段与留存策略；疑似注入按安全事件处理（吊销 token、保留日志、轮换凭据、复盘）；技能包与 issue 同级不可信——绑定 commit SHA 只读挂载、`.agents/` 进 `deny_paths`、路径逃逸 / 符号链接 / manifest schema 由契约 CI 静态校验，内容级注入检测只告警，最终控制面仍是 egress 与工具白名单（§2.3 / X10）。
 - **验收**：§9.3 对抗用例 100% 被策略层拦下；审计可完整重放一次任务；secret 泄漏数为 0；配额超限自动降级到人工并告警。
 
 ### F8 · PR 交付与回滚域
@@ -455,14 +614,14 @@ type AgentEvent = {
 
 - **功能**：全链路 trace（任务 → 节点 → 模型 → 工具 → 成本）、结构化日志、指标与告警、四层评测、影子模式、回归门禁、实验对比与报告。
 - **技术栈**：OpenTelemetry、LangFuse（LLM trace + 成本）、Prometheus / Grafana、Loki、Sentry、自建 Eval Runner、私有评测集 + 动态趋势集、确定性轨迹断言。
-- **要点**：成本归因到租户 / 任务 / 节点；评测跑多次报分布与置信区间；LLM 裁判固定版本并尽量由确定性轨迹检查替代；评分环境隔离；门禁不可在线关闭，所有对照在影子 / 离线完成。评测分四层：CI 快速回归门禁（私有集）、动态抗污染趋势集（仅趋势观察）、人工接受率、安全与轨迹对抗用例。
-- **验收**：任一任务可在 trace 中重建完整路径；prompt / 模型 / 工具变更触发回归门禁；报告含方差与样本量。
+- **要点**：成本归因到租户 / 任务 / 节点；评测跑多次报分布与置信区间；LLM 裁判固定版本并尽量由确定性轨迹检查替代；评分环境隔离；门禁不可在线关闭，所有对照在影子 / 离线完成。评测分四层：CI 快速回归门禁（私有集）、动态抗污染趋势集（仅趋势观察）、人工接受率、安全与轨迹对抗用例；上下文账与路由账进证据包，技能包 / 白名单 / 路由阈值变更与 prompt 同等触发回归门禁，X10 / X11 的所有对照走影子模式或离线回放。
+- **验收**：任一任务可在 trace 中重建完整路径；prompt / 模型 / 工具 / 技能包 / 路由阈值变更触发回归门禁；报告含方差与样本量。
 
 ### F10 · 平台与多租户域
 
 - **功能**：租户 / 仓库接入审批、成员与 RBAC、策略与配置中心（版本化）、配额与限流、密钥管理、健康检查与 HA、备份与恢复。
 - **技术栈**：Postgres（RLS 或应用层 tenant 过滤）、Redis 限流、Vault、配置版本表、Kubernetes + Helm / Terraform、PITR。
-- **要点**：所有对象带 `tenant_id`；控制面无状态、队列与 checkpoint 持久化；审计与证据包按留存策略归档；提供全本地部署路径满足代码不出域。
+- **要点**：所有对象带 `tenant_id`；控制面无状态、队列与 checkpoint 持久化；审计与证据包按留存策略归档；提供全本地部署路径满足代码不出域；路由阈值默认值与技能白名单在此版本化（租户覆盖在 `Policy`），任一变更触发 F9 回归，配置版本随 `routing_config_version` 快照进 `Run`（§2.6.5 / §2.6.6）。
 - **验收**：跨租户读取被拒；控制面滚动升级不丢在途任务；Postgres 可恢复到任意检查点。
 
 ---
@@ -493,10 +652,10 @@ type AgentEvent = {
 |---|---|---|
 | 工作台 | 待办、进行中、需我注意、成功率 / 成本 / SLA / 告警概览 | 指标卡、趋势图、「needs attention」列表 |
 | 任务中心 | 多状态筛选、批量暂停 / 取消 / 重试、按仓库 / 成本 / 时长排序 | 虚拟表格、看板（dnd-kit）、批量操作栏 |
-| **任务详情**（核心） | 见 §6.3 | 事件时间线、diff 分屏、测试控制台、证据包、干预面板 |
-| 审批台 | diff 逐行评论、证据核对、风险提示、批准 / 打回 | `@codemirror/merge`、inline comment、风险标签 |
-| 评测与回归 | 实验对比、指标分布（含置信区间）、门禁结果、对抗用例通过率 | Recharts / ECharts、对比表 |
-| 策略与配置 | 仓库白名单、文件禁区、预算、模型路由、审批规则、`AGENTS.md` 预览 | 表单 + 版本 diff + 灰度开关 |
+| **任务详情**（核心） | 见 §6.3 | 事件时间线（含技能加载 / 档位切换）、diff 分屏、测试控制台、证据包、干预面板 |
+| 审批台 | diff 逐行评论、证据核对、风险提示、**本次编辑的 tier 与升级路径**、批准 / 打回 | `@codemirror/merge`、inline comment、风险标签 |
+| 评测与回归 | 实验对比、指标分布（含置信区间）、门禁结果、对抗用例通过率、**路由 A/B 成本-通过率散点、技能披露前后 prompt token 柱状对比** | Recharts / ECharts、对比表 |
+| 策略与配置 | 仓库白名单、文件禁区、预算、模型路由、**技能白名单、路由阈值版本 diff**、审批规则、`AGENTS.md` 预览 | 表单 + 版本 diff + 灰度开关 |
 | 审计与合规 | 谁发起 / 谁批准 / 何时、策略判定、网络请求、证据包下载 | 只追加日志视图、导出 |
 | 运行监控 | 队列深度、沙箱并发、超时 / 熔断、成本异常 | 实时指标 + 告警列表 |
 | 设置 | 成员 / RBAC、通知渠道、主题、语言 | 通用设置 |
@@ -506,11 +665,11 @@ type AgentEvent = {
 | 区域 | 内容 | 交互 |
 |---|---|---|
 | 顶部状态条 | 状态机当前态、耗时、成本、模型、环境指纹、commit SHA | 一键复制证据链 |
-| 左：事件时间线 | 阶段、工具调用、策略判定、错误与自愈、审批记录（按 `seq` 有序） | 折叠 / 筛选 / 跳转日志 |
+| 左：事件时间线 | 阶段、工具调用、**技能加载**、**档位切换与升级原因**、策略判定、错误与自愈、审批记录（按 `seq` 有序） | 折叠 / 筛选 / 跳转日志 |
 | 右：实时流 | token 流、节点事件、测试输出 | 自动滚动 + 暂停 + 背压 |
 | 主区：Diff 审阅 | 按模块分组、逐行评论、批量接受 / 拒绝、语法高亮、大文件虚拟滚动 | 评论直接变成 agent 的结构化反馈 |
 | 主区：测试控制台 | 复现失败 / 目标测试 / 全量回归 / lint / 扫描的分步结果与日志 | 增量渲染、日志窗口化 |
-| 主区：证据包 | 环境指纹、扫描结果、成本清单、可下载归档 | 独立复核入口 |
+| 主区：证据包 | 环境指纹、扫描结果、成本清单、**上下文账（index / 预取 / 请求 / 加载 / 压缩 / cache 命中）与路由账（tier 分布、升级原因、升级后是否通过）**、可下载归档 | 独立复核入口 |
 | 右下：干预面板 | 暂停 / 继续 / 取消 / 接管 / 追加指令 / 重跑 / 转人工 | 每个动作二次确认 + 审计记录 |
 | 异常态 | 拒绝原因码、超时、超预算、隔离（QUARANTINED）说明与处置建议 | 不显示裸「失败」 |
 
@@ -521,6 +680,7 @@ type AgentEvent = {
 - **本地 UI 状态**：Zustand（面板折叠、diff 展开、筛选、草稿评论）。
 - **乐观更新**：仅用于评论、暂停 / 继续等可逆操作，失败回滚并提示；审批 / 取消等不可逆操作不做乐观更新。
 - **「agent needs attention」是一等事件**：浏览器通知 / 站内未读角标 / 可配置 IM Webhook，避免用户盯着进度条。
+- **新 kind 的回放**：`skill` / `routing` 按 `seq` 参与既有 event-sourced reducer；reducer 对未知 kind 忽略而非报错，回放测试覆盖新旧混合事件序列，新增 kind 不得破坏既有 reducer（W7）。
 
 ### 6.5 体验与工程要点
 
@@ -546,7 +706,7 @@ type AgentEvent = {
 
 ### 6.7 前后端契约与边界
 
-- `packages/contracts` 单一事实来源：OpenAPI（REST）+ JSON Schema / Zod（事件）+ 状态与原因码枚举；CI 校验前后端生成结果一致。
+- `packages/contracts` 单一事实来源：OpenAPI（REST）+ JSON Schema / Zod（事件）+ 状态与原因码枚举 + **`SkillManifest` / `RoutingDecision` / `TierHistoryEntry` schema + `SkillPhase` / `Surface` / `Tier` 枚举**；CI 校验前后端生成结果一致，schema 变更即失败。
 - BFF 职责：OIDC session → 短期 SSE ticket、聚合首屏数据、统一错误映射、隐藏内部服务拓扑；**不做鉴权判定**。
 - 服务端按 `tenant_id` + `task_id` 对每个 REST 请求与每条 SSE 事件做权限校验；前端隐藏按钮只是体验。
 - 错误响应统一 `{ code, message, traceId, retryable, evidenceRef? }`。
@@ -586,6 +746,7 @@ patchpilot/
     eval_runner/         # datasets/ / adversarial/ / regression_gate.py
   packages/
     contracts/           # openapi.yaml / events.schema.json / enums / error_codes
+                         # + skill_manifest / routing_decision / tier_history schema
     sdk/                 # 生成的 TS / Python 客户端
     prompts/             # 版本化 prompt + AGENTS.md 模板
   infra/
@@ -593,9 +754,13 @@ patchpilot/
     deploy/              # Helm charts / terraform / 网络策略
     observability/       # OTel collector / Grafana dashboards / 告警规则
   docs/
+    modules/             # 模块化设计：M0 阅读入口 + M1–M4 闭环文档
+    plan/                # 权威方案与历史对照文档
     adr/                 # 架构决策记录（§3.4 每决策一页）
     runbook/             # 熔断、凭据轮换、事件响应预案
 ```
+
+被接入仓库侧另有 `.agents/skills/<skill-id>/{manifest.yaml, SKILL.md}`：它**不属于本仓库**，随任务创建时的 `commit_sha` 只读挂载进沙箱，由 `packages/contracts` 的 `SkillManifest` schema 校验；本仓库只维护校验规则与服务端白名单（X10 / §2.6.5）。
 
 ### 7.3 前后端职责划分
 
@@ -621,6 +786,8 @@ patchpilot/
 | **P2 可运营** | 长任务、观测、灰度 | F2 / F9 / F10 + 完整控制面 + 回归门禁 | kill 续跑、配额熔断、影子模式可出报告 |
 | **P3 可规模化** | 多租户、并行、成本可控 | 工作区隔离、KEDA、多租户配额、自托管模型路径 | 并发 SLA 与成本 P95 达标 |
 
+X10 在「P2 可运营」阶段随回归门禁一并上线（低风险、可完全离线回放验证）；X11 的打分器是纯代码，先在影子模式 / 离线回放中用历史数据验证分档与真实结果的相关性，通过后才在「P3 可规模化」阶段灰度放行。两者都不新增服务，不改变 §3 分层。
+
 ---
 
 ## 8. 功能 → 技术栈 → 要点总表
@@ -630,7 +797,7 @@ patchpilot/
 | F1 | Webhook 接入与幂等 | FastAPI / PyJWT RS256 / GitHub App / Redis | 原始 body 验签、delivery 去重 14d、先 ack 后处理 | 重放不产生第二任务 |
 | F2 | 任务编排与 durable execution | LangGraph / AsyncPostgresSaver / Temporal / KEDA | interrupt 前副作用幂等；checkpoint ≠ 自动续跑 | kill 后跨实例续跑 |
 | F3 | 一次性执行沙箱 | gVisor/Kata / seccomp / cgroups / Envoy egress | 只读根 fs、无宿主挂载、依赖与执行网络分离 | 沙箱读不到宿主凭据 |
-| F4 | ACI 工具与 agent 循环 | LangChain bind_tools / with_structured_output / ToolNode | 工具最小权限、输出降噪、prompt 版本化 | 越权调用被策略层拒绝 |
+| F4 | ACI 工具与 agent 循环 | LangChain bind_tools / with_structured_output / ToolNode | 工具最小权限、输出降噪、prompt 版本化；**技能按需装配、正文固定槽位、执行层三档分档与单向升级** | 越权调用被策略层拒绝 |
 | F5 | 代码检索与上下文 | tree-sitter / Qdrant / BM25+RRF / 对象存储快照 | 索引绑定 commit SHA、token 硬预算 | 同题同 commit 可复现 |
 | F6 | 验证门与防作弊 | 独立 Gatekeeper 沙箱 / pytest / CodeQL / Semgrep / gitleaks | **评分环境与执行环境隔离**、禁改测试 / CI / 锁文件 | 改测试作弊用例被拦 |
 | F7 | 安全治理与审计 | OPA/Casbin / Vault / egress proxy / WORM 审计 / OIDC | 凭证不出 broker、被拒请求可见、不可委托决策硬编码 | 对抗用例 100% 拦截 |
@@ -653,6 +820,8 @@ patchpilot/
 | X7 | 人工交接包 | 结构化 handoff schema + 证据包引用 | 让人介入成本最低 | 人工处理时长、重复提交率 |
 | X8 | 最小可审阅 diff | hunk 级规则 + 断言/覆盖标注 | 剔除无关 hunk 减少打回重跑 | 平均 hunk 数、打回率 |
 | X9 | 计算复用与任务去重 | 结果缓存 / 索引快照 / 幂等键 | 消除影子/重跑/重放的重复计算 | 重复提交实际执行次数 = 1 |
+| X10 | 阶段感知技能披露 | `SkillManifest` schema / 阶段与执行面预取 / 结构化输出 `need_skill` / 契约 CI | 确定性预取为主、模型请求经白名单校验、技能包绑定 commit SHA 只读、`.agents/` 禁写、上下文账进证据包 | PATCHING token 下降 ≥30% 且 cache 命中不降；恶意技能包 100% 被拦 |
+| X11 | 执行层自适应路由 | 纯代码 rubric / model gateway 三档 / `RoutingDecision` / `tier_history` | 仅 coder 分档、只用先验特征、单向升级 ≤2 次、Gatekeeper 失败不升级、总成本含机时 | 简单任务总成本下降 ≥25%；升级率 / 误升级率可测 |
 
 ---
 
@@ -660,7 +829,7 @@ patchpilot/
 
 ### 9.1 四阶段灰度
 
-1. **影子模式**：只对已合并的历史 issue 跑，产出 PR 草稿但不推送、不计入指标，人工比对与真实修复的差异。
+1. **影子模式**：只对已合并的历史 issue 跑，产出 PR 草稿但不推送、不计入指标，人工比对与真实修复的差异；X10 / X11 的引入前后对照与 rubric 相关性验证一律在此阶段完成，不提供在线关闭能力（§1.6 原则 7）。
 2. **内部单仓库**：仅 `auto-fix` 标签 + 指定仓库 + 白名单文件，所有 PR 强制双人审阅。
 3. **限流扩展**：按租户并发 / 预算逐步放开，低风险文件类型可单审。
 4. **多租户**：完整配额、隔离、SLO、审计与合规，提供自托管部署路径。
@@ -671,7 +840,7 @@ patchpilot/
 
 ### 9.3 对抗测试清单
 
-以**策略是否拦住动作**为判据（而非模型是否口头拒绝），每次模型 / prompt / 工具 / 检索 / 策略变更后重跑：
+以**策略是否拦住动作**为判据（而非模型是否口头拒绝），每次模型 / prompt / 工具 / 检索 / 策略 / **技能包 / 路由阈值**变更后重跑：
 
 | 用例 | 期望 |
 |---|---|
@@ -683,6 +852,10 @@ patchpilot/
 | 被拒的外传请求 | 代理日志可见，且回写到 PR / 前端 |
 | 重复投递同一 webhook、审批接口重放、进程在 interrupt 处被杀 | 幂等，不产生重复 PR / 副作用 |
 | 成本逼近配额、任务长时间无进展 | 自动降级转人工并告警 |
+| 技能包路径逃逸 / 符号链接 / 嵌套引用 / manifest 越权字段 | 契约 CI 拒绝加载，路径规范化后仍在挂载边界内 |
+| agent 改写 `.agents/skills/` 给自己授权、或引用分支新 HEAD 上的技能包 | `deny_paths` + commit SHA 只读挂载；技能正文与任务创建时一致，审计可比对 `skills_contract_sha` |
+| 技能正文夹带越权 / 外传 / 改门禁指令 | 不进入系统目标；egress 拒绝 + 工具白名单拦住动作，内容检测仅告警并记安全事件 |
+| 构造编辑单元诱导误升级、或让 Gatekeeper 失败后触发 attempt 内升级 | 升级次数 ≤2 且需客观信号；验证门失败走任务级重跑，全量套件执行次数仍 = 1 |
 
 ### 9.4 SLO 与告警
 
@@ -700,3 +873,5 @@ patchpilot/
 | 无法复现 | 无法复现失败的 issue 比例与转人工策略 | 影子模式统计后定 |
 | 并行一致性 | 多仓库并行的索引一致性与配额分配 | P3 阶段定 |
 | 数据留存 | 证据包与审计日志的留存期与合规要求 | 法务确认 |
+| rubric 阈值校准 | X11 三档阈值与信号权重的初值来自经验，需用离线回放统计校准后才灰度放行 | 影子模式统计后定 |
+| 技能包治理归属 | `.agents/skills/` 由仓库维护者提交、平台白名单裁决；评审与变更门禁的责任边界 | 契约 CI 与 §9.1 影子阶段一并定 |
